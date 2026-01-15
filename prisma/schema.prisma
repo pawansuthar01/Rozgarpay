@@ -1,0 +1,216 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  ACCOUNTANT
+  STAFF
+}
+
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum AttendanceStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AuditAction {
+  CREATED
+  UPDATED
+  APPROVED
+  REJECTED
+  DELETED
+}
+
+enum SalaryType {
+  MONTHLY
+  HOURLY
+}
+
+enum NotificationChannel {
+  EMAIL
+  INAPP
+  WHATSAPP
+  PUSH
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum OtpPurpose {
+  LOGIN
+  VERIFY_PHONE
+}
+
+enum ReportType {
+  ATTENDANCE
+  SALARY
+  USER
+  COMPANY
+}
+model Company {
+  id        String        @id @default(uuid()) @db.Uuid
+  name      String
+  status    AccountStatus @default(ACTIVE)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  users         User[]
+  attendances   Attendance[]
+  salaries      Salary[]
+  notifications Notification[]
+  reports       Report[]
+
+  @@map("companies")
+}
+model User {
+  id        String        @id @default(uuid()) @db.Uuid
+  email     String        @unique
+  phone     String        @unique
+  password  String
+  role      Role
+  status    AccountStatus @default(ACTIVE)
+  companyId String?       @db.Uuid
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  company           Company?          @relation(fields: [companyId], references: [id])
+  attendances       Attendance[]
+  approvedAttendance Attendance[]     @relation("ApprovedBy")
+  salaries          Salary[]
+  otps              Otp[]
+  notifications     Notification[]
+  pushSubscriptions PushSubscription[]
+  auditLogs         AuditLog[]
+
+  @@map("users")
+}
+model Attendance {
+  id             String           @id @default(uuid()) @db.Uuid
+  userId         String           @db.Uuid
+  companyId      String           @db.Uuid
+  attendanceDate DateTime         @db.Date
+  punchIn        DateTime
+  punchOut       DateTime?
+  imageUrl       String
+  status         AttendanceStatus @default(PENDING)
+  approvedBy     String?          @db.Uuid
+  approvedAt     DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  user            User    @relation(fields: [userId], references: [id])
+  company         Company @relation(fields: [companyId], references: [id])
+  approvedByUser  User?   @relation("ApprovedBy", fields: [approvedBy], references: [id])
+  audits          AuditLog[]
+
+  @@unique([userId, attendanceDate])
+  @@index([companyId, attendanceDate])
+}
+model Salary {
+  id           String      @id @default(uuid()) @db.Uuid
+  userId       String      @db.Uuid
+  companyId    String      @db.Uuid
+  month        Int
+  year         Int
+
+  totalDays    Float
+  approvedDays Float
+  grossAmount  Float
+  netAmount    Float
+  type         SalaryType
+  status       String      @default("PENDING")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id])
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([userId, month, year])
+  @@index([companyId, month, year])
+}
+model Otp {
+  id        String     @id @default(uuid()) @db.Uuid
+  userId    String     @db.Uuid
+  phone     String
+  otpHash   String
+  purpose   OtpPurpose
+  expiresAt DateTime
+  isUsed    Boolean    @default(false)
+  createdAt DateTime   @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([phone, purpose])
+  @@index([expiresAt])
+}
+model Notification {
+  id        String              @id @default(uuid()) @db.Uuid
+  userId    String              @db.Uuid
+  companyId String              @db.Uuid
+  title     String
+  message   String
+  channel   NotificationChannel
+  status    NotificationStatus  @default(PENDING)
+  meta      Json?
+  createdAt DateTime            @default(now())
+
+  user    User    @relation(fields: [userId], references: [id])
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([userId, status])
+}
+model PushSubscription {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  endpoint  String
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+model Report {
+  id        String     @id @default(uuid()) @db.Uuid
+  companyId String     @db.Uuid
+  type      ReportType
+  title     String
+  filters   Json
+  fileUrl   String?
+  createdAt DateTime   @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+}
+model AuditLog {
+  id        String      @id @default(uuid()) @db.Uuid
+  userId    String      @db.Uuid
+  action    AuditAction
+  entity    String
+  entityId  String
+  meta      Json?
+  createdAt DateTime    @default(now())
+  attendance   Attendance? @relation(fields: [attendanceId], references: [id])
+  attendanceId String?     @db.Uuid
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([entity, entityId])
+}
+
