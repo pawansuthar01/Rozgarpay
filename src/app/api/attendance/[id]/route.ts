@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "../../auth/[...nextauth]/route";
-import { sendNotification } from "@/lib/notificationService";
+import { notificationManager } from "@/lib/notificationService";
 
 export async function PATCH(
   request: NextRequest,
@@ -57,27 +57,34 @@ export async function PATCH(
     });
 
     // ✅ Generic audit log
-    await prisma.auditLog.create({
-      data: {
-        userId: session.user.id,
-        action: status === "APPROVED" ? "APPROVED" : "REJECTED",
-        entity: "ATTENDANCE",
-        entityId: attendanceId,
-        meta: {
-          previousStatus: attendance.status,
-          newStatus: status,
+    try {
+      await prisma.auditLog.create({
+        data: {
+          userId: session.user.id,
+          action: status === "APPROVED" ? "APPROVED" : "REJECTED",
+          entity: "ATTENDANCE",
+          entityId: attendanceId,
+          meta: {
+            previousStatus: attendance.status,
+            newStatus: status,
+          },
         },
-      },
-    });
+      });
+    } catch (auditError) {
+      console.error("Failed to create audit log:", auditError);
+      // Don't fail the request if audit log fails
+    }
 
     // ✅ Send notification to STAFF
-    await sendNotification({
-      userId: attendance.userId,
-      companyId: attendance.companyId,
-      channels: ["WHATSAPP", "PUSH"],
-      title: "Attendance Update",
-      message: `Your attendance has been ${status.toLowerCase()}.`,
-    });
+    await notificationManager.sendNotification(
+      attendance.userId,
+      "staff_manual",
+      {
+        title: "Attendance Update",
+        message: `Your attendance has been ${status.toLowerCase()}.`,
+      },
+      ["whatsapp", "push"]
+    );
 
     return NextResponse.json({ attendance: updatedAttendance });
   } catch (error) {

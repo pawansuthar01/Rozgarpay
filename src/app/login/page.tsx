@@ -16,6 +16,8 @@ export default function LoginPage() {
     if (status === "authenticated") {
       if (session?.user.role === "SUPER_ADMIN") {
         router.push("/super-admin/dashboard");
+      } else if (session?.user.role === "ADMIN") {
+        router.push("/admin/dashboard");
       } else {
         router.push("/dashboard");
       }

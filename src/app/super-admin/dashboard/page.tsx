@@ -235,7 +235,10 @@ export default function SuperAdminDashboard() {
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
             Company Status Distribution
           </h3>
-          <div className="h-80 min-h-[320px]">
+          <div
+            className={`h-80 min-h-80
+`}
+          >
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie

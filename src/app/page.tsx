@@ -10,7 +10,6 @@ export default function Home() {
 
   useEffect(() => {
     if (status === "loading") return;
-
     if (session?.user?.role === "SUPER_ADMIN") {
       router.push("/super-admin/dashboard");
     } else if (session?.user?.role === "ADMIN") {

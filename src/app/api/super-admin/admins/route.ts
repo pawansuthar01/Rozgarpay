@@ -3,7 +3,95 @@ import { getServerSession } from "next-auth";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "../../auth/[...nextauth]/route";
-import { sendNotification } from "@/lib/notificationService";
+import { notificationManager } from "@/lib/notificationService";
+
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session || session.user.role !== "SUPER_ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const search = searchParams.get("search") || "";
+    const status = searchParams.get("status");
+    const companyId = searchParams.get("companyId");
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "10");
+    const sortBy = searchParams.get("sortBy") || "createdAt";
+    const sortOrder = searchParams.get("sortOrder") || "desc";
+
+    const skip = (page - 1) * limit;
+
+    const where: any = {
+      role: "ADMIN",
+    };
+
+    if (search) {
+      where.OR = [
+        { email: { contains: search, mode: "insensitive" } },
+        { phone: { contains: search, mode: "insensitive" } },
+        { firstName: { contains: search, mode: "insensitive" } },
+        { lastName: { contains: search, mode: "insensitive" } },
+        { company: { name: { contains: search, mode: "insensitive" } } },
+      ];
+    }
+
+    if (status && status !== "ALL") {
+      where.status = status;
+    }
+
+    if (companyId && companyId !== "ALL") {
+      where.companyId = companyId;
+    }
+
+    const [admins, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        include: {
+          company: {
+            select: {
+              id: true,
+              name: true,
+              status: true,
+            },
+          },
+          _count: {
+            select: {
+              attendances: true,
+              salaries: true,
+            },
+          },
+        },
+        orderBy: {
+          [sortBy]: sortOrder,
+        },
+        skip,
+        take: limit,
+      }),
+      prisma.user.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
+    return NextResponse.json({
+      admins,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -58,14 +146,30 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Send notification
-    await sendNotification({
+    // Subscribe user to notifications
+    notificationManager.subscribeUser({
       userId: user.id,
-      companyId,
-      channels: ["INAPP"],
-      title: "Admin Account Created",
-      message: "Your admin account has been created successfully.",
+      userType: "admin",
+      types: ["admin_manual", "system_alert"],
+      channels: ["in_app", "push", "email"],
+      preferences: {
+        soundEnabled: true,
+        vibrationEnabled: true,
+        showPreview: true,
+      },
     });
+
+    // Send notification
+    await notificationManager.sendNotification(
+      user.id,
+      "admin_manual",
+      {
+        title: "Admin Account Created",
+        message: "Your admin account has been created successfully.",
+        sentBy: session.user.email,
+      },
+      ["in_app"]
+    );
 
     return NextResponse.json({
       user: { id: user.id, email: user.email, role: user.role },

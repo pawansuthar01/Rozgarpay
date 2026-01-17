@@ -10,7 +10,13 @@ export default withAuth(
         const { pathname } = req.nextUrl;
 
         // Public routes
-        if (pathname === "/login" || pathname.startsWith("/api/auth")) {
+        if (
+          pathname === "/login" ||
+          pathname.startsWith("/api/auth") ||
+          pathname.startsWith("/join/") ||
+          pathname.startsWith("/api/join/") ||
+          pathname.startsWith("/api/otp")
+        ) {
           return true;
         }
 

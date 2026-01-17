@@ -1,0 +1,587 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import {
+  Building2,
+  User,
+  Mail,
+  Phone,
+  Lock,
+  Eye,
+  EyeOff,
+  CheckCircle,
+  AlertTriangle,
+  ArrowRight,
+} from "lucide-react";
+
+interface Invitation {
+  id: string;
+  email: string;
+  phone: string;
+  role: "MANAGER" | "ACCOUNTANT" | "STAFF" | "ADMIN";
+  company: {
+    id: string;
+    name: string;
+    description?: string;
+  };
+  expiresAt: string;
+}
+
+export default function JoinPage() {
+  const params = useParams();
+  const router = useRouter();
+  const token = params.token as string;
+
+  const [invitation, setInvitation] = useState<Invitation | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  // Registration form
+  const [step, setStep] = useState<"details" | "complete">("details");
+  const [formData, setFormData] = useState({
+    firstName: "",
+    lastName: "",
+    password: "",
+    confirmPassword: "",
+    phoneOtp: "",
+    emailOtp: "",
+  });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [sendingOTP, setSendingOTP] = useState<{
+    phone: boolean;
+    email: boolean;
+  }>({
+    phone: false,
+    email: false,
+  });
+  const [verifyingOTP, setVerifyingOTP] = useState<{
+    phone: boolean;
+    email: boolean;
+  }>({
+    phone: false,
+    email: false,
+  });
+  const [otpVerified, setOtpVerified] = useState<{
+    phone: boolean;
+    email: boolean;
+  }>({
+    phone: false,
+    email: false,
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [otpCooldown, setOtpCooldown] = useState<{
+    phone: number;
+    email: number;
+  }>({
+    phone: 0,
+    email: 0,
+  });
+  const [successMessage, setSuccessMessage] = useState("");
+
+  useEffect(() => {
+    validateInvitation();
+  }, [token]);
+
+  // Countdown timer for OTP cooldown
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setOtpCooldown((prev) => ({
+        phone: prev.phone > 0 ? prev.phone - 1 : 0,
+        email: prev.email > 0 ? prev.email - 1 : 0,
+      }));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const validateInvitation = async () => {
+    try {
+      const res = await fetch(`/api/join/${token}`);
+      if (res.ok) {
+        const data = await res.json();
+        setInvitation(data.invitation);
+      } else {
+        const data = await res.json();
+        setError(data.error || "Invalid or expired invitation");
+      }
+    } catch (error) {
+      setError("Failed to validate invitation");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sendOTP = async (type: "phone" | "email") => {
+    if (!invitation) return;
+
+    // Check if still in cooldown
+    if (otpCooldown[type] > 0) {
+      setError(
+        `Please wait ${otpCooldown[type]} seconds before requesting another OTP`
+      );
+      setSuccessMessage("");
+      return;
+    }
+
+    setSendingOTP((prev) => ({ ...prev, [type]: true }));
+    setError("");
+    setSuccessMessage("");
+
+    try {
+      const result = await fetch(`/api/join/${token}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type,
+        }),
+      });
+
+      const data = await result.json();
+
+      if (result.ok) {
+        setSuccessMessage(`OTP sent to your ${type}`);
+        setError("");
+        // Set 60 second cooldown
+        setOtpCooldown((prev) => ({
+          ...prev,
+          [type]: 60,
+        }));
+      } else {
+        setError(data.error || `Failed to send ${type} OTP`);
+        setSuccessMessage("");
+        // If it's a cooldown error from server, try to extract time
+        if (data.error && data.error.includes("wait")) {
+          const match = data.error.match(/wait (\d+)/);
+          if (match) {
+            setOtpCooldown((prev) => ({
+              ...prev,
+              [type]: parseInt(match[1]),
+            }));
+          }
+        }
+      }
+    } catch (error) {
+      setError(`Failed to send ${type} OTP`);
+    } finally {
+      setSendingOTP((prev) => ({ ...prev, [type]: false }));
+    }
+  };
+
+  const verify = async (type: "phone" | "email") => {
+    if (!invitation) return;
+
+    const otpValue = formData[`${type}Otp` as keyof typeof formData] as string;
+    if (!otpValue || otpValue.length !== 4) {
+      setError("Please enter a valid 4-digit OTP");
+      return;
+    }
+
+    setVerifyingOTP((prev) => ({ ...prev, [type]: true }));
+    setError("");
+    setSuccessMessage("");
+
+    try {
+      const result = await fetch(`/api/otp/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phoneNumber: invitation.phone,
+          otp: otpValue,
+        }),
+      });
+      const res = await result.json();
+      console.log(res);
+      if (res.success) {
+        setOtpVerified((prev) => ({ ...prev, [type]: true }));
+        setSuccessMessage(
+          `${type === "phone" ? "Phone" : "Email"} OTP verified successfully`
+        );
+        setError("");
+      } else {
+        setOtpVerified((prev) => ({ ...prev, [type]: false }));
+        setError(res.error);
+        setSuccessMessage("");
+      }
+    } catch (error) {
+      setError("Failed to verify OTP");
+      setOtpVerified((prev) => ({ ...prev, [type]: false }));
+    } finally {
+      setVerifyingOTP((prev) => ({ ...prev, [type]: false }));
+    }
+  };
+
+  const handleRegistration = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!invitation) return;
+
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    if (formData.password.length < 8) {
+      setError("Password must be at least 8 characters long");
+      return;
+    }
+
+    if (!otpVerified.phone) {
+      setError("Please verify your phone OTP before submitting");
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+    console.log(invitation);
+
+    try {
+      const res = await fetch("/api/join/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          invitation,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          password: formData.password,
+        }),
+      });
+
+      if (res.ok) {
+        setStep("complete");
+      } else {
+        const data = await res.json();
+        setError(data.error || "Registration failed");
+      }
+    } catch (error) {
+      setError("Registration failed");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Validating invitation...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error && !invitation) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="max-w-md w-full mx-4">
+          <div className="bg-white p-8 rounded-lg shadow text-center">
+            <AlertTriangle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">
+              Invalid Invitation
+            </h1>
+            <p className="text-gray-600 mb-6">{error}</p>
+            <Link
+              href="/"
+              className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors"
+            >
+              Go to Homepage
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === "complete") {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="max-w-md w-full mx-4">
+          <div className="bg-white p-8 rounded-lg shadow text-center">
+            <CheckCircle className="h-16 w-16 text-green-600 mx-auto mb-4" />
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">
+              Setup Complete!
+            </h1>
+            <p className="text-gray-600 mb-6">
+              You're all set to start using {invitation?.company.name}.
+            </p>
+            <button
+              onClick={() => router.push("/login")}
+              className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors flex items-center space-x-2 mx-auto"
+            >
+              <span>Go to Login</span>
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-md mx-auto py-12 px-4">
+        <div className="bg-white p-8 rounded-lg shadow">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <Building2 className="h-12 w-12 text-blue-600 mx-auto mb-4" />
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">
+              Join {invitation?.company.name}
+            </h1>
+            <p className="text-gray-600">
+              Complete your registration to start managing your company
+            </p>
+          </div>
+
+          {/* Registration Form */}
+          {step === "details" && (
+            <form onSubmit={handleRegistration} className="space-y-4">
+              <div className="text-center mb-6">
+                <User className="h-8 w-8 text-blue-600 mx-auto mb-2" />
+                <h2 className="text-lg font-semibold text-gray-900 mb-2">
+                  Complete Your Profile
+                </h2>
+                <p className="text-gray-600 text-sm">
+                  Fill in your details and verify your contact information
+                </p>
+              </div>
+
+              {/* Pre-filled Email and Phone */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email
+                </label>
+                <div className="flex items-center">
+                  <Mail className="h-4 w-4 text-gray-400 mr-2" />
+                  <span className="text-gray-900">{invitation?.email}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Phone
+                </label>
+                <div className="flex items-center">
+                  <Phone className="h-4 w-4 text-gray-400 mr-2" />
+                  <span className="text-gray-900">{invitation?.phone}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    First Name *
+                  </label>
+                  <input
+                    type="text"
+                    name="firstName"
+                    required
+                    value={formData.firstName}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Last Name *
+                  </label>
+                  <input
+                    type="text"
+                    name="lastName"
+                    required
+                    value={formData.lastName}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Password *
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    name="password"
+                    required
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Minimum 8 characters"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Confirm Password *
+                </label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    name="confirmPassword"
+                    required
+                    value={formData.confirmPassword}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* OTP Fields */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Phone OTP * (Required)
+                </label>
+                <div className="flex space-x-2">
+                  <input
+                    type="text"
+                    name="phoneOtp"
+                    required
+                    value={formData.phoneOtp}
+                    onChange={handleInputChange}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter 6-digit OTP"
+                    maxLength={6}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => sendOTP("phone")}
+                    disabled={sendingOTP.phone || otpCooldown.phone > 0}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {otpCooldown.phone > 0
+                      ? `Wait ${otpCooldown.phone}s`
+                      : sendingOTP.phone
+                      ? "Sending..."
+                      : "Send"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => verify("phone")}
+                    disabled={
+                      verifyingOTP.phone ||
+                      !formData.phoneOtp ||
+                      formData.phoneOtp.length !== 4
+                    }
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {verifyingOTP.phone
+                      ? "Verifying..."
+                      : otpVerified.phone
+                      ? "✓ Verified"
+                      : "Verify"}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email OTP (Optional)
+                </label>
+                <div className="flex space-x-2">
+                  <input
+                    type="text"
+                    name="emailOtp"
+                    value={formData.emailOtp}
+                    onChange={handleInputChange}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter 6-digit OTP"
+                    maxLength={6}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => sendOTP("email")}
+                    disabled={sendingOTP.email || otpCooldown.email > 0}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {otpCooldown.email > 0
+                      ? `Wait ${otpCooldown.email}s`
+                      : sendingOTP.email
+                      ? "Sending..."
+                      : "Send"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => verify("email")}
+                    disabled={
+                      verifyingOTP.email ||
+                      !formData.emailOtp ||
+                      formData.emailOtp.length !== 4
+                    }
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {verifyingOTP.email
+                      ? "Verifying..."
+                      : otpVerified.email
+                      ? "✓ Verified"
+                      : "Verify"}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center justify-center space-x-2"
+              >
+                {submitting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Creating Account...</span>
+                  </>
+                ) : (
+                  <>
+                    <Lock className="h-4 w-4" />
+                    <span>Complete Registration</span>
+                  </>
+                )}
+              </button>
+            </form>
+          )}
+
+          {successMessage && (
+            <div className="text-green-600 text-sm text-center mt-4 bg-green-50 p-3 rounded-md">
+              {successMessage}
+            </div>
+          )}
+
+          {error && (
+            <div className="text-red-600 text-sm text-center mt-4 bg-red-50 p-3 rounded-md">
+              {error}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

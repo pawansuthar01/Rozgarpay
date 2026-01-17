@@ -38,6 +38,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           role: user.role,
           companyId: user.companyId,
+          onboardingCompleted: user.onboardingCompleted,
         };
       },
     }),
@@ -48,10 +49,14 @@ export const authOptions: NextAuthOptions = {
   },
 
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.role = user.role;
         token.companyId = user.companyId;
+        token.onboardingCompleted = user.onboardingCompleted;
+      }
+      if (trigger === "update" && session?.onboardingCompleted !== undefined) {
+        token.onboardingCompleted = session.onboardingCompleted;
       }
       return token;
     },
@@ -61,6 +66,7 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.sub!;
         session.user.role = token.role!;
         session.user.companyId = token.companyId ?? null;
+        session.user.onboardingCompleted = token.onboardingCompleted ?? false;
       }
       return session;
     },

@@ -207,9 +207,8 @@ async function main() {
   =============================== */
   await prisma.otp.create({
     data: {
-      userId: staffList[0].id,
       phone: staffList[0].phone,
-      otpHash: await bcrypt.hash("123456", 10),
+      otp: "123456",
       purpose: "LOGIN",
       expiresAt: new Date(Date.now() + 5 * 60 * 1000),
     },

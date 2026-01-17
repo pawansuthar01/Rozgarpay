@@ -72,17 +72,22 @@ export async function POST(request: NextRequest) {
       });
 
       // ✅ Audit log (generic)
-      await prisma.auditLog.create({
-        data: {
-          userId,
-          action: "UPDATED",
-          entity: "ATTENDANCE",
-          entityId: attendance.id,
-          meta: {
-            type: "PUNCH_OUT",
+      try {
+        await prisma.auditLog.create({
+          data: {
+            userId,
+            action: "UPDATED",
+            entity: "ATTENDANCE",
+            entityId: attendance.id,
+            meta: {
+              type: "PUNCH_OUT",
+            },
           },
-        },
-      });
+        });
+      } catch (auditError) {
+        console.error("Failed to create audit log for punch out:", auditError);
+        // Don't fail the request if audit log fails
+      }
     } else {
       // ✅ Punch in
       attendance = await prisma.attendance.create({
@@ -96,17 +101,22 @@ export async function POST(request: NextRequest) {
       });
 
       // ✅ Audit log (generic)
-      await prisma.auditLog.create({
-        data: {
-          userId,
-          action: "CREATED",
-          entity: "ATTENDANCE",
-          entityId: attendance.id,
-          meta: {
-            type: "PUNCH_IN",
+      try {
+        await prisma.auditLog.create({
+          data: {
+            userId,
+            action: "CREATED",
+            entity: "ATTENDANCE",
+            entityId: attendance.id,
+            meta: {
+              type: "PUNCH_IN",
+            },
           },
-        },
-      });
+        });
+      } catch (auditError) {
+        console.error("Failed to create audit log for punch in:", auditError);
+        // Don't fail the request if audit log fails
+      }
     }
 
     return NextResponse.json({ attendance });

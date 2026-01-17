@@ -11,6 +11,13 @@ import {
   User,
   Menu,
   LogOut,
+  FileText,
+  BarChart3,
+  Users,
+  Bell,
+  Shield,
+  Settings,
+  UserCircle,
 } from "lucide-react";
 
 export default function SuperAdminLayout({
@@ -28,6 +35,38 @@ export default function SuperAdminLayout({
       icon: LayoutDashboard,
     },
     { name: "Companies", href: "/super-admin/companies", icon: Building2 },
+    { name: "Admins", href: "/super-admin/admins", icon: User },
+    { name: "Reports", href: "/super-admin/reports", icon: FileText },
+    {
+      name: "Company Reports",
+      href: "/super-admin/reports/companies",
+      icon: BarChart3,
+    },
+    {
+      name: "User Reports",
+      href: "/super-admin/reports/users",
+      icon: Users,
+    },
+    {
+      name: "Notifications",
+      href: "/super-admin/notifications",
+      icon: Bell,
+    },
+    {
+      name: "Audit Logs",
+      href: "/super-admin/audit-logs",
+      icon: Shield,
+    },
+    {
+      name: "Settings",
+      href: "/super-admin/settings",
+      icon: Settings,
+    },
+    {
+      name: "Profile",
+      href: "/super-admin/profile",
+      icon: UserCircle,
+    },
     { name: "Create Company", href: "/super-admin/create-company", icon: Plus },
     { name: "Create Admin", href: "/super-admin/create-admin", icon: User },
   ];

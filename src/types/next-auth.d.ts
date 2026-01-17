@@ -7,12 +7,14 @@ declare module "next-auth" {
       email?: string | null;
       role: string;
       companyId: string | null;
+      onboardingCompleted: boolean;
     };
   }
 
   interface User {
     role: string;
     companyId: string | null;
+    onboardingCompleted: boolean;
   }
 }
 
@@ -20,5 +22,6 @@ declare module "next-auth/jwt" {
   interface JWT {
     role?: string;
     companyId?: string | null;
+    onboardingCompleted: boolean;
   }
 }

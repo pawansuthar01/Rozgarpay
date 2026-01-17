@@ -56,6 +56,9 @@ enum NotificationStatus {
 enum OtpPurpose {
   LOGIN
   VERIFY_PHONE
+  REGISTER
+  RESET_PASSWORD
+   
 }
 
 enum ReportType {
@@ -65,36 +68,57 @@ enum ReportType {
   COMPANY
 }
 model Company {
-  id        String        @id @default(uuid()) @db.Uuid
-  name      String
-  status    AccountStatus @default(ACTIVE)
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  id          String        @id @default(uuid()) @db.Uuid
+  name        String
+  description String?
+  status      AccountStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
   users         User[]
   attendances   Attendance[]
   salaries      Salary[]
   notifications Notification[]
   reports       Report[]
+  invitations   CompanyInvitation[]
 
   @@map("companies")
 }
+
+model CompanyInvitation {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @db.Uuid
+  email       String
+  phone       String
+  role        Role     @default(STAFF)
+  token       String   @unique
+  expiresAt   DateTime
+  isUsed      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@map("company_invitations")
+}
+
 model User {
-  id        String        @id @default(uuid()) @db.Uuid
-  email     String        @unique
-  phone     String        @unique
-  password  String
-  role      Role
-  status    AccountStatus @default(ACTIVE)
-  companyId String?       @db.Uuid
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  id                   String        @id @default(uuid()) @db.Uuid
+  firstName            String?
+  lastName             String?
+  email                String        @unique
+  phone                String        @unique
+  password             String
+  role                 Role
+  status               AccountStatus @default(ACTIVE)
+  companyId            String?       @db.Uuid
+  onboardingCompleted  Boolean       @default(false)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 
   company           Company?          @relation(fields: [companyId], references: [id])
   attendances       Attendance[]
   approvedAttendance Attendance[]     @relation("ApprovedBy")
   salaries          Salary[]
-  otps              Otp[]
   notifications     Notification[]
   pushSubscriptions PushSubscription[]
   auditLogs         AuditLog[]
@@ -136,7 +160,7 @@ model Salary {
   netAmount    Float
   type         SalaryType
   status       String      @default("PENDING")
-
+  paidAt       DateTime? 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -148,18 +172,18 @@ model Salary {
 }
 model Otp {
   id        String     @id @default(uuid()) @db.Uuid
-  userId    String     @db.Uuid
   phone     String
-  otpHash   String
+  otp       String
   purpose   OtpPurpose
   expiresAt DateTime
   isUsed    Boolean    @default(false)
   createdAt DateTime   @default(now())
-
-  user User @relation(fields: [userId], references: [id])
-
-  @@index([phone, purpose])
-  @@index([expiresAt])
+  deliveryStatus    String?  @default("PENDING") // PENDING, SENT, DELIVERED, FAILED
+  deliveryAttempts  Int      @default(0)
+  deliveryChannels  Json?    // Array of channels used: ["SMS", "Email"]
+  deliveryResults   Json?    // Detailed delivery results with retry info
+  
+  @@map("Otp")
 }
 model Notification {
   id        String              @id @default(uuid()) @db.Uuid
@@ -214,3 +238,37 @@ model AuditLog {
   @@index([entity, entityId])
 }
 
+
+// System Settings for Platform Management
+model SystemSetting {
+   id          String   @id @default(cuid())
+   category    String   // e.g., "platform", "security"
+   key         String   // Setting key within category
+   value       String   // JSON string of the setting value
+   description String?  // Human-readable description
+   isPublic    Boolean  @default(false) // Whether setting is visible to non-admin users
+   createdAt   DateTime @default(now())
+   updatedAt   DateTime @updatedAt
+
+   @@unique([category, key])
+   @@map("system_settings")
+}
+model NotificationLog {
+  id            String   @id @default(cuid())
+  type          String   // notification type (invitation, order, etc.)
+  channel       String   // email, whatsapp, sms, push, in_app
+  recipient     String   // email address, phone number, or user ID
+  status        String   // sent, failed, pending
+  errorMessage  String?  // error details if failed
+  provider      String?  // MSG91, Resend, FCM, etc.
+  messageId     String?  // external provider message ID
+  cost          Float?   // cost of sending (if applicable)
+  metadata      Json?    // additional data (template used, etc.)
+  sentAt        DateTime?
+  createdAt     DateTime @default(now())
+
+  @@index([type, status])
+  @@index([channel, createdAt])
+  @@index([recipient])
+  @@map("notification_logs")
+}
