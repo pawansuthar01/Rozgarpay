@@ -19,9 +19,10 @@ export interface SalaryRecord {
 
 export interface SalaryStats {
   totalRecords: number;
-  generated: number;
   pending: number;
+  approved: number;
   paid: number;
+  rejected: number;
   totalAmount: number;
 }
 

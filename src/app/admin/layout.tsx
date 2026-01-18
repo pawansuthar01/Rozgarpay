@@ -36,25 +36,13 @@ export default function AdminLayout({
     },
     { name: "Attendance", href: "/admin/attendance", icon: CheckSquare },
     { name: "Salary", href: "/admin/salary", icon: DollarSign },
+    { name: "Salary Setup", href: "/admin/salary/setup", icon: Settings },
     { name: "Staff", href: "/admin/staff", icon: Users },
     { name: "Reports", href: "/admin/reports", icon: FileText },
     { name: "Users", href: "/admin/users", icon: Users },
     { name: "Invitations", href: "/admin/invitations", icon: Mail },
-    {
-      name: "Analytics",
-      href: "/admin/analytics",
-      icon: BarChart3,
-    },
-    {
-      name: "Notifications",
-      href: "/admin/notifications",
-      icon: Bell,
-    },
-    {
-      name: "Settings",
-      href: "/admin/settings",
-      icon: Settings,
-    },
+    { name: "Settings", href: "/admin/settings", icon: Settings },
+
     {
       name: "Profile",
       href: "/admin/profile",
@@ -71,6 +59,7 @@ export default function AdminLayout({
     },
     { name: "Staff", href: "/admin/staff", icon: Users },
     { name: "Attendance", href: "/admin/attendance", icon: CheckSquare },
+    { name: "Salary", href: "/admin/salary/setup", icon: DollarSign },
     { name: "Add Staff", href: "/admin/staff/add", icon: UserPlus },
   ];
 

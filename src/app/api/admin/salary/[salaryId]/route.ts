@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "../../../auth/[...nextauth]/route";
+import { salaryService } from "@/lib/salaryService";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { salaryId: string } }
+  { params }: { params: { salaryId: string } },
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -25,7 +26,7 @@ export async function GET(
     if (!admin?.company) {
       return NextResponse.json(
         { error: "Admin company not found" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -45,13 +46,26 @@ export async function GET(
             phone: true,
           },
         },
+        breakdowns: true,
+        approvedByUser: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+        rejectedByUser: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
       },
     });
 
     if (!salary) {
       return NextResponse.json(
         { error: "Salary record not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
     const startDate = new Date(salary.year, salary.month - 1, 1); // month is 1-based
@@ -90,14 +104,14 @@ export async function GET(
     console.error("Salary detail fetch error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { salaryId: string } }
+  { params }: { params: { salaryId: string } },
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -108,11 +122,7 @@ export async function PATCH(
 
     const { salaryId } = params;
     const body = await request.json();
-    const { status } = body;
-
-    if (status !== "PAID") {
-      return NextResponse.json({ error: "Invalid status" }, { status: 400 });
-    }
+    const { action, paidAt, rejectionReason } = body;
 
     // Get admin's company
     const admin = await prisma.user.findUnique({
@@ -123,36 +133,74 @@ export async function PATCH(
     if (!admin?.company) {
       return NextResponse.json(
         { error: "Admin company not found" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    // Update salary status
-    const updatedSalary = await prisma.salary.updateMany({
+    // Verify salary belongs to admin's company
+    const salary = await prisma.salary.findFirst({
       where: {
         id: salaryId,
         companyId: admin.company.id,
-        status: "PENDING",
       },
-      data: {
-        status: "PAID",
-        paidAt: new Date(),
-      },
+      select: { id: true, status: true },
     });
 
-    if (updatedSalary.count === 0) {
-      return NextResponse.json(
-        { error: "Salary not found or already paid" },
-        { status: 404 }
-      );
+    if (!salary) {
+      return NextResponse.json({ error: "Salary not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ message: "Salary marked as paid" });
+    if (action === "approve") {
+      const result = await salaryService.approveSalary(
+        salaryId,
+        session.user.id,
+      );
+      if (result.success) {
+        return NextResponse.json({ message: "Salary approved successfully" });
+      } else {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+    } else if (action === "pay") {
+      const result = await salaryService.markAsPaid(
+        salaryId,
+        paidAt ? new Date(paidAt) : undefined,
+      );
+      if (result.success) {
+        return NextResponse.json({ message: "Salary marked as paid" });
+      } else {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+    } else if (action === "reject") {
+      // For rejection, we need to implement it in the service
+      // For now, update directly
+      await prisma.salary.update({
+        where: { id: salaryId },
+        data: {
+          status: "REJECTED",
+          rejectedBy: session.user.id,
+          rejectedAt: new Date(),
+          rejectionReason,
+        },
+      });
+      return NextResponse.json({ message: "Salary rejected" });
+    } else if (action === "recalculate") {
+      const result = await salaryService.recalculateSalary(salaryId);
+      if (result.success) {
+        return NextResponse.json({
+          message: "Salary recalculated successfully",
+          salary: result.salary,
+        });
+      } else {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+    } else {
+      return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+    }
   } catch (error) {
     console.error("Salary update error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

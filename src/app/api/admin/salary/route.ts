@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     if (!admin?.company) {
       return NextResponse.json(
         { error: "Admin company not found" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -91,20 +91,22 @@ export async function GET(request: NextRequest) {
 
     const stats = {
       totalRecords: total,
-      generated: statsResult.find((s) => s.status === "GENERATED")?._count || 0,
       pending: statsResult.find((s) => s.status === "PENDING")?._count || 0,
+      approved: statsResult.find((s) => s.status === "APPROVED")?._count || 0,
       paid: statsResult.find((s) => s.status === "PAID")?._count || 0,
+      rejected: statsResult.find((s) => s.status === "REJECTED")?._count || 0,
       totalAmount: statsResult.reduce(
         (sum, s) => sum + (s._sum.netAmount || 0),
-        0
+        0,
       ),
     };
 
     // Status distribution
     const statusDistribution = [
-      { name: "Generated", value: stats.generated, color: "#3B82F6" },
       { name: "Pending", value: stats.pending, color: "#F59E0B" },
+      { name: "Approved", value: stats.approved, color: "#3B82F6" },
       { name: "Paid", value: stats.paid, color: "#10B981" },
+      { name: "Rejected", value: stats.rejected, color: "#EF4444" },
     ];
 
     // Monthly totals (for the selected year or current)
@@ -148,7 +150,7 @@ export async function GET(request: NextRequest) {
     console.error("Salary fetch error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

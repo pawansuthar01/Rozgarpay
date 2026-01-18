@@ -1,7 +1,7 @@
 import Skeleton from "react-loading-skeleton";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check, X } from "lucide-react";
 import { SalaryRecord } from "@/types/salary";
-import { CheckCircle, Clock, FileText } from "lucide-react";
+import { CheckCircle, Clock, FileText, XCircle } from "lucide-react";
 
 interface SalaryTableProps {
   records: SalaryRecord[];
@@ -10,6 +10,13 @@ interface SalaryTableProps {
   totalPages: number;
   onPageChange: (page: number) => void;
   itemsPerPage: number;
+  onApprove?: (salaryId: string) => void;
+  onReject?: (salaryId: string, reason: string) => void;
+  onMarkAsPaid?: (
+    salaryId: string,
+    paymentData: { date: string; method: string; reference?: string },
+  ) => void;
+  showActions?: boolean;
 }
 
 export default function SalaryTable({
@@ -19,15 +26,21 @@ export default function SalaryTable({
   totalPages,
   onPageChange,
   itemsPerPage,
+  onApprove,
+  onReject,
+  onMarkAsPaid,
+  showActions = false,
 }: SalaryTableProps) {
   const getStatusInfo = (status: string) => {
     switch (status) {
-      case "GENERATED":
-        return { color: "bg-blue-100 text-blue-800", icon: FileText };
       case "PENDING":
         return { color: "bg-yellow-100 text-yellow-800", icon: Clock };
+      case "APPROVED":
+        return { color: "bg-blue-100 text-blue-800", icon: CheckCircle };
       case "PAID":
         return { color: "bg-green-100 text-green-800", icon: CheckCircle };
+      case "REJECTED":
+        return { color: "bg-red-100 text-red-800", icon: XCircle };
       default:
         return { color: "bg-gray-100 text-gray-800", icon: FileText };
     }
@@ -75,6 +88,11 @@ export default function SalaryTable({
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Status
               </th>
+              {showActions && (
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
+              )}
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -102,6 +120,11 @@ export default function SalaryTable({
                     <td className="px-6 py-4 whitespace-nowrap">
                       <Skeleton height={16} width={80} />
                     </td>
+                    {showActions && (
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <Skeleton height={16} width={100} />
+                      </td>
+                    )}
                   </tr>
                 ))
               : records.map((record) => {
@@ -143,6 +166,60 @@ export default function SalaryTable({
                           </span>
                         </div>
                       </td>
+                      {showActions && (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          {record.status === "PENDING" && (
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={() => onApprove?.(record.id)}
+                                className="text-green-600 hover:text-green-900 inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 rounded-md"
+                              >
+                                <Check className="h-3 w-3 mr-1" />
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const reason = prompt(
+                                    "Enter rejection reason:",
+                                  );
+                                  if (reason) onReject?.(record.id, reason);
+                                }}
+                                className="text-red-600 hover:text-red-900 inline-flex items-center px-2 py-1 text-xs font-medium bg-red-100 rounded-md"
+                              >
+                                <X className="h-3 w-3 mr-1" />
+                                Reject
+                              </button>
+                            </div>
+                          )}
+                          {record.status === "APPROVED" && (
+                            <button
+                              onClick={() => {
+                                const date = prompt(
+                                  "Enter payment date (YYYY-MM-DD):",
+                                  new Date().toISOString().split("T")[0],
+                                );
+                                const method = prompt(
+                                  "Enter payment method (Bank/Cash/UPI):",
+                                  "Bank",
+                                );
+                                const reference = prompt(
+                                  "Enter transaction reference (optional):",
+                                );
+                                if (date && method) {
+                                  onMarkAsPaid?.(record.id, {
+                                    date,
+                                    method,
+                                    reference: reference || undefined,
+                                  });
+                                }
+                              }}
+                              className="text-blue-600 hover:text-blue-900 inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 rounded-md"
+                            >
+                              Mark Paid
+                            </button>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   );
                 })}

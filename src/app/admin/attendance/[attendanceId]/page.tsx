@@ -61,7 +61,7 @@ export default function AdminAttendanceDetailPage() {
   const [attendance, setAttendance] = useState<AttendanceDetail | null>(null);
   const [auditRecords, setAuditRecords] = useState<AttendanceRecord[]>([]);
   const [attendanceTrends, setAttendanceTrends] = useState<AttendanceTrend[]>(
-    []
+    [],
   );
   const [loading, setLoading] = useState(true);
   const [auditLoading, setAuditLoading] = useState(true);
@@ -123,7 +123,7 @@ export default function AdminAttendanceDetailPage() {
 
       // Fetch user's attendances for audit history
       const res = await fetch(
-        `/api/admin/attendance?userId=${attendance.userId}&${params}`
+        `/api/admin/attendance?userId=${attendance.userId}&${params}`,
       );
       const data = await res.json();
 
@@ -372,10 +372,10 @@ export default function AdminAttendanceDetailPage() {
                   Date
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Time In
+                  Punch In
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Time Out
+                  Punch Out
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
@@ -410,13 +410,13 @@ export default function AdminAttendanceDetailPage() {
                           {new Date(record.attendanceDate).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {record.timeIn
-                            ? new Date(record.timeIn).toLocaleTimeString()
+                          {record.punchIn
+                            ? new Date(record.punchIn).toLocaleTimeString()
                             : "-"}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {record.timeOut
-                            ? new Date(record.timeOut).toLocaleTimeString()
+                          {record.punchOut
+                            ? new Date(record.punchOut).toLocaleTimeString()
                             : "-"}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">

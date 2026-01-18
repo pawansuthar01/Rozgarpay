@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "../../../auth/[...nextauth]/route";
+import { salaryService } from "@/lib/salaryService";
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest) {
     if (!month || !year || !action) {
       return NextResponse.json(
         { error: "Month, year, and action are required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -27,118 +28,84 @@ export async function POST(request: NextRequest) {
       include: { company: true },
     });
 
-    if (admin?.company?.id == null) {
+    if (!admin?.company?.id) {
       return NextResponse.json(
         { error: "Admin company not found" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    // Get all staff
-    const staff = await prisma.user.findMany({
-      where: {
-        companyId: admin.company.id,
-        role: "STAFF",
-      },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-      },
-    });
-
-    const startDate = new Date(year, month - 1, 1); // month is 1-based
-    const endDate = new Date(year, month, 1); // next month start
-
-    // Calculate salaries
-    const salaries = await Promise.all(
-      staff.map(async (user) => {
-        // Count approved attendances for the month
-
-        const approvedCount = await prisma.attendance.count({
-          where: {
-            userId: user.id,
-            status: "APPROVED",
-            attendanceDate: {
-              gte: startDate,
-              lt: endDate,
-            },
-          },
-        });
-
-        // Simple calculation: approved days * 1000 (daily rate)
-        const dailyRate = 1000; // This could be configurable, but for now fixed
-        const grossAmount = approvedCount * dailyRate;
-        const netAmount = grossAmount; // No deductions for simplicity
-
-        return {
-          userId: user.id,
-          user,
-          approvedDays: approvedCount,
-          grossAmount,
-          netAmount,
-        };
-      })
-    );
+    const companyId = admin.company.id;
 
     if (action === "preview") {
+      // Get all staff for preview
+      const staff = await prisma.user.findMany({
+        where: {
+          companyId,
+          role: "STAFF",
+          status: "ACTIVE",
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      });
+
+      // Generate preview salaries
+      const previews = await Promise.all(
+        staff.map(async (user) => {
+          const result = await salaryService.generateSalary({
+            userId: user.id,
+            companyId,
+            month,
+            year,
+          });
+
+          if (result.success && result.salary) {
+            return {
+              user,
+              salary: result.salary,
+              breakdowns: result.breakdowns,
+            };
+          } else {
+            return {
+              user,
+              error: result.error,
+            };
+          }
+        }),
+      );
+
       return NextResponse.json({
-        salaries,
+        previews,
         month,
         year,
       });
     } else if (action === "generate") {
-      // Check if salaries already exist for this month/year
-      const existing = await prisma.salary.count({
-        where: {
-          user: {
-            companyId: admin.company.id,
-            role: "STAFF",
-          },
-          month,
-          year,
-        },
-      });
-
-      if (existing > 0) {
-        return NextResponse.json(
-          { error: "Salaries already generated for this month" },
-          { status: 400 }
-        );
-      }
-      if (!admin.company) {
-        return NextResponse.json(
-          { error: "Admin company not found" },
-          { status: 400 }
-        );
-      }
-
-      const companyId = admin.company.id;
-
-      const createdSalaries = await Promise.all(
-        salaries.map((salary) =>
-          prisma.salary.create({
-            data: {
-              userId: salary.userId,
-              companyId,
-              month,
-              year,
-              totalDays: new Date(year, month, 0).getDate(),
-              approvedDays: salary.approvedDays,
-              grossAmount: salary.grossAmount,
-              netAmount: salary.netAmount,
-              type: "MONTHLY",
-              status: "GENERATED",
-            },
-          })
-        )
+      // Auto-generate salaries for all staff
+      const result = await salaryService.autoGenerateSalaries(
+        companyId,
+        month,
+        year,
       );
 
-      return NextResponse.json({
-        message: "Salaries generated successfully",
-        count: createdSalaries.length,
-      });
+      if (result.success) {
+        return NextResponse.json({
+          message: "Salaries generated successfully",
+          processed: result.processed,
+          errors: result.errors,
+        });
+      } else {
+        return NextResponse.json(
+          {
+            error: "Failed to generate salaries",
+            errors: result.errors,
+          },
+          { status: 500 },
+        );
+      }
     } else {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }
@@ -146,7 +113,7 @@ export async function POST(request: NextRequest) {
     console.error("Salary generate error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

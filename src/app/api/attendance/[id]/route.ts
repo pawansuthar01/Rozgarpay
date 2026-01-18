@@ -6,7 +6,7 @@ import { notificationManager } from "@/lib/notificationService";
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -21,7 +21,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
     }
 
-    const attendanceId = params.id;
+    const attendanceId = (await params).id;
     const companyId = session.user.companyId;
 
     if (!companyId) {
@@ -35,14 +35,14 @@ export async function PATCH(
     if (!attendance || attendance.companyId !== companyId) {
       return NextResponse.json(
         { error: "Attendance not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
     if (attendance.status !== "PENDING") {
       return NextResponse.json(
         { error: "Attendance already processed" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -83,7 +83,7 @@ export async function PATCH(
         title: "Attendance Update",
         message: `Your attendance has been ${status.toLowerCase()}.`,
       },
-      ["whatsapp", "push"]
+      ["whatsapp", "push"],
     );
 
     return NextResponse.json({ attendance: updatedAttendance });
@@ -91,7 +91,7 @@ export async function PATCH(
     console.error(error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

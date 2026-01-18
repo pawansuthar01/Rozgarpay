@@ -7,10 +7,11 @@ export interface AttendanceRecord {
     email: string;
   };
   attendanceDate: string;
-  timeIn: string | null;
-  timeOut: string | null;
+  punchIn: string | null;
+  punchOut: string | null;
   status: string;
-  punchImageUrl?: string;
+  punchOutImageUrl?: string;
+  punchInImageUrl?: string;
   createdAt: string;
 }
 

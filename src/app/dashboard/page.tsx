@@ -87,19 +87,18 @@ export default function DashboardPage() {
           {session.user.role === "STAFF" && (
             <div className="bg-white p-6 rounded-lg shadow">
               <h2 className="text-xl font-semibold mb-4">Mark Attendance</h2>
-              <input
-                type="file"
-                accept="image/jpeg,image/png"
-                onChange={(e) => setImage(e.target.files?.[0] || null)}
-                className="mb-4"
-              />
-              <button
-                onClick={handlePunch}
-                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-              >
-                Punch In/Out
-              </button>
-              {message && <p className="mt-4 text-green-600">{message}</p>}
+              <p className="text-sm text-gray-600 mb-4">
+                Please use the dedicated attendance page for accurate time
+                tracking and photo verification.
+              </p>
+              <div className="text-center">
+                <a
+                  href="/staff/attendance"
+                  className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                >
+                  Go to Attendance Page
+                </a>
+              </div>
             </div>
           )}
 

@@ -36,6 +36,68 @@ export default function AdminSalaryPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
+  const handleApprove = async (salaryId: string) => {
+    try {
+      const res = await fetch(`/api/admin/salary/${salaryId}/approve`, {
+        method: "POST",
+      });
+
+      if (res.ok) {
+        fetchSalaries(); // Refresh data
+      } else {
+        alert("Failed to approve salary");
+      }
+    } catch (error) {
+      console.error("Approve error:", error);
+      alert("Failed to approve salary");
+    }
+  };
+
+  const handleReject = async (salaryId: string, reason: string) => {
+    try {
+      const res = await fetch(`/api/admin/salary/${salaryId}/reject`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ reason }),
+      });
+
+      if (res.ok) {
+        fetchSalaries(); // Refresh data
+      } else {
+        alert("Failed to reject salary");
+      }
+    } catch (error) {
+      console.error("Reject error:", error);
+      alert("Failed to reject salary");
+    }
+  };
+
+  const handleMarkAsPaid = async (
+    salaryId: string,
+    paymentData: { date: string; method: string; reference?: string },
+  ) => {
+    try {
+      const res = await fetch(`/api/admin/salary/${salaryId}/mark-paid`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(paymentData),
+      });
+
+      if (res.ok) {
+        fetchSalaries(); // Refresh data
+      } else {
+        alert("Failed to mark salary as paid");
+      }
+    } catch (error) {
+      console.error("Mark as paid error:", error);
+      alert("Failed to mark salary as paid");
+    }
+  };
+
   useEffect(() => {
     fetchSalaries();
   }, [currentPage, month, year, status, pageLimit, sortBy, sortOrder]);
@@ -141,6 +203,10 @@ export default function AdminSalaryPage() {
           totalPages={totalPages}
           onPageChange={setCurrentPage}
           itemsPerPage={pageLimit}
+          onApprove={handleApprove}
+          onReject={handleReject}
+          onMarkAsPaid={handleMarkAsPaid}
+          showActions={true}
         />
       </div>
     </div>

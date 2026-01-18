@@ -14,10 +14,10 @@ export default function Home() {
       router.push("/super-admin/dashboard");
     } else if (session?.user?.role === "ADMIN") {
       router.push("/admin/dashboard");
+    } else if (session?.user.role === "MANAGER") {
+      router.push("/manager/dashboard");
     } else if (session?.user) {
       router.push("/dashboard");
-    } else {
-      router.push("/login");
     }
   }, [session, status, router]);
 

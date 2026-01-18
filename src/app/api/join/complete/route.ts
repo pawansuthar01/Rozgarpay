@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     if (recentRegistrations >= 3) {
       return NextResponse.json(
         { error: "Too many registration attempts. Please try again later." },
-        { status: 429 }
+        { status: 429 },
       );
     }
 
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     ) {
       return NextResponse.json(
         { error: "All required fields are required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     ) {
       return NextResponse.json(
         { error: "First name must be between 2 and 50 characters" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -67,14 +67,14 @@ export async function POST(request: NextRequest) {
     ) {
       return NextResponse.json(
         { error: "Last name must be between 2 and 50 characters" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     if (password.length < 8) {
       return NextResponse.json(
         { error: "Password must be at least 8 characters long" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
     if (existingUser) {
       return NextResponse.json(
         { error: "User already exists with this email or phone" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -139,9 +139,48 @@ export async function POST(request: NextRequest) {
     } catch (auditError) {
       console.error(
         "Failed to create audit log for user registration:",
-        auditError
+        auditError,
       );
       // Don't fail the request if audit log fails
+    }
+
+    // Send notification to admin and managers about new staff registration
+    try {
+      const adminsAndManagers = await prisma.user.findMany({
+        where: {
+          companyId: invitation.company.id,
+          role: { in: ["ADMIN", "MANAGER"] },
+          status: "ACTIVE",
+        },
+        select: { id: true },
+      });
+
+      const notificationPromises = adminsAndManagers.map((adminOrManager) =>
+        prisma.notification.create({
+          data: {
+            userId: adminOrManager.id,
+            companyId: invitation.company.id,
+            title: "New Staff Registration",
+            message: `${user.firstName} ${user.lastName} has successfully accepted the invitation and set up their account. They are now ready for salary management.`,
+            channel: "INAPP",
+            status: "SENT",
+            meta: {
+              staffId: user.id,
+              staffName: `${user.firstName} ${user.lastName}`,
+              staffEmail: user.email,
+              invitationId: invitation.id,
+            },
+          },
+        }),
+      );
+
+      await Promise.all(notificationPromises);
+    } catch (notificationError) {
+      console.error(
+        "Failed to create notifications for staff registration:",
+        notificationError,
+      );
+      // Don't fail the request if notifications fail
     }
 
     return NextResponse.json({
@@ -157,7 +196,7 @@ export async function POST(request: NextRequest) {
     console.error(error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -1,10 +1,11 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
+import { debounce } from "@/lib/utils";
 import {
   PieChart,
   Pie,
@@ -75,6 +76,15 @@ export default function AdminUsersPage() {
   const [totalPages, setTotalPages] = useState(1);
   const itemsPerPage = 10;
 
+  // Debounced search function
+  const debouncedSetSearchTerm = useCallback(
+    debounce((value: string) => {
+      setSearchTerm(value);
+      setCurrentPage(1); // Reset to first page when searching
+    }, 500), // 500ms delay
+    [],
+  );
+
   useEffect(() => {
     fetchUsers();
     fetchStats();
@@ -125,7 +135,7 @@ export default function AdminUsersPage() {
 
   const handleStatusChange = async (
     userId: string,
-    newStatus: "ACTIVE" | "SUSPENDED" | "DEACTIVATED"
+    newStatus: "ACTIVE" | "SUSPENDED" | "DEACTIVATED",
   ) => {
     setActionLoading(userId);
     try {
@@ -339,8 +349,8 @@ export default function AdminUsersPage() {
               <input
                 type="text"
                 placeholder="Search users..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                defaultValue={searchTerm}
+                onChange={(e) => debouncedSetSearchTerm(e.target.value)}
                 className="pl-10 pr-4 py-2 border border-gray-300 rounded-md text-sm w-full sm:w-64"
               />
             </div>
@@ -455,10 +465,10 @@ export default function AdminUsersPage() {
                             user.role === "ADMIN"
                               ? "bg-purple-100 text-purple-800"
                               : user.role === "MANAGER"
-                              ? "bg-green-100 text-green-800"
-                              : user.role === "ACCOUNTANT"
-                              ? "bg-blue-100 text-blue-800"
-                              : "bg-yellow-100 text-yellow-800"
+                                ? "bg-green-100 text-green-800"
+                                : user.role === "ACCOUNTANT"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : "bg-yellow-100 text-yellow-800"
                           }`}
                         >
                           {user.role}
@@ -470,8 +480,8 @@ export default function AdminUsersPage() {
                             user.status === "ACTIVE"
                               ? "bg-green-100 text-green-800"
                               : user.status === "SUSPENDED"
-                              ? "bg-red-100 text-red-800"
-                              : "bg-gray-100 text-gray-800"
+                                ? "bg-red-100 text-red-800"
+                                : "bg-gray-100 text-gray-800"
                           }`}
                         >
                           {user.status}
@@ -495,7 +505,7 @@ export default function AdminUsersPage() {
                                 user.id,
                                 user.status === "ACTIVE"
                                   ? "SUSPENDED"
-                                  : "ACTIVE"
+                                  : "ACTIVE",
                               )
                             }
                             disabled={actionLoading === user.id}

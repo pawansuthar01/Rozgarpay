@@ -1,9 +1,10 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
+import { debounce } from "@/lib/utils";
 import {
   PieChart,
   Pie,
@@ -66,6 +67,15 @@ export default function AdminInvitationsPage() {
   const [roleFilter, setRoleFilter] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
 
+  // Debounced search function
+  const debouncedSetSearchTerm = useCallback(
+    debounce((value: string) => {
+      setSearchTerm(value);
+      setCurrentPage(1); // Reset to first page when searching
+    }, 500), // 500ms delay
+    [],
+  );
+
   useEffect(() => {
     fetchInvitations();
   }, [currentPage, statusFilter, roleFilter, searchTerm]);
@@ -107,7 +117,7 @@ export default function AdminInvitationsPage() {
   const handleDeleteInvitation = async (invitationId: string) => {
     if (
       !confirm(
-        "Are you sure you want to delete this invitation? This action cannot be undone."
+        "Are you sure you want to delete this invitation? This action cannot be undone.",
       )
     ) {
       return;
@@ -153,8 +163,8 @@ export default function AdminInvitationsPage() {
           role === "MANAGER"
             ? "#10B981"
             : role === "ACCOUNTANT"
-            ? "#3B82F6"
-            : "#F59E0B",
+              ? "#3B82F6"
+              : "#F59E0B",
       }))
     : [];
 
@@ -336,8 +346,8 @@ export default function AdminInvitationsPage() {
               <input
                 type="text"
                 placeholder="Search by email..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                defaultValue={searchTerm}
+                onChange={(e) => debouncedSetSearchTerm(e.target.value)}
                 className="pl-10 pr-4 py-2 border border-gray-300 rounded-md text-sm w-full sm:w-64"
               />
             </div>
@@ -444,8 +454,8 @@ export default function AdminInvitationsPage() {
                             invitation.role === "MANAGER"
                               ? "bg-green-100 text-green-800"
                               : invitation.role === "ACCOUNTANT"
-                              ? "bg-blue-100 text-blue-800"
-                              : "bg-yellow-100 text-yellow-800"
+                                ? "bg-blue-100 text-blue-800"
+                                : "bg-yellow-100 text-yellow-800"
                           }`}
                         >
                           {invitation.role}
@@ -456,7 +466,7 @@ export default function AdminInvitationsPage() {
                           {getStatusIcon(invitation.status)}
                           <span
                             className={`ml-2 ${getStatusBadge(
-                              invitation.status
+                              invitation.status,
                             )}`}
                           >
                             {invitation.status}

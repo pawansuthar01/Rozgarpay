@@ -35,9 +35,15 @@ enum AuditAction {
   DELETED
 }
 
+enum CorrectionType {
+  MISSED_PUNCH_IN
+  MISSED_PUNCH_OUT
+}
+
 enum SalaryType {
   MONTHLY
   HOURLY
+  DAILY
 }
 
 enum NotificationChannel {
@@ -68,38 +74,76 @@ enum ReportType {
   COMPANY
 }
 model Company {
-  id          String        @id @default(uuid()) @db.Uuid
-  name        String
-  description String?
-  status      AccountStatus @default(ACTIVE)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+   id          String        @id @default(uuid()) @db.Uuid
+   name        String
+   description String?
+   status      AccountStatus @default(ACTIVE)
+   // Attendance & Payroll Settings
+   shiftStartTime      String?       @default("09:00") // HH:MM format
+   shiftEndTime        String?       @default("18:00") // HH:MM format
+   gracePeriodMinutes  Int?          @default(30) // Late arrival grace period
+   minWorkingHours     Float?        @default(4.0) // Minimum hours to count as working day
+   maxDailyHours       Float?        @default(16.0) // Maximum hours per day
+   autoPunchOutBufferMinutes Int?    @default(30) // Buffer after shift end for auto punch-out
+   locationLat         Float?        // Company location latitude
+   locationLng         Float?        // Company location longitude
+   locationRadius      Float?        @default(100.0) // GPS verification radius in meters
+   overtimeThresholdHours Float?     @default(2.0) // Hours after which overtime needs approval
+   nightPunchInWindowHours Float?    @default(2.0) // Max hours after shift start for night shift punch-in
+   // Salary Settings
+   defaultSalaryType       SalaryType?   @default(MONTHLY)
+   overtimeMultiplier      Float?        @default(1.5) // Overtime rate multiplier
+   latePenaltyPerMinute    Float?        @default(0) // Penalty per late minute
+   halfDayThresholdHours   Float?        @default(4.0) // Hours below which it's half day
+   absentPenaltyPerDay     Float?        @default(0) // Penalty for absent day
+   pfPercentage            Float?        @default(12.0) // PF percentage
+   esiPercentage           Float?        @default(0.75) // ESI percentage
+   createdAt               DateTime      @default(now())
+   updatedAt               DateTime      @updatedAt
 
-  users         User[]
-  attendances   Attendance[]
-  salaries      Salary[]
-  notifications Notification[]
-  reports       Report[]
-  invitations   CompanyInvitation[]
+   users         User[]
+   attendances   Attendance[]
+   salaries      Salary[]
+   notifications Notification[]
+   reports       Report[]
+   invitations   CompanyInvitation[]
+   correctionRequests CorrectionRequest[]
+   shiftConfigurations ShiftConfiguration[]
 
-  @@map("companies")
-}
+   @@map("companies")
+ }
 
 model CompanyInvitation {
-  id          String   @id @default(uuid()) @db.Uuid
-  companyId   String   @db.Uuid
-  email       String
-  phone       String
-  role        Role     @default(STAFF)
-  token       String   @unique
-  expiresAt   DateTime
-  isUsed      Boolean  @default(false)
-  createdAt   DateTime @default(now())
+   id          String   @id @default(uuid()) @db.Uuid
+   companyId   String   @db.Uuid
+   email       String
+   phone       String
+   role        Role     @default(STAFF)
+   token       String   @unique
+   expiresAt   DateTime
+   isUsed      Boolean  @default(false)
+   createdAt   DateTime @default(now())
 
-  company Company @relation(fields: [companyId], references: [id])
+   company Company @relation(fields: [companyId], references: [id])
 
-  @@map("company_invitations")
-}
+   @@map("company_invitations")
+ }
+
+model ShiftConfiguration {
+   id          String   @id @default(uuid()) @db.Uuid
+   companyId   String   @db.Uuid
+   name        String   // e.g., "Day Shift", "Night Shift"
+   startTime   String   // HH:MM format
+   endTime     String   // HH:MM format
+   isActive    Boolean  @default(true)
+   createdAt   DateTime @default(now())
+   updatedAt   DateTime @updatedAt
+
+   company Company @relation(fields: [companyId], references: [id])
+
+   @@unique([companyId, name])
+   @@map("shift_configurations")
+ }
 
 model User {
   id                   String        @id @default(uuid()) @db.Uuid
@@ -112,6 +156,15 @@ model User {
   status               AccountStatus @default(ACTIVE)
   companyId            String?       @db.Uuid
   onboardingCompleted  Boolean       @default(false)
+  // Salary Configuration
+  baseSalary           Float?        // Monthly base salary
+  hourlyRate           Float?        // Hourly rate for hourly workers
+  dailyRate            Float?        // Daily rate for daily workers
+  salaryType           SalaryType?   @default(MONTHLY) // Default salary type
+  workingDays          Int?          @default(26) // Working days per month (26 or 22)
+  overtimeRate         Float?        // Overtime rate per hour (optional)
+  pfEsiApplicable      Boolean?      @default(true) // PF/ESI applicable
+  joiningDate          DateTime?     // Employee joining date
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
 
@@ -119,57 +172,150 @@ model User {
   attendances       Attendance[]
   approvedAttendance Attendance[]     @relation("ApprovedBy")
   salaries          Salary[]
+  approvedSalaries  Salary[]          @relation("SalaryApprovedBy")
+  rejectedSalaries  Salary[]          @relation("SalaryRejectedBy")
   notifications     Notification[]
   pushSubscriptions PushSubscription[]
   auditLogs         AuditLog[]
+  correctionRequests CorrectionRequest[]
+  reviewedCorrections CorrectionRequest[] @relation("CorrectionReviewedBy")
 
   @@map("users")
 }
 model Attendance {
+   id             String           @id @default(uuid()) @db.Uuid
+   userId         String           @db.Uuid
+   companyId      String           @db.Uuid
+   attendanceDate DateTime
+
+   punchIn        DateTime?
+   punchOut       DateTime?
+   punchInLocation Json?           // {lat: number, lng: number}
+   punchOutLocation Json?          // {lat: number, lng: number}
+   punchInImageUrl String?
+   punchOutImageUrl String?
+   autoPunchOut   Boolean          @default(false)
+   autoPunchedOut Boolean          @default(false) // Whether punched out by auto system
+   autoPunchOutAt DateTime?        // When auto punch-out occurred
+   workingHours   Float?           // Calculated working hours
+   overtimeHours  Float?           @default(0) // Overtime hours worked
+   isLate         Boolean          @default(false) // Late punch-in flag
+   status         AttendanceStatus @default(PENDING)
+   requiresApproval Boolean        @default(false) // Whether this attendance needs manager approval
+   approvalReason  String?         // Reason why approval is required
+   approvedBy     String?          @db.Uuid
+   approvedAt     DateTime?
+   rejectionReason String?         // Reason for rejection
+   createdAt      DateTime         @default(now())
+   updatedAt      DateTime         @updatedAt
+
+   user            User    @relation(fields: [userId], references: [id])
+   company         Company @relation(fields: [companyId], references: [id])
+   approvedByUser  User?   @relation("ApprovedBy", fields: [approvedBy], references: [id])
+   audits          AuditLog[]
+   correctionRequests CorrectionRequest[]
+
+   @@unique([userId, companyId, attendanceDate])
+   @@index([companyId, attendanceDate])
+   @@index([companyId, status])
+ }
+
+model CorrectionRequest {
   id             String           @id @default(uuid()) @db.Uuid
   userId         String           @db.Uuid
   companyId      String           @db.Uuid
-  attendanceDate DateTime         @db.Date
-  punchIn        DateTime
-  punchOut       DateTime?
-  imageUrl       String
+  attendanceId   String?          @db.Uuid
+ attendanceDate  DateTime 
+  type           CorrectionType
+  requestedTime  DateTime?        // For missed punch out, the requested punch out time
+  reason         String
+  evidence       String?          // URL to evidence file
   status         AttendanceStatus @default(PENDING)
-  approvedBy     String?          @db.Uuid
-  approvedAt     DateTime?
+  reviewedBy     String?          @db.Uuid
+  reviewedAt     DateTime?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
-  user            User    @relation(fields: [userId], references: [id])
-  company         Company @relation(fields: [companyId], references: [id])
-  approvedByUser  User?   @relation("ApprovedBy", fields: [approvedBy], references: [id])
+  user            User       @relation(fields: [userId], references: [id])
+  company         Company    @relation(fields: [companyId], references: [id])
+  attendance      Attendance? @relation(fields: [attendanceId], references: [id])
+  reviewedByUser  User?      @relation("CorrectionReviewedBy", fields: [reviewedBy], references: [id])
   audits          AuditLog[]
 
-  @@unique([userId, attendanceDate])
-  @@index([companyId, attendanceDate])
+  @@index([companyId, status])
+  @@index([userId, attendanceDate])
 }
+
 model Salary {
-  id           String      @id @default(uuid()) @db.Uuid
-  userId       String      @db.Uuid
-  companyId    String      @db.Uuid
-  month        Int
-  year         Int
+  id                String      @id @default(uuid()) @db.Uuid
+  userId            String      @db.Uuid
+  companyId         String      @db.Uuid
+  month             Int
+  year              Int
 
-  totalDays    Float
-  approvedDays Float
-  grossAmount  Float
-  netAmount    Float
-  type         SalaryType
-  status       String      @default("PENDING")
-  paidAt       DateTime? 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  // Summary
+  totalWorkingDays   Float       @default(0)
+  totalWorkingHours  Float       @default(0)
+  overtimeHours      Float       @default(0)
+  lateMinutes        Int         @default(0)
+  halfDays           Int         @default(0)
+  absentDays         Int         @default(0)
 
-  user    User    @relation(fields: [userId], references: [id])
-  company Company @relation(fields: [companyId], references: [id])
+  // Amounts
+  baseAmount         Float       @default(0)
+  overtimeAmount     Float       @default(0)
+  penaltyAmount      Float       @default(0)
+  deductions         Float       @default(0) // PF, ESI, etc.
+  grossAmount        Float
+  netAmount          Float
+
+  type               SalaryType
+  status             String      @default("PENDING") // PENDING, APPROVED, PAID, REJECTED
+  paidAt             DateTime?
+
+  // Approval
+  approvedBy         String?     @db.Uuid
+  approvedAt         DateTime?
+  rejectedBy         String?     @db.Uuid
+  rejectedAt         DateTime?
+  rejectionReason    String?
+
+  // Locking and versioning
+  lockedAt           DateTime?
+  recalculatedAt     DateTime?
+  version            Int         @default(1)
+
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  user               User        @relation(fields: [userId], references: [id])
+  company            Company     @relation(fields: [companyId], references: [id])
+  approvedByUser     User?       @relation("SalaryApprovedBy", fields: [approvedBy], references: [id])
+  rejectedByUser     User?       @relation("SalaryRejectedBy", fields: [rejectedBy], references: [id])
+  breakdowns         SalaryBreakdown[]
+  audits             AuditLog[]
 
   @@unique([userId, month, year])
   @@index([companyId, month, year])
+  @@index([companyId, status])
 }
+
+model SalaryBreakdown {
+  id          String   @id @default(uuid()) @db.Uuid
+  salaryId    String   @db.Uuid
+  type        String   // e.g., "BASE_SALARY", "OVERTIME", "LATE_PENALTY", "PF_DEDUCTION", "ESI_DEDUCTION"
+  description String
+  amount      Float
+  hours       Float?   // Applicable for overtime, working hours
+  quantity    Float?   // Number of days, minutes, etc.
+  createdAt   DateTime @default(now())
+
+  salary Salary @relation(fields: [salaryId], references: [id])
+
+  @@index([salaryId])
+  @@map("salary_breakdowns")
+}
+
 model Otp {
   id        String     @id @default(uuid()) @db.Uuid
   phone     String
@@ -223,19 +369,23 @@ model Report {
   company Company @relation(fields: [companyId], references: [id])
 }
 model AuditLog {
-  id        String      @id @default(uuid()) @db.Uuid
-  userId    String      @db.Uuid
-  action    AuditAction
-  entity    String
-  entityId  String
-  meta      Json?
-  createdAt DateTime    @default(now())
-  attendance   Attendance? @relation(fields: [attendanceId], references: [id])
-  attendanceId String?     @db.Uuid
+   id        String      @id @default(uuid()) @db.Uuid
+   userId    String      @db.Uuid
+   action    AuditAction
+   entity    String
+   entityId  String
+   meta      Json?
+   createdAt DateTime    @default(now())
+   correctionRequestId String?            @db.Uuid
+   correctionRequest   CorrectionRequest? @relation(fields: [correctionRequestId], references: [id])
+   attendanceId        String?            @db.Uuid
+   attendance          Attendance?        @relation(fields: [attendanceId], references: [id])
+   salaryId            String?            @db.Uuid
+   salary              Salary?            @relation(fields: [salaryId], references: [id])
 
-  user User @relation(fields: [userId], references: [id])
+   user User @relation(fields: [userId], references: [id])
 
-  @@index([entity, entityId])
+   @@index([entity, entityId])
 }
 
 
@@ -272,3 +422,4 @@ model NotificationLog {
   @@index([recipient])
   @@map("notification_logs")
 }
+

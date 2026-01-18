@@ -6,6 +6,8 @@ declare module "next-auth" {
       id: string;
       email?: string | null;
       role: string;
+      firstName?: string | null;
+      lastName?: string | null;
       companyId: string | null;
       onboardingCompleted: boolean;
     };
@@ -13,6 +15,8 @@ declare module "next-auth" {
 
   interface User {
     role: string;
+    firstName?: string | null;
+    lastName?: string | null;
     companyId: string | null;
     onboardingCompleted: boolean;
   }

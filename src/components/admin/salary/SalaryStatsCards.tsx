@@ -1,6 +1,12 @@
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
-import { FileText, Clock, CheckCircle, DollarSign } from "lucide-react";
+import {
+  FileText,
+  Clock,
+  CheckCircle,
+  DollarSign,
+  XCircle,
+} from "lucide-react";
 import { SalaryStats } from "@/types/salary";
 
 interface SalaryStatsCardsProps {
@@ -13,7 +19,7 @@ export default function SalaryStatsCards({
   loading,
 }: SalaryStatsCardsProps) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 md:gap-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 md:gap-6">
       <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
         <div className="flex items-center justify-between">
           <div>
@@ -23,22 +29,6 @@ export default function SalaryStatsCards({
             ) : (
               <p className="text-3xl font-bold text-gray-900">
                 {stats?.totalRecords || 0}
-              </p>
-            )}
-          </div>
-          <FileText className="h-8 w-8 text-blue-600" />
-        </div>
-      </div>
-
-      <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-gray-600">Generated</p>
-            {loading ? (
-              <Skeleton height={36} width={50} />
-            ) : (
-              <p className="text-3xl font-bold text-blue-600">
-                {stats?.generated || 0}
               </p>
             )}
           </div>
@@ -65,6 +55,22 @@ export default function SalaryStatsCards({
       <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
         <div className="flex items-center justify-between">
           <div>
+            <p className="text-sm font-medium text-gray-600">Approved</p>
+            {loading ? (
+              <Skeleton height={36} width={50} />
+            ) : (
+              <p className="text-3xl font-bold text-blue-600">
+                {stats?.approved || 0}
+              </p>
+            )}
+          </div>
+          <CheckCircle className="h-8 w-8 text-blue-600" />
+        </div>
+      </div>
+
+      <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
+        <div className="flex items-center justify-between">
+          <div>
             <p className="text-sm font-medium text-gray-600">Paid</p>
             {loading ? (
               <Skeleton height={36} width={50} />
@@ -75,6 +81,22 @@ export default function SalaryStatsCards({
             )}
           </div>
           <CheckCircle className="h-8 w-8 text-green-600" />
+        </div>
+      </div>
+
+      <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-gray-600">Rejected</p>
+            {loading ? (
+              <Skeleton height={36} width={50} />
+            ) : (
+              <p className="text-3xl font-bold text-red-600">
+                {stats?.rejected || 0}
+              </p>
+            )}
+          </div>
+          <XCircle className="h-8 w-8 text-red-600" />
         </div>
       </div>
 

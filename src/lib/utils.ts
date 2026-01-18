@@ -60,7 +60,7 @@ export function calculateDistance(
   lat1: number,
   lng1: number,
   lat2: number,
-  lng2: number
+  lng2: number,
 ): number {
   const R = 6371; // Radius of the Earth in kilometers
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -98,7 +98,7 @@ export function sleep(ms: number): Promise<void> {
 
 export function debounce<T extends (...args: any[]) => any>(
   func: T,
-  wait: number
+  wait: number,
 ): (...args: Parameters<T>) => void {
   let timeout: NodeJS.Timeout;
   return (...args: Parameters<T>) => {
@@ -109,7 +109,7 @@ export function debounce<T extends (...args: any[]) => any>(
 
 export function throttle<T extends (...args: any[]) => any>(
   func: T,
-  limit: number
+  limit: number,
 ): (...args: Parameters<T>) => void {
   let inThrottle: boolean;
   return (...args: Parameters<T>) => {
@@ -162,7 +162,7 @@ export function capitalizeFirst(text: string): string {
 export function pluralize(
   count: number,
   singular: string,
-  plural?: string
+  plural?: string,
 ): string {
   if (count === 1) return singular;
   return plural || singular + "s";
@@ -201,4 +201,21 @@ export function convertSeconds(seconds: number): string {
 
   const days = Math.floor(hours / 24);
   return `${days} days`;
+}
+
+export function getLocalDateString(
+  date = new Date(),
+  timeZone = "Asia/Kolkata",
+) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone }).format(date);
+}
+
+export function DateRange(startDate?: string, endDate?: string) {
+  const start = startDate ? new Date(`${startDate}T00:00:00+05:30`) : null;
+  const end = endDate ? new Date(`${endDate}T23:59:59.999+05:30`) : null;
+
+  return {
+    start: start ? start.toISOString() : null,
+    end: end ? end.toISOString() : null,
+  };
 }

@@ -29,8 +29,15 @@ export default function AdminAttendancePage() {
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>("");
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
+  const [startDate, setStartDate] = useState<string>(() => {
+    const today = new Date();
+    today.setDate(today.getDate() - 1);
+    return today.toISOString().split("T")[0];
+  });
+  const [endDate, setEndDate] = useState<string>(() => {
+    const today = new Date();
+    return today.toISOString().split("T")[0];
+  });
   const [pageLimit, setPageLimit] = useState<number>(10);
   const [sortBy, setSortBy] = useState<string>("attendanceDate");
   const [sortOrder, setSortOrder] = useState<string>("desc");
@@ -50,6 +57,7 @@ export default function AdminAttendancePage() {
     sortBy,
     sortOrder,
   ]);
+  useEffect(() => {}, []);
 
   const fetchAttendance = async () => {
     setLoading(true);
@@ -95,7 +103,7 @@ export default function AdminAttendancePage() {
 
   const handleAttendanceAction = async (
     attendanceId: string,
-    action: "APPROVE" | "REJECT"
+    action: "APPROVE" | "REJECT",
   ) => {
     setActionLoading(attendanceId);
     try {
@@ -126,65 +134,87 @@ export default function AdminAttendancePage() {
     return <div>Access Denied</div>;
   }
 
+  console.log("records", records);
+
   return (
-    <div className="space-y-6 p-4 md:p-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-            ⏱ ATTENDANCE MANAGEMENT
-          </h1>
-          <p className="mt-2 text-gray-600">
-            Manage company-wide attendance records
-          </p>
-        </div>
-      </div>
-
-      <AttendanceStatsCards stats={stats} loading={loading} />
-
-      <AttendanceChart
-        statusDistribution={statusDistribution}
-        dailyTrends={dailyTrends}
-        loading={loading}
-      />
-
-      <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
-        <AttendanceFilters
-          statusFilter={statusFilter}
-          setStatusFilter={setStatusFilter}
-          startDate={startDate}
-          setStartDate={setStartDate}
-          endDate={endDate}
-          setEndDate={setEndDate}
-          pageLimit={pageLimit}
-          setPageLimit={setPageLimit}
-          sortBy={sortBy}
-          setSortBy={setSortBy}
-          sortOrder={sortOrder}
-          setSortOrder={setSortOrder}
-        />
-
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-4">
-            <div className="flex">
-              <XCircle className="h-5 w-5 text-red-400" />
-              <div className="ml-3">
-                <p className="text-sm text-red-700">{error}</p>
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+            <div className="mb-4 sm:mb-0">
+              <div className="flex items-center space-x-3">
+                <div className="bg-blue-600 p-2 rounded-lg">
+                  <span className="text-white text-xl">⏱</span>
+                </div>
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+                    Attendance Management
+                  </h1>
+                  <p className="mt-1 text-sm md:text-base text-gray-600">
+                    Monitor and manage company-wide attendance records
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              <div className="bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-200">
+                <span className="text-sm text-gray-600">
+                  Last updated: {new Date().toLocaleTimeString()}
+                </span>
               </div>
             </div>
           </div>
-        )}
+        </div>
 
-        <AttendanceTable
-          records={records}
-          loading={loading}
-          actionLoading={actionLoading}
-          onAttendanceAction={handleAttendanceAction}
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
-          itemsPerPage={pageLimit}
-        />
+        {/* Stats Cards */}
+        <div className="mb-8">
+          <AttendanceStatsCards stats={stats} loading={loading} />
+        </div>
+
+        {/* Records Section */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <AttendanceFilters
+            statusFilter={statusFilter}
+            setStatusFilter={setStatusFilter}
+            startDate={startDate}
+            setStartDate={setStartDate}
+            endDate={endDate}
+            setEndDate={setEndDate}
+            pageLimit={pageLimit}
+            setPageLimit={setPageLimit}
+            sortBy={sortBy}
+            setSortBy={setSortBy}
+            sortOrder={sortOrder}
+            setSortOrder={setSortOrder}
+          />
+
+          {error && (
+            <div className="mx-4 md:mx-6 mb-4">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex items-center">
+                  <XCircle className="h-5 w-5 text-red-400 flex-shrink-0" />
+                  <div className="ml-3">
+                    <p className="text-sm text-red-700">{error}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="px-4 md:px-6 pb-6">
+            <AttendanceTable
+              records={records}
+              loading={loading}
+              actionLoading={actionLoading}
+              onAttendanceAction={handleAttendanceAction}
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              itemsPerPage={pageLimit}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );
