@@ -77,7 +77,9 @@ export class SalaryService {
             id: true,
             defaultSalaryType: true,
             overtimeMultiplier: true,
+            enableLatePenalty: true,
             latePenaltyPerMinute: true,
+            enableAbsentPenalty: true,
             halfDayThresholdHours: true,
             absentPenaltyPerDay: true,
             pfPercentage: true,
@@ -178,6 +180,19 @@ export class SalaryService {
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0); // Last day of month
 
+    // Get company settings for shift times
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        shiftStartTime: true,
+        gracePeriodMinutes: true,
+      },
+    });
+
+    if (!company) {
+      throw new Error("Company not found");
+    }
+
     const attendances = await prisma.attendance.findMany({
       where: {
         userId,
@@ -229,10 +244,26 @@ export class SalaryService {
           overtimeHours += attendance.overtimeHours;
         }
 
-        if (attendance.isLate) {
-          // Calculate late minutes (simplified)
-          lateMinutes += 15; // Default late penalty
+        if (attendance.isLate && attendance.punchIn) {
+          // Calculate actual late minutes
+          const shiftStart = new Date(attendance.attendanceDate);
+          const [h, m] = company.shiftStartTime?.split(":").map(Number) || [
+            0, 0,
+          ];
+          shiftStart.setHours(h, m, 0, 0);
+
+          // Add grace period
+          shiftStart.setMinutes(
+            shiftStart.getMinutes() + (company.gracePeriodMinutes || 30),
+          );
+
+          const lateMs = attendance.punchIn.getTime() - shiftStart.getTime();
+          const lateMins = Math.max(0, Math.floor(lateMs / (1000 * 60)));
+          lateMinutes += lateMins;
         }
+      } else if ((attendance.status as any) === "LEAVE") {
+        // LEAVE counts as present day but no working hours, overtime, or penalties
+        approvedDays++;
       } else if (attendance.status === AttendanceStatus.REJECTED) {
         rejectedDays++;
       }
@@ -334,7 +365,11 @@ export class SalaryService {
     }
 
     // Penalties
-    if (attendance.lateMinutes > 0 && company.latePenaltyPerMinute) {
+    if (
+      attendance.lateMinutes > 0 &&
+      company.enableLatePenalty &&
+      company.latePenaltyPerMinute
+    ) {
       penaltyAmount += attendance.lateMinutes * company.latePenaltyPerMinute;
       breakdowns.push({
         type: "LATE_PENALTY",
@@ -344,7 +379,11 @@ export class SalaryService {
       });
     }
 
-    if (attendance.absentDays > 0 && company.absentPenaltyPerDay) {
+    if (
+      attendance.absentDays > 0 &&
+      company.enableAbsentPenalty &&
+      company.absentPenaltyPerDay
+    ) {
       const absentPenalty = attendance.absentDays * company.absentPenaltyPerDay;
       penaltyAmount += absentPenalty;
       breakdowns.push({

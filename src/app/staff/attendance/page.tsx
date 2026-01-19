@@ -13,11 +13,7 @@ import {
 } from "lucide-react";
 import PunchModal from "@/components/PunchModal";
 import MessageModal from "@/components/MessageModal";
-import {
-  getAttendanceBaseDate,
-  getAttendanceDateForShift,
-} from "@/lib/attendanceUtils";
-import { get } from "http";
+
 import { getLocalDateString } from "@/lib/utils";
 
 interface AttendanceRecord {
@@ -90,7 +86,6 @@ export default function StaffAttendancePage() {
       const data: AttendanceRecord[] = await attendanceResponse.json();
       setAttendanceData(data);
       const todayBase = getLocalDateString(new Date()).split("T")[0];
-      console.log(todayBase);
       const todayRecord =
         data.find((record) => {
           const recordDate = new Date(record.date);

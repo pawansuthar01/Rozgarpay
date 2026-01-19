@@ -1,9 +1,18 @@
 import { prisma } from "../lib/prisma";
-import {
-  getCompanySettings,
-  getAutoPunchOutTime,
-  isNightShift,
-} from "../lib/attendanceUtils";
+import { getCompanySettings } from "../lib/attendanceUtils";
+
+// Simple function to calculate auto punch-out time
+function getAutoPunchOutTime(
+  baseDate: Date,
+  shiftStart: string,
+  shiftEnd: string,
+  bufferMinutes: number,
+): Date {
+  const [endHour, endMinute] = shiftEnd.split(":").map(Number);
+  const punchOutTime = new Date(baseDate);
+  punchOutTime.setHours(endHour, endMinute + bufferMinutes, 0, 0);
+  return punchOutTime;
+}
 
 /**
  * Auto punch-out cron job

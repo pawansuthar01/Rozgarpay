@@ -9,7 +9,7 @@ import {
   isPunchInAllowed,
   isPunchOutAllowed,
   calculateHours,
-  getAttendanceDateForShift,
+  getAttendanceDate,
   LocationData,
 } from "@/lib/attendanceUtils";
 
@@ -50,11 +50,7 @@ export async function POST(request: NextRequest) {
     const now = new Date();
 
     /* ================= ATTENDANCE DATE ================= */
-    const attendanceDate = getAttendanceDateForShift(
-      settings.shiftStartTime,
-      settings.shiftEndTime,
-      now,
-    );
+    const attendanceDate = getAttendanceDate(now);
 
     /* ================= FIND REAL OPEN ATTENDANCE ================= */
     let openAttendance = await prisma.attendance.findFirst({
@@ -135,6 +131,7 @@ export async function POST(request: NextRequest) {
         settings.shiftStartTime,
         settings.shiftEndTime,
         settings.overtimeThresholdHours,
+        openAttendance.shiftDurationHours || undefined,
       );
 
       attendance = await prisma.attendance.update({
@@ -187,7 +184,6 @@ export async function POST(request: NextRequest) {
         settings.shiftStartTime,
         settings.shiftEndTime,
         settings.gracePeriodMinutes,
-        settings.nightPunchInWindowHours,
       );
 
       if (!punchInCheck.allowed) {
@@ -217,6 +213,18 @@ export async function POST(request: NextRequest) {
             { status: 400 },
           );
         }
+      }
+
+      // Calculate late minutes if late
+      let lateMinutes = 0;
+      if (punchInCheck.isLate) {
+        const shiftStart = new Date(now);
+        const [h, m] = settings.shiftStartTime.split(":").map(Number);
+        shiftStart.setHours(h, m, 0, 0);
+        lateMinutes = Math.max(
+          0,
+          Math.floor((now.getTime() - shiftStart.getTime()) / (1000 * 60)),
+        );
       }
 
       attendance = await prisma.attendance.create({

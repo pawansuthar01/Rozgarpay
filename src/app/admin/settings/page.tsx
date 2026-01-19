@@ -39,6 +39,10 @@ interface AttendanceSettings {
   locationRadius: number;
   overtimeThresholdHours: number;
   nightPunchInWindowHours: number;
+  enableLatePenalty: boolean;
+  latePenaltyPerMinute: number;
+  enableAbsentPenalty: boolean;
+  absentPenaltyPerDay: number;
 }
 
 export default function AdminSettingsPage() {
@@ -57,6 +61,10 @@ export default function AdminSettingsPage() {
       locationRadius: 100.0,
       overtimeThresholdHours: 2.0,
       nightPunchInWindowHours: 2.0,
+      enableLatePenalty: false,
+      latePenaltyPerMinute: 0,
+      enableAbsentPenalty: false,
+      absentPenaltyPerDay: 0,
     });
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<string | null>(null);
@@ -103,6 +111,10 @@ export default function AdminSettingsPage() {
             companyData.company.overtimeThresholdHours || 2.0,
           nightPunchInWindowHours:
             companyData.company.nightPunchInWindowHours || 2.0,
+          enableLatePenalty: companyData.company.enableLatePenalty || false,
+          latePenaltyPerMinute: companyData.company.latePenaltyPerMinute || 0,
+          enableAbsentPenalty: companyData.company.enableAbsentPenalty || false,
+          absentPenaltyPerDay: companyData.company.absentPenaltyPerDay || 0,
         });
       }
     } catch (error) {
@@ -731,6 +743,173 @@ export default function AdminSettingsPage() {
                 Hours worked beyond regular shift requiring approval for 1.5x
                 overtime pay
               </p>
+            </div>
+          )}
+        </div>
+
+        {/* Penalty Settings */}
+        <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl md:text-2xl font-semibold text-gray-900 flex items-center">
+              <AlertTriangle className="h-6 w-6 mr-3 text-red-600" />
+              Penalty Policy
+            </h2>
+            {editing === "penalty" ? (
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => handleSave("penalty")}
+                  className="px-4 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg font-medium transition-colors flex items-center space-x-2"
+                >
+                  <Save className="h-4 w-4" />
+                  <span className="hidden sm:inline">Save</span>
+                </button>
+                <button
+                  onClick={handleCancel}
+                  className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-medium transition-colors flex items-center space-x-2"
+                >
+                  <X className="h-4 w-4" />
+                  <span className="hidden sm:inline">Cancel</span>
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => handleEdit("penalty")}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors flex items-center space-x-2"
+              >
+                <Edit className="h-4 w-4" />
+                <span className="hidden sm:inline">Edit</span>
+              </button>
+            )}
+          </div>
+
+          {editing === "penalty" ? (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-base font-medium text-gray-700 mb-2">
+                    Enable Late Arrival Penalties
+                  </label>
+                  <div className="flex items-center space-x-3">
+                    <input
+                      type="checkbox"
+                      checked={tempAttendanceSettings.enableLatePenalty}
+                      onChange={(e) =>
+                        setTempAttendanceSettings({
+                          ...tempAttendanceSettings,
+                          enableLatePenalty: e.target.checked,
+                        })
+                      }
+                      className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                    />
+                    <span className="text-sm text-gray-600">
+                      Apply penalties for late arrivals
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-base font-medium text-gray-700 mb-2">
+                    Late Penalty Rate (per minute)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="10"
+                    value={tempAttendanceSettings.latePenaltyPerMinute}
+                    onChange={(e) =>
+                      setTempAttendanceSettings({
+                        ...tempAttendanceSettings,
+                        latePenaltyPerMinute: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                    disabled={!tempAttendanceSettings.enableLatePenalty}
+                  />
+                  <p className="text-sm text-gray-500 mt-1">
+                    Amount deducted per minute of lateness
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-base font-medium text-gray-700 mb-2">
+                    Enable Absent Day Penalties
+                  </label>
+                  <div className="flex items-center space-x-3">
+                    <input
+                      type="checkbox"
+                      checked={tempAttendanceSettings.enableAbsentPenalty}
+                      onChange={(e) =>
+                        setTempAttendanceSettings({
+                          ...tempAttendanceSettings,
+                          enableAbsentPenalty: e.target.checked,
+                        })
+                      }
+                      className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                    />
+                    <span className="text-sm text-gray-600">
+                      Apply penalties for absent days
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-base font-medium text-gray-700 mb-2">
+                    Absent Penalty Rate (per day)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="1000"
+                    value={tempAttendanceSettings.absentPenaltyPerDay}
+                    onChange={(e) =>
+                      setTempAttendanceSettings({
+                        ...tempAttendanceSettings,
+                        absentPenaltyPerDay: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                    disabled={!tempAttendanceSettings.enableAbsentPenalty}
+                  />
+                  <p className="text-sm text-gray-500 mt-1">
+                    Amount deducted for each absent day
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-red-50 rounded-lg p-4">
+                <p className="text-base font-medium text-gray-700 mb-1">
+                  Late Arrival Penalties
+                </p>
+                <p className="text-xl font-bold text-gray-900">
+                  {attendanceSettings.enableLatePenalty
+                    ? "Enabled"
+                    : "Disabled"}
+                </p>
+                <p className="text-sm text-gray-600">
+                  {attendanceSettings.enableLatePenalty
+                    ? `₹${attendanceSettings.latePenaltyPerMinute}/minute`
+                    : "No penalties applied"}
+                </p>
+              </div>
+              <div className="bg-red-50 rounded-lg p-4">
+                <p className="text-base font-medium text-gray-700 mb-1">
+                  Absent Day Penalties
+                </p>
+                <p className="text-xl font-bold text-gray-900">
+                  {attendanceSettings.enableAbsentPenalty
+                    ? "Enabled"
+                    : "Disabled"}
+                </p>
+                <p className="text-sm text-gray-600">
+                  {attendanceSettings.enableAbsentPenalty
+                    ? `₹${attendanceSettings.absentPenaltyPerDay}/day`
+                    : "No penalties applied"}
+                </p>
+              </div>
             </div>
           )}
         </div>

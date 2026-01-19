@@ -25,6 +25,8 @@ enum AttendanceStatus {
   PENDING
   APPROVED
   REJECTED
+  ABSENT
+  LEAVE
 }
 
 enum AuditAction {
@@ -93,7 +95,9 @@ model Company {
    // Salary Settings
    defaultSalaryType       SalaryType?   @default(MONTHLY)
    overtimeMultiplier      Float?        @default(1.5) // Overtime rate multiplier
+   enableLatePenalty       Boolean?      @default(false) // Whether to apply late penalties
    latePenaltyPerMinute    Float?        @default(0) // Penalty per late minute
+   enableAbsentPenalty     Boolean?      @default(false) // Whether to apply absent penalties
    halfDayThresholdHours   Float?        @default(4.0) // Hours below which it's half day
    absentPenaltyPerDay     Float?        @default(0) // Penalty for absent day
    pfPercentage            Float?        @default(12.0) // PF percentage
@@ -200,6 +204,7 @@ model Attendance {
    workingHours   Float?           // Calculated working hours
    overtimeHours  Float?           @default(0) // Overtime hours worked
    isLate         Boolean          @default(false) // Late punch-in flag
+   shiftDurationHours Float?        // Manual shift duration in hours (for night shifts)
    status         AttendanceStatus @default(PENDING)
    requiresApproval Boolean        @default(false) // Whether this attendance needs manager approval
    approvalReason  String?         // Reason why approval is required

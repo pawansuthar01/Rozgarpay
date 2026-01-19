@@ -17,7 +17,7 @@ export async function PATCH(
 
     const { status } = await request.json();
 
-    if (!["APPROVED", "REJECTED"].includes(status)) {
+    if (!["APPROVED", "REJECTED", "ABSENT", "LEAVE"].includes(status)) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
     }
 
@@ -39,9 +39,30 @@ export async function PATCH(
       );
     }
 
-    if (attendance.status !== "PENDING") {
+    // Validate workflow rules
+    if (attendance.status === status) {
       return NextResponse.json(
-        { error: "Attendance already processed" },
+        { error: "Attendance already has this status" },
+        { status: 400 },
+      );
+    }
+
+    // Workflow restrictions per spec:
+    // - APPROVED cannot be changed to REJECTED, but can be changed to ABSENT
+    // - REJECTED cannot be changed back to APPROVED
+    if (attendance.status === "APPROVED" && status === "REJECTED") {
+      return NextResponse.json(
+        {
+          error:
+            "Approved attendance cannot be rejected. You can mark it as absent instead.",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (attendance.status === "REJECTED" && status === "APPROVED") {
+      return NextResponse.json(
+        { error: "Rejected attendance cannot be approved." },
         { status: 400 },
       );
     }
@@ -61,7 +82,12 @@ export async function PATCH(
       await prisma.auditLog.create({
         data: {
           userId: session.user.id,
-          action: status === "APPROVED" ? "APPROVED" : "REJECTED",
+          action:
+            status === "APPROVED"
+              ? "APPROVED"
+              : status === "REJECTED"
+                ? "REJECTED"
+                : "UPDATED",
           entity: "ATTENDANCE",
           entityId: attendanceId,
           meta: {

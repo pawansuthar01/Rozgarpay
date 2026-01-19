@@ -4,7 +4,8 @@ import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
-import { XCircle } from "lucide-react";
+import { XCircle, AlertTriangle } from "lucide-react";
+import Link from "next/link";
 import AttendanceStatsCards from "@/components/admin/attendance/AttendanceStatsCards";
 import AttendanceChart from "@/components/admin/attendance/AttendanceChart";
 import AttendanceFilters from "@/components/admin/attendance/AttendanceFilters";
@@ -103,15 +104,28 @@ export default function AdminAttendancePage() {
 
   const handleAttendanceAction = async (
     attendanceId: string,
-    action: "APPROVE" | "REJECT",
+    action: "APPROVE" | "REJECT" | "HALF_DAY",
   ) => {
     setActionLoading(attendanceId);
     try {
+      let status: string;
+      switch (action) {
+        case "APPROVE":
+          status = "APPROVED";
+          break;
+        case "REJECT":
+          status = "REJECTED";
+          break;
+
+        default:
+          status = "APPROVED";
+      }
+
       const res = await fetch(`/api/attendance/${attendanceId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          status: action === "APPROVE" ? "APPROVED" : "REJECTED",
+          status,
           approvedBy: session?.user?.id,
         }),
       });
@@ -125,6 +139,31 @@ export default function AdminAttendancePage() {
     } catch (error) {
       console.error("Failed to update attendance:", error);
       alert("Failed to update attendance");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleMoreOptions = async (attendanceId: string, updates?: any) => {
+    if (!updates) return;
+
+    setActionLoading(attendanceId);
+    try {
+      const res = await fetch(`/api/admin/attendance/${attendanceId}/update`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+
+      if (res.ok) {
+        await fetchAttendance(); // Refresh data
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to update attendance details");
+      }
+    } catch (error) {
+      console.error("Failed to update attendance details:", error);
+      alert("Failed to update attendance details");
     } finally {
       setActionLoading(null);
     }
@@ -158,6 +197,13 @@ export default function AdminAttendancePage() {
               </div>
             </div>
             <div className="flex items-center space-x-3">
+              <Link
+                href="/admin/attendance/missing"
+                className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors flex items-center space-x-2"
+              >
+                <AlertTriangle className="h-4 w-4" />
+                <span>Check Missing</span>
+              </Link>
               <div className="bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-200">
                 <span className="text-sm text-gray-600">
                   Last updated: {new Date().toLocaleTimeString()}
@@ -208,6 +254,7 @@ export default function AdminAttendancePage() {
               loading={loading}
               actionLoading={actionLoading}
               onAttendanceAction={handleAttendanceAction}
+              onMoreOptions={handleMoreOptions}
               currentPage={currentPage}
               totalPages={totalPages}
               onPageChange={setCurrentPage}

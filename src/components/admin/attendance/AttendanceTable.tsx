@@ -6,10 +6,15 @@ import {
   Check,
   X,
   Image as ImageIcon,
+  MoreVertical,
+  Clock as ClockIcon,
+  DollarSign,
+  AlertTriangle,
 } from "lucide-react";
 import { AttendanceRecord } from "@/types/attendance";
-import { CheckCircle, Clock, XCircle } from "lucide-react";
+import { CheckCircle, Clock, XCircle, Minus } from "lucide-react";
 import { useState } from "react";
+import AttendanceMoreOptionsModal from "./AttendanceMoreOptionsModal";
 
 interface AttendanceTableProps {
   records: AttendanceRecord[];
@@ -17,8 +22,9 @@ interface AttendanceTableProps {
   actionLoading: string | null;
   onAttendanceAction: (
     attendanceId: string,
-    action: "APPROVE" | "REJECT",
+    action: "APPROVE" | "REJECT" | "HALF_DAY",
   ) => void;
+  onMoreOptions?: (attendanceId: string, updates?: any) => void;
   currentPage: number;
   totalPages: number;
   onPageChange: (page: number) => void;
@@ -30,12 +36,16 @@ export default function AttendanceTable({
   loading,
   actionLoading,
   onAttendanceAction,
+  onMoreOptions,
   currentPage,
   totalPages,
   onPageChange,
   itemsPerPage,
 }: AttendanceTableProps) {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedAttendance, setSelectedAttendance] =
+    useState<AttendanceRecord | null>(null);
 
   const getStatusInfo = (status: string) => {
     switch (status) {
@@ -54,6 +64,7 @@ export default function AttendanceTable({
           color: "bg-red-100 text-red-800",
           icon: XCircle,
         };
+
       default:
         return {
           color: "bg-gray-100 text-gray-800",
@@ -65,6 +76,21 @@ export default function AttendanceTable({
   const handleViewImage = (url?: string) => {
     if (url) {
       window.open(url, "_blank");
+    }
+  };
+
+  const handleMoreOptions = (attendanceId: string) => {
+    const attendance = records.find((r) => r.id === attendanceId);
+    if (attendance) {
+      setSelectedAttendance(attendance);
+      setModalOpen(true);
+    }
+  };
+
+  const handleSaveMoreOptions = async (attendanceId: string, updates: any) => {
+    // This will be passed from parent component
+    if (onMoreOptions) {
+      await onMoreOptions(attendanceId, updates);
     }
   };
 
@@ -197,55 +223,81 @@ export default function AttendanceTable({
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex items-center space-x-2">
-                          {record.punchOut ? (
-                            record.status.includes("PENDING") ? (
-                              <div className="flex space-x-1">
+                        <div className="flex items-center space-x-1">
+                          <>
+                            {record.status === "PENDING" && (
+                              <>
                                 <button
                                   onClick={() =>
                                     onAttendanceAction(record.id, "APPROVE")
                                   }
                                   disabled={actionLoading === record.id}
-                                  className="text-green-600 hover:text-green-900 disabled:opacity-50 border border-green-600 px-2 py-2 cursor-pointer rounded-lg flex items-center "
+                                  className="text-green-600 hover:text-green-900 disabled:opacity-50 border border-green-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
                                   title="Approve attendance"
                                   aria-label="Approve attendance"
                                 >
-                                  {" "}
+                                  <Check className="h-3 w-3 mr-1" />
                                   Approve
-                                  <Check className="h-4 w-4" />
                                 </button>
+
                                 <button
                                   onClick={() =>
                                     onAttendanceAction(record.id, "REJECT")
                                   }
                                   disabled={actionLoading === record.id}
-                                  className="text-red-600 hover:text-red-900 disabled:opacity-50 border border-red-600 px-2 py-2 cursor-pointer rounded-lg flex items-center "
+                                  className="text-red-600 hover:text-red-900 disabled:opacity-50 border border-red-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
                                   title="Reject attendance"
                                   aria-label="Reject attendance"
                                 >
+                                  <X className="h-3 w-3 mr-1" />
                                   Reject
-                                  <X className="h-4 w-4" />
                                 </button>
-                              </div>
-                            ) : (
+                              </>
+                            )}
+                            {record.status === "APPROVED" && (
+                              <>
+                                <button
+                                  onClick={() =>
+                                    onAttendanceAction(record.id, "REJECT")
+                                  }
+                                  disabled={actionLoading === record.id}
+                                  className="text-red-600 hover:text-red-900 disabled:opacity-50 border border-red-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
+                                  title="Reject attendance"
+                                  aria-label="Reject attendance"
+                                >
+                                  <X className="h-3 w-3 mr-1" />
+                                  Reject
+                                </button>
+                              </>
+                            )}
+
+                            {record.status === "REJECTED" && (
+                              <>
+                                <button
+                                  onClick={() =>
+                                    onAttendanceAction(record.id, "APPROVE")
+                                  }
+                                  disabled={actionLoading === record.id}
+                                  className="text-green-600 hover:text-green-900 disabled:opacity-50 border border-green-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
+                                  title="Approve attendance"
+                                  aria-label="Approve attendance"
+                                >
+                                  <Check className="h-3 w-3 mr-1" />
+                                  Approve
+                                </button>
+                              </>
+                            )}
+                            {onMoreOptions && (
                               <button
-                                onClick={() =>
-                                  onAttendanceAction(record.id, "REJECT")
-                                }
-                                disabled={actionLoading === record.id}
-                                className="text-red-600 hover:text-red-900 disabled:opacity-50 border border-red-600 px-2 py-2 cursor-pointer rounded-lg flex items-center "
-                                title="Reject attendance"
-                                aria-label="Reject attendance"
+                                onClick={() => handleMoreOptions(record.id)}
+                                className="text-gray-600 hover:text-gray-900 border border-gray-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
+                                title="More options"
+                                aria-label="More options"
                               >
-                                Reject
-                                <X className="h-4 w-4" />
+                                <MoreVertical className="h-3 w-3" />
                               </button>
-                            )
-                          ) : (
-                            <p className="text-sm text-red-300">
-                              No punch out yet
-                            </p>
-                          )}
+                            )}
+                          </>
                         </div>
                       </td>
                     </tr>
@@ -357,41 +409,145 @@ export default function AttendanceTable({
                     </div>
                   </div>
 
-                  {record.punchOut && record.status.includes("PENDING") ? (
-                    <div className="flex space-x-1">
-                      <button
-                        onClick={() => onAttendanceAction(record.id, "APPROVE")}
-                        disabled={actionLoading === record.id}
-                        className="text-green-600 hover:text-green-900 disabled:opacity-50 border border-green-600 px-2 py-2 cursor-pointer rounded-lg flex items-center "
-                        title="Approve attendance"
-                        aria-label="Approve attendance"
-                      >
-                        {" "}
-                        Approve
-                        <Check className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => onAttendanceAction(record.id, "REJECT")}
-                        disabled={actionLoading === record.id}
-                        className="text-red-600 hover:text-red-900 disabled:opacity-50 border border-red-600 px-2 py-2 cursor-pointer rounded-lg flex items-center "
-                        title="Reject attendance"
-                        aria-label="Reject attendance"
-                      >
-                        Reject
-                        <X className="h-4 w-4" />
-                      </button>
+                  {record.punchOut ? (
+                    <div className="flex flex-wrap gap-1">
+                      {record.status === "PENDING" && (
+                        <>
+                          <button
+                            onClick={() =>
+                              onAttendanceAction(record.id, "APPROVE")
+                            }
+                            disabled={actionLoading === record.id}
+                            className="text-green-600 hover:text-green-900 disabled:opacity-50 border border-green-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
+                            title="Approve attendance"
+                            aria-label="Approve attendance"
+                          >
+                            <Check className="h-3 w-3 mr-1" />
+                            Approve
+                          </button>
+                          <button
+                            onClick={() =>
+                              onAttendanceAction(record.id, "HALF_DAY")
+                            }
+                            disabled={actionLoading === record.id}
+                            className="text-orange-600 hover:text-orange-900 disabled:opacity-50 border border-orange-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
+                            title="Mark as half day"
+                            aria-label="Mark as half day"
+                          >
+                            <Minus className="h-3 w-3 mr-1" />
+                            Half
+                          </button>
+                          <button
+                            onClick={() =>
+                              onAttendanceAction(record.id, "REJECT")
+                            }
+                            disabled={actionLoading === record.id}
+                            className="text-red-600 hover:text-red-900 disabled:opacity-50 border border-red-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
+                            title="Reject attendance"
+                            aria-label="Reject attendance"
+                          >
+                            <X className="h-3 w-3 mr-1" />
+                            Reject
+                          </button>
+                        </>
+                      )}
+                      {record.status === "APPROVED" && (
+                        <>
+                          <button
+                            onClick={() =>
+                              onAttendanceAction(record.id, "HALF_DAY")
+                            }
+                            disabled={actionLoading === record.id}
+                            className="text-orange-600 hover:text-orange-900 disabled:opacity-50 border border-orange-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
+                            title="Change to half day"
+                            aria-label="Change to half day"
+                          >
+                            <Minus className="h-3 w-3 mr-1" />
+                            Half
+                          </button>
+                          <button
+                            onClick={() =>
+                              onAttendanceAction(record.id, "REJECT")
+                            }
+                            disabled={actionLoading === record.id}
+                            className="text-red-600 hover:text-red-900 disabled:opacity-50 border border-red-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
+                            title="Reject attendance"
+                            aria-label="Reject attendance"
+                          >
+                            <X className="h-3 w-3 mr-1" />
+                            Reject
+                          </button>
+                        </>
+                      )}
+                      {record.status === "HALF_DAY" && (
+                        <>
+                          <button
+                            onClick={() =>
+                              onAttendanceAction(record.id, "APPROVE")
+                            }
+                            disabled={actionLoading === record.id}
+                            className="text-green-600 hover:text-green-900 disabled:opacity-50 border border-green-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
+                            title="Change to full day"
+                            aria-label="Change to full day"
+                          >
+                            <Check className="h-3 w-3 mr-1" />
+                            Full
+                          </button>
+                          <button
+                            onClick={() =>
+                              onAttendanceAction(record.id, "REJECT")
+                            }
+                            disabled={actionLoading === record.id}
+                            className="text-red-600 hover:text-red-900 disabled:opacity-50 border border-red-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
+                            title="Reject attendance"
+                            aria-label="Reject attendance"
+                          >
+                            <X className="h-3 w-3 mr-1" />
+                            Reject
+                          </button>
+                        </>
+                      )}
+                      {record.status === "REJECTED" && (
+                        <>
+                          <button
+                            onClick={() =>
+                              onAttendanceAction(record.id, "APPROVE")
+                            }
+                            disabled={actionLoading === record.id}
+                            className="text-green-600 hover:text-green-900 disabled:opacity-50 border border-green-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
+                            title="Approve attendance"
+                            aria-label="Approve attendance"
+                          >
+                            <Check className="h-3 w-3 mr-1" />
+                            Approve
+                          </button>
+                          <button
+                            onClick={() =>
+                              onAttendanceAction(record.id, "HALF_DAY")
+                            }
+                            disabled={actionLoading === record.id}
+                            className="text-orange-600 hover:text-orange-900 disabled:opacity-50 border border-orange-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
+                            title="Mark as half day"
+                            aria-label="Mark as half day"
+                          >
+                            <Minus className="h-3 w-3 mr-1" />
+                            Half
+                          </button>
+                        </>
+                      )}
+                      {onMoreOptions && (
+                        <button
+                          onClick={() => handleMoreOptions(record.id)}
+                          className="text-gray-600 hover:text-gray-900 border border-gray-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
+                          title="More options"
+                          aria-label="More options"
+                        >
+                          <MoreVertical className="h-3 w-3" />
+                        </button>
+                      )}
                     </div>
                   ) : (
-                    <button
-                      onClick={() => onAttendanceAction(record.id, "REJECT")}
-                      disabled={actionLoading === record.id}
-                      className="text-red-600 hover:text-red-900 disabled:opacity-50 border border-red-600 px-2 py-2 cursor-pointer rounded-lg flex items-center "
-                      title="Reject attendance"
-                      aria-label="Reject attendance"
-                    >
-                      Reject
-                      <X className="h-4 w-4" />
-                    </button>
+                    <p className="text-sm text-red-300">No punch out yet</p>
                   )}
 
                   {!record.punchOut && (
@@ -453,6 +609,13 @@ export default function AttendanceTable({
           </button>
         </div>
       </div>
+      <AttendanceMoreOptionsModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        attendance={selectedAttendance}
+        onSave={handleSaveMoreOptions}
+      />
+
       {selectedImage && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
           <div className="relative max-w-2xl max-h-screen p-4">

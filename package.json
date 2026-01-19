@@ -9,6 +9,7 @@
     "db:seed": "npx tsx prisma/seed.ts",
     "db:setting": "npx tsx prisma/seed-setting.ts",
     "cron:auto-punch-out": "npx tsx src/scripts/auto-punch-out.ts",
+    "cron:mark-absent": "npx tsx src/scripts/mark-absent.ts",
     "cron:start": "npx tsx src/scripts/cron-jobs.ts"
   },
   "dependencies": {

@@ -54,10 +54,11 @@ export async function GET(
         "Unnamed",
       userRole: attendance.user.role,
       attendanceDate: attendance.attendanceDate.toISOString(),
-      punchIn: attendance.punchIn.toISOString(),
+      punchIn: attendance.punchIn?.toISOString() || null,
       punchOut: attendance.punchOut?.toISOString() || null,
       status: attendance.status,
-      imageUrl: attendance.imageUrl,
+      imageUrl: attendance.punchInImageUrl,
+      shiftDurationHours: attendance.shiftDurationHours,
     };
 
     return NextResponse.json(attendanceDetail);

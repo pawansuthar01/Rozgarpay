@@ -1,6 +1,6 @@
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
-import { FileText, Clock, CheckCircle, XCircle } from "lucide-react";
+import { FileText, Clock, CheckCircle, XCircle, Minus } from "lucide-react";
 import { AttendanceStats } from "@/types/attendance";
 
 interface AttendanceStatsCardsProps {
@@ -13,7 +13,7 @@ export default function AttendanceStatsCards({
   loading,
 }: AttendanceStatsCardsProps) {
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
+    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-6">
       <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 md:p-6 rounded-xl shadow-sm border border-blue-200 hover:shadow-md transition-shadow">
         <div className="flex items-center justify-between">
           <div>
@@ -50,6 +50,26 @@ export default function AttendanceStatsCards({
           </div>
           <div className="bg-green-200 p-2 md:p-3 rounded-lg">
             <CheckCircle className="h-5 w-5 md:h-6 md:w-6 text-green-700" />
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-4 md:p-6 rounded-xl shadow-sm border border-orange-200 hover:shadow-md transition-shadow">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs md:text-sm font-medium text-orange-700 mb-1">
+              Half Day
+            </p>
+            {loading ? (
+              <Skeleton height={28} width={40} />
+            ) : (
+              <p className="text-2xl md:text-3xl font-bold text-orange-900">
+                {stats?.halfDay || 0}
+              </p>
+            )}
+          </div>
+          <div className="bg-orange-200 p-2 md:p-3 rounded-lg">
+            <Minus className="h-5 w-5 md:h-6 md:w-6 text-orange-700" />
           </div>
         </div>
       </div>

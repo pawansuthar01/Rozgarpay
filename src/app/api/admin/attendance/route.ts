@@ -104,12 +104,14 @@ export async function GET(request: NextRequest) {
       pending: statsResult.find((s) => s.status === "PENDING")?._count || 0,
       approved: statsResult.find((s) => s.status === "APPROVED")?._count || 0,
       rejected: statsResult.find((s) => s.status === "REJECTED")?._count || 0,
+      absent: statsResult.find((s) => s.status === "ABSENT")?._count || 0,
     };
 
     // Status distribution for pie chart
     const statusDistribution = [
       { name: "Approved", value: stats.approved, color: "#10B981" },
-      { name: "Pending", value: stats.pending, color: "#F59E0B" },
+      { name: "Absent", value: stats.absent, color: "#F59E0B" },
+      { name: "Pending", value: stats.pending, color: "#8B5CF6" },
       { name: "Rejected", value: stats.rejected, color: "#EF4444" },
     ];
 

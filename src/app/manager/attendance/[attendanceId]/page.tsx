@@ -13,6 +13,8 @@ import {
   ZoomIn,
   Check,
   X,
+  AlertTriangle,
+  Calendar,
 } from "lucide-react";
 
 interface AttendanceDetail {
@@ -24,6 +26,7 @@ interface AttendanceDetail {
   punchOut: string | null;
   status: string;
   imageUrl: string | null;
+  shiftDurationHours: number | null;
 }
 
 export default function AttendanceDetail() {
@@ -35,6 +38,8 @@ export default function AttendanceDetail() {
   const [loading, setLoading] = useState(true);
   const [imageZoomed, setImageZoomed] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [updatingShiftDuration, setUpdatingShiftDuration] = useState(false);
+  const [tempShiftDuration, setTempShiftDuration] = useState<string>("");
 
   useEffect(() => {
     if (attendanceId) {
@@ -91,6 +96,72 @@ export default function AttendanceDetail() {
     }
   };
 
+  const handleMarkAbsent = async () => {
+    setActionLoading(true);
+    try {
+      const response = await fetch(`/api/attendance/${attendanceId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "ABSENT" }),
+      });
+
+      if (response.ok) {
+        fetchAttendanceDetail(); // Refresh the data
+      }
+    } catch (error) {
+      console.error("Failed to mark attendance as absent:", error);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleMarkLeave = async () => {
+    setActionLoading(true);
+    try {
+      const response = await fetch(`/api/attendance/${attendanceId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "LEAVE" }),
+      });
+
+      if (response.ok) {
+        fetchAttendanceDetail(); // Refresh the data
+      }
+    } catch (error) {
+      console.error("Failed to mark attendance as leave:", error);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleUpdateShiftDuration = async () => {
+    if (!attendance || !tempShiftDuration) return;
+
+    const duration = parseFloat(tempShiftDuration);
+    if (isNaN(duration) || duration <= 0) return;
+
+    setUpdatingShiftDuration(true);
+    try {
+      const response = await fetch(
+        `/api/admin/attendance/${attendanceId}/update`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ shiftDurationHours: duration }),
+        },
+      );
+
+      if (response.ok) {
+        fetchAttendanceDetail(); // Refresh the data
+        setTempShiftDuration("");
+      }
+    } catch (error) {
+      console.error("Failed to update shift duration:", error);
+    } finally {
+      setUpdatingShiftDuration(false);
+    }
+  };
+
   if (!session || session.user.role !== "MANAGER") {
     return <div>Access Denied</div>;
   }
@@ -103,6 +174,10 @@ export default function AttendanceDetail() {
         return "bg-red-100 text-red-800";
       case "PENDING":
         return "bg-yellow-100 text-yellow-800";
+      case "ABSENT":
+        return "bg-orange-100 text-orange-800";
+      case "LEAVE":
+        return "bg-blue-100 text-blue-800";
       default:
         return "bg-gray-100 text-gray-800";
     }
@@ -116,6 +191,10 @@ export default function AttendanceDetail() {
         return <XCircle className="h-5 w-5 text-red-600" />;
       case "PENDING":
         return <Clock className="h-5 w-5 text-yellow-600" />;
+      case "ABSENT":
+        return <AlertTriangle className="h-5 w-5 text-orange-600" />;
+      case "LEAVE":
+        return <Calendar className="h-5 w-5 text-blue-600" />;
       default:
         return <Clock className="h-5 w-5 text-gray-400" />;
     }
@@ -169,7 +248,32 @@ export default function AttendanceDetail() {
                 </h2>
                 <p className="text-gray-600">{attendance.userRole}</p>
               </div>
-              <div className="ml-auto">
+              <div className="ml-auto flex items-center space-x-3">
+                <div className="flex items-center space-x-2">
+                  <label className="text-sm font-medium text-gray-700">
+                    Shift Duration (hours)
+                  </label>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      value={tempShiftDuration}
+                      onChange={(e) => setTempShiftDuration(e.target.value)}
+                      placeholder={
+                        attendance.shiftDurationHours?.toString() || "8"
+                      }
+                      className="w-20 px-2 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      onClick={handleUpdateShiftDuration}
+                      disabled={updatingShiftDuration || !tempShiftDuration}
+                      className="px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {updatingShiftDuration ? "..." : "Update"}
+                    </button>
+                  </div>
+                </div>
                 <span
                   className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(attendance.status)}`}
                 >
@@ -239,15 +343,45 @@ export default function AttendanceDetail() {
 
             {/* Actions */}
             {attendance.status === "PENDING" && (
-              <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t border-gray-200">
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200">
                 <button
                   onClick={handleApprove}
                   disabled={actionLoading}
-                  className="flex-1 flex items-center justify-center px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+                  className="flex items-center justify-center px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
                 >
-                  <Check className="h-5 w-5 mr-2" />
+                  <Check className="h-4 w-4 mr-2" />
                   {actionLoading ? "Processing..." : "Approve"}
                 </button>
+                <button
+                  onClick={handleReject}
+                  disabled={actionLoading}
+                  className="flex items-center justify-center px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  {actionLoading ? "Processing..." : "Reject"}
+                </button>
+                <button
+                  onClick={handleMarkAbsent}
+                  disabled={actionLoading}
+                  className="flex items-center justify-center px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 transition-colors"
+                >
+                  <AlertTriangle className="h-4 w-4 mr-2" />
+                  {actionLoading ? "Processing..." : "Absent"}
+                </button>
+                <button
+                  onClick={handleMarkLeave}
+                  disabled={actionLoading}
+                  className="flex items-center justify-center px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  <Calendar className="h-4 w-4 mr-2" />
+                  {actionLoading ? "Processing..." : "Leave"}
+                </button>
+              </div>
+            )}
+
+            {/* Reject Action for Approved Attendance */}
+            {attendance.status === "APPROVED" && (
+              <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t border-gray-200">
                 <button
                   onClick={handleReject}
                   disabled={actionLoading}
