@@ -3,8 +3,6 @@
 
 import { prisma } from "@/lib/prisma";
 import { SalaryType, AttendanceStatus, AuditAction } from "@prisma/client";
-import { generateSalaryPDFBuffer } from "@/lib/pdfGenerator";
-import { uploadPDF, deletePDF } from "@/lib/cloudinary";
 
 export interface SalaryCalculationInput {
   userId: string;
@@ -223,6 +221,8 @@ export class SalaryService {
 
       // Generate and upload PDF after salary creation
       try {
+        const { generateSalaryPDFBuffer } = await import("@/lib/pdfGenerator");
+        const { uploadPDF } = await import("@/lib/cloudinary");
         const pdfData = await this.generateSalaryPDFData(salary.id);
         const pdfBuffer = generateSalaryPDFBuffer({
           data: pdfData,
@@ -781,7 +781,9 @@ export class SalaryService {
           where: { id: salary.userId },
           select: { firstName: true, lastName: true },
         });
-
+        const { generateSalaryPDFBuffer } = await import("@/lib/pdfGenerator");
+        const { uploadPDF } = await import("@/lib/cloudinary");
+        const { deletePDF } = await import("@/lib/cloudinary");
         const pdfBuffer = generateSalaryPDFBuffer({
           data: pdfData,
           companyName: company?.name || "Company",
