@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import authOptions from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
   try {
@@ -71,11 +71,13 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const attendedUserIds = new Set(staffWithAttendance.map((a) => a.userId));
+    const attendedUserIds = new Set(
+      staffWithAttendance.map((a: any) => a.userId),
+    );
 
     // Filter staff without attendance
     const missingAttendanceStaff = allStaff.filter(
-      (staff) => !attendedUserIds.has(staff.id),
+      (staff: any) => !attendedUserIds.has(staff.id),
     );
 
     // Apply pagination
