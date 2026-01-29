@@ -74,7 +74,7 @@ export class OTPService {
         enable_fallback: true,
       };
 
-      settings.forEach((setting) => {
+      settings.forEach((setting: any) => {
         try {
           const value = JSON.parse(setting.value);
           if (setting.key in otpSettings) {
@@ -583,9 +583,10 @@ export class OTPService {
 
       const metrics = {
         totalSent: otps.length,
-        totalDelivered: otps.filter((otp) => otp.deliveryStatus === "DELIVERED")
-          .length,
-        totalFailed: otps.filter((otp) => otp.deliveryStatus === "FAILED")
+        totalDelivered: otps.filter(
+          (otp: any) => otp.deliveryStatus === "DELIVERED",
+        ).length,
+        totalFailed: otps.filter((otp: any) => otp.deliveryStatus === "FAILED")
           .length,
         deliveryRate: 0,
         averageRetries: 0,
@@ -600,11 +601,13 @@ export class OTPService {
           ? (metrics.totalDelivered / metrics.totalSent) * 100
           : 0;
       metrics.averageRetries =
-        otps.reduce((sum, otp) => sum + (otp.deliveryAttempts || 0), 0) /
-          otps.length || 0;
+        otps.reduce(
+          (sum: any, otp: any) => sum + (otp.deliveryAttempts || 0),
+          0,
+        ) / otps.length || 0;
 
       // Channel statistics
-      otps.forEach((otp) => {
+      otps.forEach((otp: any) => {
         const channels = (otp.deliveryChannels as string[]) || [];
         channels.forEach((channel: string) => {
           if (!metrics.channelStats[channel]) {
