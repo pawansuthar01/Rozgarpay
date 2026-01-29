@@ -2,10 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { OTPService } from "@/lib/OtpService";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ token: string }> },
-) {
+export async function GET(request: NextRequest, { params }: any) {
   try {
     const { token } = params;
 
@@ -60,10 +57,7 @@ export async function GET(
   }
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ token: string }> },
-) {
+export async function POST(request: NextRequest, { params }: any) {
   try {
     const { token } = params;
     const { type } = await request.json(); // "phone" or "email"
