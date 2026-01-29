@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "NEXT_DISABLE_TURBOPACK=1 next build",
     "start": "next start",
     "generate": "npx prisma generate",
     "db:seed": "npx tsx prisma/seed.tsx",
