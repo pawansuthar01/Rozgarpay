@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 import { generateAttendancePDFBuffer } from "@/lib/attendanceReportGenerator";
 
 export async function GET(request: NextRequest) {

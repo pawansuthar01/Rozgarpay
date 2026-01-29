@@ -1,6 +1,8 @@
 import { getServerSession } from "next-auth";
 import { NextResponse, type NextRequest } from "next/server";
 import { authOptions } from "@/lib/auth";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {

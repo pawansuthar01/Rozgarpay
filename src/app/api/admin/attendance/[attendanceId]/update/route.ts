@@ -5,6 +5,8 @@ import { salaryService } from "@/lib/salaryService";
 import { authOptions } from "@/lib/auth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 export async function PUT(request: NextRequest, { params }: any) {
   try {
     const session = await getServerSession(authOptions);

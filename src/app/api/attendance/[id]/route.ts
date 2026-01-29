@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { salaryService } from "@/lib/salaryService";
 import { authOptions } from "@/lib/auth";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 import { notificationManager } from "@/lib/notificationService";
 
 export async function PATCH(request: NextRequest, { params }: any) {
