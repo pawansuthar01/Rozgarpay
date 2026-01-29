@@ -4,10 +4,10 @@ import { OTPService } from "@/lib/OtpService";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ token: string }> }
+  { params }: { params: Promise<{ token: string }> },
 ) {
   try {
-    const { token } = await params;
+    const { token } = params;
 
     const invitation = await prisma.companyInvitation.findUnique({
       where: { token },
@@ -19,21 +19,21 @@ export async function GET(
     if (!invitation) {
       return NextResponse.json(
         { error: "Invalid invitation" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
     if (invitation.isUsed) {
       return NextResponse.json(
         { error: "Invitation already used" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     if (new Date() > invitation.expiresAt) {
       return NextResponse.json(
         { error: "Invitation expired" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -55,17 +55,17 @@ export async function GET(
     console.error(error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ token: string }> }
+  { params }: { params: Promise<{ token: string }> },
 ) {
   try {
-    const { token } = await params;
+    const { token } = params;
     const { type } = await request.json(); // "phone" or "email"
 
     // Verify invitation exists and is valid
@@ -79,21 +79,21 @@ export async function POST(
     if (!invitation) {
       return NextResponse.json(
         { error: "Invalid invitation" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
     if (invitation.isUsed) {
       return NextResponse.json(
         { error: "Invitation already used" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     if (new Date() > invitation.expiresAt) {
       return NextResponse.json(
         { error: "Invitation expired" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -101,7 +101,7 @@ export async function POST(
     const result = await OTPService.sendOTP(
       type === "phone" ? invitation.phone : "",
       type === "email" ? invitation.email : null,
-      "REGISTER"
+      "REGISTER",
     );
 
     if (result.success) {

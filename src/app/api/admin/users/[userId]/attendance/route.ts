@@ -12,7 +12,7 @@ export async function GET(request: NextRequest, { params }: any) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { userId } = await params;
+    const { userId } = params;
     const companyId = session.user.companyId;
     const { searchParams } = new URL(request.url);
     const monthParam = searchParams.get("month");

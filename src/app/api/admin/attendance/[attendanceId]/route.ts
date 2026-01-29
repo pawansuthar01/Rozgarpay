@@ -12,7 +12,7 @@ export async function GET(request: NextRequest, { params }: any) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { attendanceId } = await params;
+    const { attendanceId } = params;
 
     // Get admin's company
     const admin = await prisma.user.findUnique({
@@ -108,7 +108,7 @@ export async function PUT(request: NextRequest, { params }: any) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { attendanceId } = await params;
+    const { attendanceId } = params;
     const body = await request.json();
     const { status } = body;
 

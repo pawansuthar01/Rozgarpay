@@ -11,7 +11,7 @@ export async function GET(request: NextRequest, { params }: any) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { userId } = await params;
+    const { userId } = params;
     const { searchParams } = new URL(request.url);
     const attendancePage = parseInt(searchParams.get("attendancePage") || "1");
     const salaryPage = parseInt(searchParams.get("salaryPage") || "1");
@@ -242,7 +242,7 @@ export async function PATCH(request: NextRequest, { params }: any) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { userId } = await params;
+    const { userId } = params;
     const { status } = await request.json();
 
     if (!["ACTIVE", "SUSPENDED", "DEACTIVATED"].includes(status)) {

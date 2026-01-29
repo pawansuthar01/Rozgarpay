@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest, params: any) {
   try {
-    const { id } = await params;
+    const { id } = params;
     if (!id) {
       return NextResponse.json({ error: "id is required " }, { status: 401 });
     }

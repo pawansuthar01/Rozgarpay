@@ -7,7 +7,7 @@ import { salaryService } from "@/lib/salaryService";
 export async function POST(request: NextRequest, { params }: any) {
   try {
     const session = await getServerSession(authOptions);
-    const { salaryId } = await params;
+    const { salaryId } = params;
 
     if (!session || !["ADMIN", "MANAGER"].includes(session.user.role)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

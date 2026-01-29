@@ -12,7 +12,7 @@ export async function POST(request: NextRequest, { params }: any) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id: companyId } = await params;
+    const { id: companyId } = params;
     const { email, phone } = await request.json();
 
     if (!email || !phone) {

@@ -11,7 +11,7 @@ export async function GET(request: NextRequest, { params }: any) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id: adminId } = await params;
+    const { id: adminId } = params;
 
     const admin = await prisma.user.findUnique({
       where: { id: adminId, role: "ADMIN" },
@@ -57,7 +57,7 @@ export async function PUT(request: NextRequest, { params }: any) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id: adminId } = await params;
+    const { id: adminId } = params;
     const { status } = await request.json();
 
     if (!["ACTIVE", "SUSPENDED", "DEACTIVATED"].includes(status)) {

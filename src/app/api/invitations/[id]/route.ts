@@ -26,7 +26,7 @@ export async function DELETE(request: NextRequest, { params }: any) {
     } else {
       where.role = "ADMIN";
     }
-    const { id } = await params;
+    const { id } = params;
     where.id = id;
     // Find the invitation and ensure it belongs to admin's company
     const invitation = await prisma.companyInvitation.findFirst({

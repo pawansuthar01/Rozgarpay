@@ -11,7 +11,7 @@ export async function POST(request: NextRequest, { params }: any) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { salaryId } = await params;
+    const { salaryId } = params;
     const { reason } = await request.json();
 
     if (!reason || reason.trim().length === 0) {

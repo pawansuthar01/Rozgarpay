@@ -11,7 +11,7 @@ export async function GET(request: NextRequest, { params }: any) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id: companyId } = await params;
+    const { id: companyId } = params;
 
     const company = await prisma.company.findUnique({
       where: { id: companyId },
@@ -60,7 +60,7 @@ export async function PUT(request: NextRequest, { params }: any) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id: companyId } = await params;
+    const { id: companyId } = params;
     const { name, status } = await request.json();
 
     if (!name || typeof name !== "string" || name.trim().length === 0) {
@@ -134,7 +134,7 @@ export async function DELETE(request: NextRequest, { params }: any) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id: companyId } = await params;
+    const { id: companyId } = params;
 
     const company = await prisma.company.findUnique({
       where: { id: companyId },
@@ -212,7 +212,7 @@ export async function PATCH(request: NextRequest, { params }: any) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id: companyId } = await params;
+    const { id: companyId } = params;
 
     const company = await prisma.company.findUnique({
       where: { id: companyId },

@@ -15,7 +15,7 @@ export async function PUT(request: NextRequest, { params }: any) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { attendanceId } = await params;
+    const { attendanceId } = params;
     const body = await request.json();
     const {
       overtimeHours = 0,
@@ -123,25 +123,7 @@ export async function PUT(request: NextRequest, { params }: any) {
         existingSalary.status !== "PAID" &&
         !existingSalary.lockedAt
       ) {
-        console.log(
-          `Auto-recalculating salary for user ${updatedAttendance.userId} - ${currentMonth}/${currentYear}`,
-        );
-
-        const recalcResult = await salaryService.recalculateSalary(
-          existingSalary.id,
-        );
-
-        if (!recalcResult.success) {
-          console.error(
-            "Failed to auto-recalculate salary:",
-            recalcResult.error,
-          );
-          // Don't fail the attendance update if salary recalculation fails
-        } else {
-          console.log(
-            `Successfully auto-recalculated salary for user ${updatedAttendance.userId}`,
-          );
-        }
+        await salaryService.recalculateSalary(existingSalary.id);
       }
     } catch (salaryError) {
       console.error("Error during auto salary recalculation:", salaryError);

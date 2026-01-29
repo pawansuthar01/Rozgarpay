@@ -19,7 +19,7 @@ export async function GET(request: Request, { params }: any) {
       );
     }
 
-    const { attendanceId } = await params;
+    const { attendanceId } = params;
 
     const attendance = await prisma.attendance.findFirst({
       where: {
