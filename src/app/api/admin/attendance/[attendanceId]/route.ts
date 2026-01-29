@@ -74,12 +74,11 @@ export async function GET(request: NextRequest, { params }: any) {
       },
     });
 
-    const attendanceTrends = trends.map((t) => ({
+    const attendanceTrends = trends.map((t: any) => ({
       date: t.attendanceDate.toISOString().split("T")[0],
       count: t._count,
     }));
 
-    // Audit history: for now, just the current record, but can expand if audit model exists
     const auditHistory = [attendance];
 
     return NextResponse.json({
