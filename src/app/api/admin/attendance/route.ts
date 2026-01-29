@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { authOptions } from "../../auth/[...nextauth]/route";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 export async function GET(request: NextRequest) {
   try {
@@ -113,11 +113,14 @@ export async function GET(request: NextRequest) {
 
     const stats = {
       totalRecords: total,
-      pending: statsResult.find((s) => s.status === "PENDING")?._count || 0,
-      approved: statsResult.find((s) => s.status === "APPROVED")?._count || 0,
-      rejected: statsResult.find((s) => s.status === "REJECTED")?._count || 0,
-      absent: statsResult.find((s) => s.status === "ABSENT")?._count || 0,
-      leave: statsResult.find((s) => s.status === "LEAVE")?._count || 0,
+      pending:
+        statsResult.find((s: any) => s.status === "PENDING")?._count || 0,
+      approved:
+        statsResult.find((s: any) => s.status === "APPROVED")?._count || 0,
+      rejected:
+        statsResult.find((s: any) => s.status === "REJECTED")?._count || 0,
+      absent: statsResult.find((s: any) => s.status === "ABSENT")?._count || 0,
+      leave: statsResult.find((s: any) => s.status === "LEAVE")?._count || 0,
     };
 
     // Status distribution for pie chart
@@ -146,7 +149,7 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const dailyTrends = dailyTrendsResult.map((item) => ({
+    const dailyTrends = dailyTrendsResult.map((item: any) => ({
       date: item.attendanceDate.toISOString().split("T")[0],
       count: item._count,
     }));

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { authOptions } from "../../auth/[...nextauth]/route";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { notificationManager } from "@/lib/notificationService";
 
 export async function GET(request: NextRequest) {
@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
     console.error(error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
     if (!email || !phone || !password || !companyId) {
       return NextResponse.json(
         { error: "All fields are required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
     if (!company || company.status !== "ACTIVE") {
       return NextResponse.json(
         { error: "Invalid or inactive company" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
     if (existingUser) {
       return NextResponse.json(
         { error: "Email or phone already exists" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
         message: "Your admin account has been created successfully.",
         sentBy: session.user.email,
       },
-      ["in_app"]
+      ["in_app"],
     );
 
     return NextResponse.json({
@@ -178,7 +178,7 @@ export async function POST(request: NextRequest) {
     console.error(error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

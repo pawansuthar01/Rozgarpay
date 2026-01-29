@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { authOptions } from "../../auth/[...nextauth]/route";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 export async function GET() {
   try {
@@ -13,7 +13,10 @@ export async function GET() {
 
     const companyId = session.user.companyId;
     if (!companyId) {
-      return NextResponse.json({ error: "No company assigned" }, { status: 400 });
+      return NextResponse.json(
+        { error: "No company assigned" },
+        { status: 400 },
+      );
     }
 
     const today = new Date();
@@ -94,9 +97,14 @@ export async function GET() {
     ]);
 
     // Calculate attendance counts
-    const present = todaysAttendances.find(a => a.status === "APPROVED")?._count || 0;
-    const absent = teamSize - present - (todaysAttendances.find(a => a.status === "PENDING")?._count || 0);
-    const pendingApprovals = todaysAttendances.find(a => a.status === "PENDING")?._count || 0;
+    const present =
+      todaysAttendances.find((a) => a.status === "APPROVED")?._count || 0;
+    const absent =
+      teamSize -
+      present -
+      (todaysAttendances.find((a) => a.status === "PENDING")?._count || 0);
+    const pendingApprovals =
+      todaysAttendances.find((a) => a.status === "PENDING")?._count || 0;
 
     return NextResponse.json({
       teamSize,
@@ -105,15 +113,21 @@ export async function GET() {
         absent: Math.max(0, absent), // Ensure not negative
         pendingApprovals,
       },
-      pendingAttendanceApprovals: pendingAttendanceApprovals.map(attendance => ({
-        id: attendance.id,
-        user: `${attendance.user.firstName || ""} ${attendance.user.lastName || ""}`.trim() || attendance.user.email,
-        timestamp: attendance.createdAt.toISOString(),
-      })),
-      recentTeamActivity: recentTeamActivity.map(log => ({
+      pendingAttendanceApprovals: pendingAttendanceApprovals.map(
+        (attendance) => ({
+          id: attendance.id,
+          user:
+            `${attendance.user.firstName || ""} ${attendance.user.lastName || ""}`.trim() ||
+            attendance.user.email,
+          timestamp: attendance.createdAt.toISOString(),
+        }),
+      ),
+      recentTeamActivity: recentTeamActivity.map((log) => ({
         id: log.id,
         action: `${log.action} ${log.entity}`,
-        user: `${log.user.firstName || ""} ${log.user.lastName || ""}`.trim() || log.user.email,
+        user:
+          `${log.user.firstName || ""} ${log.user.lastName || ""}`.trim() ||
+          log.user.email,
         timestamp: log.createdAt.toISOString(),
       })),
     });
@@ -121,7 +135,7 @@ export async function GET() {
     console.error("Manager stats error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

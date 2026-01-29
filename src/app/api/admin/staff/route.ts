@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { authOptions } from "../../auth/[...nextauth]/route";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 export async function GET(request: NextRequest) {
   try {
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     if (!admin?.company) {
       return NextResponse.json(
         { error: "Admin company not found" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -128,7 +128,7 @@ export async function GET(request: NextRequest) {
           pendingAttendanceCount: pendingCount,
           currentMonthSalary: member.salaries[0] || null,
         };
-      })
+      }),
     );
 
     // Filter by attendance status if specified
@@ -136,19 +136,19 @@ export async function GET(request: NextRequest) {
     if (attendanceStatus) {
       if (attendanceStatus === "PENDING") {
         filteredStaff = staffWithTodayAttendance.filter(
-          (s) => s.todayAttendance?.status === "PENDING"
+          (s) => s.todayAttendance?.status === "PENDING",
         );
       } else if (attendanceStatus === "APPROVED") {
         filteredStaff = staffWithTodayAttendance.filter(
-          (s) => s.todayAttendance?.status === "APPROVED"
+          (s) => s.todayAttendance?.status === "APPROVED",
         );
       } else if (attendanceStatus === "REJECTED") {
         filteredStaff = staffWithTodayAttendance.filter(
-          (s) => s.todayAttendance?.status === "REJECTED"
+          (s) => s.todayAttendance?.status === "REJECTED",
         );
       } else if (attendanceStatus === "NOT_MARKED") {
         filteredStaff = staffWithTodayAttendance.filter(
-          (s) => !s.todayAttendance
+          (s) => !s.todayAttendance,
         );
       }
     }
@@ -265,7 +265,7 @@ export async function GET(request: NextRequest) {
     console.error("Staff fetch error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

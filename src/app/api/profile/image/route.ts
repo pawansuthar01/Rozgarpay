@@ -6,7 +6,7 @@ import {
   deleteFromCloudinary,
   extractPublicId,
 } from "@/lib/cloudinary";
-import { authOptions } from "../../auth/[...nextauth]/route";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 export async function POST(request: NextRequest) {
   try {

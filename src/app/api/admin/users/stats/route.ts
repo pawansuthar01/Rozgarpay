@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { authOptions } from "../../../auth/[...nextauth]/route";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     if (!admin?.company) {
       return NextResponse.json(
         { error: "Admin company not found" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -57,10 +57,13 @@ export async function GET(request: NextRequest) {
       _count: true,
     });
 
-    const roleDistribution = roleStats.reduce((acc, stat) => {
-      acc[stat.role] = stat._count;
-      return acc;
-    }, {} as Record<string, number>);
+    const roleDistribution = roleStats.reduce(
+      (acc, stat) => {
+        acc[stat.role] = stat._count;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
 
     // Ensure all roles are present
     const allRoles = ["ADMIN", "MANAGER", "ACCOUNTANT", "STAFF"];
@@ -81,7 +84,7 @@ export async function GET(request: NextRequest) {
     console.error("Users stats fetch error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { authOptions } from "../../auth/[...nextauth]/route";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 export async function GET(request: NextRequest) {
   try {
@@ -69,18 +69,18 @@ export async function GET(request: NextRequest) {
           lastMonthActivity > 0
             ? Math.round(
                 ((thisMonthActivity - lastMonthActivity) / lastMonthActivity) *
-                  100
+                  100,
               )
             : thisMonthActivity > 0
-            ? 100
-            : 0,
+              ? 100
+              : 0,
       },
     });
   } catch (error) {
     console.error(error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -102,7 +102,7 @@ export async function PUT(request: NextRequest) {
     ) {
       return NextResponse.json(
         { error: "First name cannot be empty" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -112,7 +112,7 @@ export async function PUT(request: NextRequest) {
     ) {
       return NextResponse.json(
         { error: "Last name cannot be empty" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -122,7 +122,7 @@ export async function PUT(request: NextRequest) {
     ) {
       return NextResponse.json(
         { error: "Phone cannot be empty" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -138,7 +138,7 @@ export async function PUT(request: NextRequest) {
       if (existingUser) {
         return NextResponse.json(
           { error: "Phone number already in use" },
-          { status: 400 }
+          { status: 400 },
         );
       }
     }
@@ -172,7 +172,7 @@ export async function PUT(request: NextRequest) {
           entityId: session.user.id,
           meta: {
             updatedFields: Object.keys({ firstName, lastName, phone }).filter(
-              (key) => body[key] !== undefined
+              (key) => body[key] !== undefined,
             ),
           },
         },
@@ -186,7 +186,7 @@ export async function PUT(request: NextRequest) {
     console.error(error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -205,14 +205,14 @@ export async function PATCH(request: NextRequest) {
     if (!currentPassword || !newPassword) {
       return NextResponse.json(
         { error: "Current password and new password are required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     if (newPassword.length < 8) {
       return NextResponse.json(
         { error: "New password must be at least 8 characters long" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -228,13 +228,13 @@ export async function PATCH(request: NextRequest) {
     // Verify current password
     const isCurrentPasswordValid = await bcrypt.compare(
       currentPassword,
-      user.password
+      user.password,
     );
 
     if (!isCurrentPasswordValid) {
       return NextResponse.json(
         { error: "Current password is incorrect" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -272,7 +272,7 @@ export async function PATCH(request: NextRequest) {
     console.error(error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
