@@ -3,7 +3,8 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { salaryService } from "@/lib/salaryService";
 import { authOptions } from "@/lib/auth";
-
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest, { params }: any) {
   try {
     const session = await getServerSession(authOptions);
