@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runAutoPunchOut } from "@/scripts/auto-punch-out";
-
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 /**
  * Cron endpoint for auto punch-out
  * Should be called every 10-15 minutes by a cron scheduler

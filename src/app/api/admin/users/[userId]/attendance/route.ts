@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-import { SalaryService } from "@/lib/salaryService";
 
 export async function GET(request: NextRequest, { params }: any) {
   try {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { markAbsentAttendances } from "@/scripts/mark-absent";
-
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 /**
  * Cron endpoint for marking absent attendances
  * Should be called daily after shift end time + buffer
