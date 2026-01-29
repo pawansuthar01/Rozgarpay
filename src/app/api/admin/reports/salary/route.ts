@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "../../../auth/[...nextauth]/route";
+import { generateSalaryReportPDFBuffer } from "@/lib/salaryReportGenerator";
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,6 +15,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
+    const format = searchParams.get("format") || "json";
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
 
@@ -91,7 +93,7 @@ export async function GET(request: NextRequest) {
         id: true,
         firstName: true,
         lastName: true,
-        email: true,
+        phone: true,
       },
     });
 
@@ -152,6 +154,32 @@ export async function GET(request: NextRequest) {
         color: "#10B981",
       },
     ];
+
+    if (format === "pdf") {
+      // Generate PDF report
+      const pdfData = {
+        company: admin.company,
+        totalPayout,
+        staffCount,
+        monthlyBreakdown,
+        staffBreakdown: staffBreakdown, // Include all staff for PDF
+        statusDistribution,
+        generatedBy: session.user,
+        dateRange: {
+          startDate,
+          endDate,
+        },
+      };
+
+      const pdfBuffer = generateSalaryReportPDFBuffer(pdfData);
+
+      return new NextResponse(new Uint8Array(pdfBuffer), {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `attachment; filename=salary-report-${new Date().toISOString().split("T")[0]}.pdf`,
+        },
+      });
+    }
 
     return NextResponse.json({
       totalPayout,

@@ -14,6 +14,7 @@ import {
   CheckCircle,
   AlertCircle,
 } from "lucide-react";
+import { useCreateInvitation } from "@/hooks/useInvitations";
 
 type Role = "MANAGER" | "ACCOUNTANT" | "STAFF";
 
@@ -28,10 +29,10 @@ interface FormData {
 export default function CreateUserPage() {
   const { data: session } = useSession();
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [error, setError] = useState("");
   const [inviteLink, setInviteLink] = useState("");
+
+  const createInvitation = useCreateInvitation();
 
   const [formData, setFormData] = useState<FormData>({
     name: "",
@@ -42,7 +43,7 @@ export default function CreateUserPage() {
   });
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
     const { name, value, type } = e.target;
     setFormData((prev) => ({
@@ -52,31 +53,14 @@ export default function CreateUserPage() {
     }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setError("");
-
-    try {
-      const res = await fetch("/api/admin/users/invite", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
+    createInvitation.mutate(formData, {
+      onSuccess: (data) => {
         setSuccess(true);
         setInviteLink(data.inviteLink);
-      } else {
-        setError(data.error || "Failed to send invitation");
-      }
-    } catch (err) {
-      setError("An error occurred while sending the invitation");
-    } finally {
-      setLoading(false);
-    }
+      },
+    });
   };
 
   if (!session || session.user.role !== "ADMIN") {
@@ -174,12 +158,14 @@ export default function CreateUserPage() {
       <div className="bg-white shadow-sm rounded-lg border border-gray-200">
         <div className="px-4 py-5 sm:p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
-            {error && (
+            {createInvitation.isError && createInvitation.error && (
               <div className="bg-red-50 border border-red-200 rounded-md p-4">
                 <div className="flex">
                   <AlertCircle className="h-5 w-5 text-red-400" />
                   <div className="ml-3">
-                    <p className="text-sm text-red-700">{error}</p>
+                    <p className="text-sm text-red-700">
+                      {createInvitation.error.message}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -272,11 +258,18 @@ export default function CreateUserPage() {
                 className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
               >
                 <option value="STAFF">Staff</option>
-                <option value="ACCOUNTANT">Accountant</option>
-                <option value="MANAGER">Manager</option>
+                <option disabled value="ACCOUNTANT">
+                  Accountant
+                </option>
+                <option disabled value="MANAGER">
+                  Manager
+                </option>
               </select>
               <p className="mt-1 text-sm text-gray-500">
                 Select the role for this user in your company
+              </p>
+              <p className="mt-1 text-sm text-red-300">
+                Manager and Accountant roles will be available soon.
               </p>
             </div>
 
@@ -300,10 +293,10 @@ export default function CreateUserPage() {
             <div className="pt-4">
               <button
                 type="submit"
-                disabled={loading}
+                disabled={createInvitation.isPending}
                 className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? (
+                {createInvitation.isPending ? (
                   <div className="flex items-center">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                     Sending Invitation...

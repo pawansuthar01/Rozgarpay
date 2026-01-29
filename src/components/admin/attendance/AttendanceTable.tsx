@@ -10,6 +10,7 @@ import {
   Clock as ClockIcon,
   DollarSign,
   AlertTriangle,
+  Loader2,
 } from "lucide-react";
 import { AttendanceRecord } from "@/types/attendance";
 import { CheckCircle, Clock, XCircle, Minus } from "lucide-react";
@@ -22,7 +23,7 @@ interface AttendanceTableProps {
   actionLoading: string | null;
   onAttendanceAction: (
     attendanceId: string,
-    action: "APPROVE" | "REJECT" | "HALF_DAY",
+    action: "APPROVE" | "REJECT" | "HALF_DAY" | "ABSENT" | "LEAVE",
   ) => void;
   onMoreOptions?: (attendanceId: string, updates?: any) => void;
   currentPage: number;
@@ -156,7 +157,7 @@ export default function AttendanceTable({
                           {record.user.firstName} {record.user.lastName}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {record.user.email}
+                          {record.user.phone}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -224,80 +225,91 @@ export default function AttendanceTable({
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex items-center space-x-1">
-                          <>
-                            {record.status === "PENDING" && (
-                              <>
-                                <button
-                                  onClick={() =>
-                                    onAttendanceAction(record.id, "APPROVE")
-                                  }
-                                  disabled={actionLoading === record.id}
-                                  className="text-green-600 hover:text-green-900 disabled:opacity-50 border border-green-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
-                                  title="Approve attendance"
-                                  aria-label="Approve attendance"
-                                >
-                                  <Check className="h-3 w-3 mr-1" />
-                                  Approve
-                                </button>
-
-                                <button
-                                  onClick={() =>
-                                    onAttendanceAction(record.id, "REJECT")
-                                  }
-                                  disabled={actionLoading === record.id}
-                                  className="text-red-600 hover:text-red-900 disabled:opacity-50 border border-red-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
-                                  title="Reject attendance"
-                                  aria-label="Reject attendance"
-                                >
-                                  <X className="h-3 w-3 mr-1" />
-                                  Reject
-                                </button>
-                              </>
-                            )}
-                            {record.status === "APPROVED" && (
-                              <>
-                                <button
-                                  onClick={() =>
-                                    onAttendanceAction(record.id, "REJECT")
-                                  }
-                                  disabled={actionLoading === record.id}
-                                  className="text-red-600 hover:text-red-900 disabled:opacity-50 border border-red-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
-                                  title="Reject attendance"
-                                  aria-label="Reject attendance"
-                                >
-                                  <X className="h-3 w-3 mr-1" />
-                                  Reject
-                                </button>
-                              </>
-                            )}
-
-                            {record.status === "REJECTED" && (
-                              <>
-                                <button
-                                  onClick={() =>
-                                    onAttendanceAction(record.id, "APPROVE")
-                                  }
-                                  disabled={actionLoading === record.id}
-                                  className="text-green-600 hover:text-green-900 disabled:opacity-50 border border-green-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
-                                  title="Approve attendance"
-                                  aria-label="Approve attendance"
-                                >
-                                  <Check className="h-3 w-3 mr-1" />
-                                  Approve
-                                </button>
-                              </>
-                            )}
-                            {onMoreOptions && (
-                              <button
-                                onClick={() => handleMoreOptions(record.id)}
-                                className="text-gray-600 hover:text-gray-900 border border-gray-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
-                                title="More options"
-                                aria-label="More options"
-                              >
-                                <MoreVertical className="h-3 w-3" />
-                              </button>
-                            )}
-                          </>
+                          {record.status !== "APPROVED" && (
+                            <button
+                              onClick={() =>
+                                onAttendanceAction(record.id, "APPROVE")
+                              }
+                              disabled={actionLoading === record.id}
+                              className="text-green-600 hover:text-green-900 disabled:opacity-50 border border-green-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
+                              title="Approve attendance"
+                              aria-label="Approve attendance"
+                            >
+                              {actionLoading === record.id ? (
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              ) : (
+                                <Check className="h-3 w-3 mr-1" />
+                              )}
+                              Approve
+                            </button>
+                          )}
+                          {record.status !== "REJECTED" && (
+                            <button
+                              onClick={() =>
+                                onAttendanceAction(record.id, "REJECT")
+                              }
+                              disabled={
+                                actionLoading === record.id ||
+                                record.status === "APPROVED"
+                              }
+                              className="text-red-600 hover:text-red-900 disabled:opacity-50 border border-red-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
+                              title="Reject attendance"
+                              aria-label="Reject attendance"
+                            >
+                              {actionLoading === record.id ? (
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              ) : (
+                                <X className="h-3 w-3 mr-1" />
+                              )}
+                              Reject
+                            </button>
+                          )}
+                          {record.status !== "ABSENT" && (
+                            <button
+                              onClick={() =>
+                                onAttendanceAction(record.id, "ABSENT")
+                              }
+                              disabled={actionLoading === record.id}
+                              className="text-red-600 hover:text-red-900 disabled:opacity-50 border border-red-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
+                              title="Mark as absent"
+                              aria-label="Mark as absent"
+                            >
+                              {actionLoading === record.id ? (
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              ) : (
+                                <X className="h-3 w-3 mr-1" />
+                              )}
+                              Absent
+                            </button>
+                          )}
+                          {record.status !== "LEAVE" && (
+                            <button
+                              onClick={() =>
+                                onAttendanceAction(record.id, "LEAVE")
+                              }
+                              disabled={actionLoading === record.id}
+                              className="text-blue-600 hover:text-blue-900 disabled:opacity-50 border border-blue-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
+                              title="Mark as leave"
+                              aria-label="Mark as leave"
+                            >
+                              {actionLoading === record.id ? (
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              ) : (
+                                <ClockIcon className="h-3 w-3 mr-1" />
+                              )}
+                              Leave
+                            </button>
+                          )}
+                          {onMoreOptions && (
+                            <button
+                              onClick={() => handleMoreOptions(record.id)}
+                              className="text-gray-600 hover:text-gray-900 border border-gray-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
+                              title="More options"
+                              aria-label="More options"
+                            >
+                              <MoreVertical className="h-3 w-3" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -338,7 +350,7 @@ export default function AttendanceTable({
                         {record.user.firstName} {record.user.lastName}
                       </h3>
                       <p className="text-xs text-gray-500">
-                        {record.user.email}
+                        {record.user.phone}
                       </p>
                     </div>
                     <div className="flex items-center">
@@ -409,154 +421,85 @@ export default function AttendanceTable({
                     </div>
                   </div>
 
-                  {record.punchOut ? (
-                    <div className="flex flex-wrap gap-1">
-                      {record.status === "PENDING" && (
-                        <>
-                          <button
-                            onClick={() =>
-                              onAttendanceAction(record.id, "APPROVE")
-                            }
-                            disabled={actionLoading === record.id}
-                            className="text-green-600 hover:text-green-900 disabled:opacity-50 border border-green-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
-                            title="Approve attendance"
-                            aria-label="Approve attendance"
-                          >
-                            <Check className="h-3 w-3 mr-1" />
-                            Approve
-                          </button>
-                          <button
-                            onClick={() =>
-                              onAttendanceAction(record.id, "HALF_DAY")
-                            }
-                            disabled={actionLoading === record.id}
-                            className="text-orange-600 hover:text-orange-900 disabled:opacity-50 border border-orange-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
-                            title="Mark as half day"
-                            aria-label="Mark as half day"
-                          >
-                            <Minus className="h-3 w-3 mr-1" />
-                            Half
-                          </button>
-                          <button
-                            onClick={() =>
-                              onAttendanceAction(record.id, "REJECT")
-                            }
-                            disabled={actionLoading === record.id}
-                            className="text-red-600 hover:text-red-900 disabled:opacity-50 border border-red-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
-                            title="Reject attendance"
-                            aria-label="Reject attendance"
-                          >
-                            <X className="h-3 w-3 mr-1" />
-                            Reject
-                          </button>
-                        </>
-                      )}
-                      {record.status === "APPROVED" && (
-                        <>
-                          <button
-                            onClick={() =>
-                              onAttendanceAction(record.id, "HALF_DAY")
-                            }
-                            disabled={actionLoading === record.id}
-                            className="text-orange-600 hover:text-orange-900 disabled:opacity-50 border border-orange-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
-                            title="Change to half day"
-                            aria-label="Change to half day"
-                          >
-                            <Minus className="h-3 w-3 mr-1" />
-                            Half
-                          </button>
-                          <button
-                            onClick={() =>
-                              onAttendanceAction(record.id, "REJECT")
-                            }
-                            disabled={actionLoading === record.id}
-                            className="text-red-600 hover:text-red-900 disabled:opacity-50 border border-red-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
-                            title="Reject attendance"
-                            aria-label="Reject attendance"
-                          >
-                            <X className="h-3 w-3 mr-1" />
-                            Reject
-                          </button>
-                        </>
-                      )}
-                      {record.status === "HALF_DAY" && (
-                        <>
-                          <button
-                            onClick={() =>
-                              onAttendanceAction(record.id, "APPROVE")
-                            }
-                            disabled={actionLoading === record.id}
-                            className="text-green-600 hover:text-green-900 disabled:opacity-50 border border-green-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
-                            title="Change to full day"
-                            aria-label="Change to full day"
-                          >
-                            <Check className="h-3 w-3 mr-1" />
-                            Full
-                          </button>
-                          <button
-                            onClick={() =>
-                              onAttendanceAction(record.id, "REJECT")
-                            }
-                            disabled={actionLoading === record.id}
-                            className="text-red-600 hover:text-red-900 disabled:opacity-50 border border-red-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
-                            title="Reject attendance"
-                            aria-label="Reject attendance"
-                          >
-                            <X className="h-3 w-3 mr-1" />
-                            Reject
-                          </button>
-                        </>
-                      )}
-                      {record.status === "REJECTED" && (
-                        <>
-                          <button
-                            onClick={() =>
-                              onAttendanceAction(record.id, "APPROVE")
-                            }
-                            disabled={actionLoading === record.id}
-                            className="text-green-600 hover:text-green-900 disabled:opacity-50 border border-green-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
-                            title="Approve attendance"
-                            aria-label="Approve attendance"
-                          >
-                            <Check className="h-3 w-3 mr-1" />
-                            Approve
-                          </button>
-                          <button
-                            onClick={() =>
-                              onAttendanceAction(record.id, "HALF_DAY")
-                            }
-                            disabled={actionLoading === record.id}
-                            className="text-orange-600 hover:text-orange-900 disabled:opacity-50 border border-orange-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
-                            title="Mark as half day"
-                            aria-label="Mark as half day"
-                          >
-                            <Minus className="h-3 w-3 mr-1" />
-                            Half
-                          </button>
-                        </>
-                      )}
-                      {onMoreOptions && (
-                        <button
-                          onClick={() => handleMoreOptions(record.id)}
-                          className="text-gray-600 hover:text-gray-900 border border-gray-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
-                          title="More options"
-                          aria-label="More options"
-                        >
-                          <MoreVertical className="h-3 w-3" />
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-red-300">No punch out yet</p>
-                  )}
-
-                  {!record.punchOut && (
-                    <div className="pt-3 border-t border-gray-100">
-                      <p className="text-sm text-orange-600 font-medium">
-                        No punch out yet
-                      </p>
-                    </div>
-                  )}
+                  <div className="flex flex-wrap gap-1">
+                    {record.status !== "APPROVED" && (
+                      <button
+                        onClick={() => onAttendanceAction(record.id, "APPROVE")}
+                        disabled={actionLoading === record.id}
+                        className="text-green-600 hover:text-green-900 disabled:opacity-50 border border-green-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
+                        title="Approve attendance"
+                        aria-label="Approve attendance"
+                      >
+                        {actionLoading === record.id ? (
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        ) : (
+                          <Check className="h-3 w-3 mr-1" />
+                        )}
+                        Approve
+                      </button>
+                    )}
+                    {record.status !== "REJECTED" && (
+                      <button
+                        onClick={() => onAttendanceAction(record.id, "REJECT")}
+                        disabled={
+                          actionLoading === record.id ||
+                          record.status === "APPROVED"
+                        }
+                        className="text-red-600 hover:text-red-900 disabled:opacity-50 border border-red-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
+                        title="Reject attendance"
+                        aria-label="Reject attendance"
+                      >
+                        {actionLoading === record.id ? (
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        ) : (
+                          <X className="h-3 w-3 mr-1" />
+                        )}
+                        Reject
+                      </button>
+                    )}
+                    {record.status !== "ABSENT" && (
+                      <button
+                        onClick={() => onAttendanceAction(record.id, "ABSENT")}
+                        disabled={actionLoading === record.id}
+                        className="text-red-600 hover:text-red-900 disabled:opacity-50 border border-red-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
+                        title="Mark as absent"
+                        aria-label="Mark as absent"
+                      >
+                        {actionLoading === record.id ? (
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        ) : (
+                          <X className="h-3 w-3 mr-1" />
+                        )}
+                        Absent
+                      </button>
+                    )}
+                    {record.status !== "LEAVE" && (
+                      <button
+                        onClick={() => onAttendanceAction(record.id, "LEAVE")}
+                        disabled={actionLoading === record.id}
+                        className="text-blue-600 hover:text-blue-900 disabled:opacity-50 border border-blue-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
+                        title="Mark as leave"
+                        aria-label="Mark as leave"
+                      >
+                        {actionLoading === record.id ? (
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        ) : (
+                          <ClockIcon className="h-3 w-3 mr-1" />
+                        )}
+                        Leave
+                      </button>
+                    )}
+                    {onMoreOptions && (
+                      <button
+                        onClick={() => handleMoreOptions(record.id)}
+                        className="text-gray-600 hover:text-gray-900 border border-gray-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
+                        title="More options"
+                        aria-label="More options"
+                      >
+                        <MoreVertical className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}

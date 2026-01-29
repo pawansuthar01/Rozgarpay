@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
     const sortBy = searchParams.get("sortBy") || "createdAt";
     const sortOrder = searchParams.get("sortOrder") || "desc";
+    const search = searchParams.get("search") || "";
 
     // Get admin's company
     const admin = await prisma.user.findUnique({
@@ -55,6 +56,17 @@ export async function GET(request: NextRequest) {
 
     if (status) {
       where.status = status;
+    }
+
+    if (search) {
+      where.user = {
+        ...where.user,
+        OR: [
+          { firstName: { contains: search, mode: "insensitive" } },
+          { lastName: { contains: search, mode: "insensitive" } },
+          { email: { contains: search, mode: "insensitive" } },
+        ],
+      };
     }
 
     // Get total count

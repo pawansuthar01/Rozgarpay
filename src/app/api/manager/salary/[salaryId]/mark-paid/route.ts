@@ -3,10 +3,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "../../../../auth/[...nextauth]/route";
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { salaryId: string } },
-) {
+export async function POST(request: NextRequest, { params }: any) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -14,7 +11,12 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { date, method, reference } = await request.json();
+    const {
+      date,
+      method,
+      reference,
+      sendNotification = true,
+    } = await request.json();
 
     if (!date || !method) {
       return NextResponse.json(
@@ -80,6 +82,27 @@ export async function POST(
         },
       },
     });
+
+    // Send notification to staff if requested
+    if (sendNotification) {
+      await prisma.notification.create({
+        data: {
+          userId: salary.userId,
+          companyId: manager.company.id,
+          title: "Salary Payment Received",
+          message: `Your salary for ${new Date(0, salary.month - 1).toLocaleString("default", { month: "long" })} ${salary.year} has been marked as paid. Amount: ₹${salary.netAmount.toLocaleString()}`,
+          channel: "INAPP",
+          status: "PENDING",
+          meta: {
+            salaryId: params.salaryId,
+            amount: salary.netAmount,
+            month: salary.month,
+            year: salary.year,
+            paymentDate: date,
+          },
+        },
+      });
+    }
 
     return NextResponse.json({ salary: updatedSalary });
   } catch (error) {

@@ -154,7 +154,7 @@ export default function MessageModal({
               </button>
               <button
                 onClick={handleConfirm}
-                className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-3 rounded-xl font-semibold text-sm shadow-lg transform transition-all duration-200 active:scale-95"
+                className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-3 rounded-xl font-semibold text-sm  transform transition-all duration-200 active:scale-95"
               >
                 {confirmText}
               </button>
@@ -162,7 +162,7 @@ export default function MessageModal({
           ) : (
             <button
               onClick={handleConfirm}
-              className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-3 rounded-xl font-semibold text-sm shadow-lg transform transition-all duration-200 active:scale-95"
+              className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-3 rounded-xl font-semibold text-sm  transform transition-all duration-200 active:scale-95"
             >
               {confirmText}
             </button>

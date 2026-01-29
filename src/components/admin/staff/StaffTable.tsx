@@ -7,6 +7,7 @@ import {
   X,
   DollarSign,
   Calendar,
+  FileText,
 } from "lucide-react";
 import Link from "next/link";
 import { StaffMember } from "@/types/staff";
@@ -18,7 +19,7 @@ interface StaffTableProps {
   actionLoading: string | null;
   onAttendanceAction: (
     attendanceId: string,
-    action: "APPROVE" | "REJECT"
+    action: "APPROVE" | "REJECT",
   ) => void;
   currentPage: number;
   totalPages: number;
@@ -83,7 +84,8 @@ export default function StaffTable({
 
   return (
     <>
-      <div className="overflow-x-auto">
+      {/* Desktop Table */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -157,10 +159,10 @@ export default function StaffTable({
                               attendanceInfo.status === "Present"
                                 ? "text-green-500"
                                 : attendanceInfo.status === "Pending"
-                                ? "text-yellow-500"
-                                : attendanceInfo.status === "Rejected"
-                                ? "text-red-500"
-                                : "text-gray-500"
+                                  ? "text-yellow-500"
+                                  : attendanceInfo.status === "Rejected"
+                                    ? "text-red-500"
+                                    : "text-gray-500"
                             }`}
                           />
                           <span
@@ -198,6 +200,13 @@ export default function StaffTable({
                           >
                             <Eye className="h-4 w-4" />
                           </Link>
+                          <Link
+                            href={`/admin/users/${member.id}/reports`}
+                            className="text-green-600 hover:text-green-900"
+                            title="View reports"
+                          >
+                            <FileText className="h-4 w-4" />
+                          </Link>
 
                           {member.todayAttendance?.status === "PENDING" && (
                             <div className="flex space-x-1">
@@ -205,7 +214,7 @@ export default function StaffTable({
                                 onClick={() =>
                                   onAttendanceAction(
                                     member.todayAttendance.id,
-                                    "APPROVE"
+                                    "APPROVE",
                                   )
                                 }
                                 disabled={
@@ -220,7 +229,7 @@ export default function StaffTable({
                                 onClick={() =>
                                   onAttendanceAction(
                                     member.todayAttendance.id,
-                                    "REJECT"
+                                    "REJECT",
                                   )
                                 }
                                 disabled={
@@ -240,6 +249,166 @@ export default function StaffTable({
                 })}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile Cards */}
+      <div className="md:hidden space-y-4">
+        {loading
+          ? Array.from({ length: itemsPerPage }).map((_, i) => (
+              <div
+                key={i}
+                className="bg-white p-4 rounded-lg border border-gray-200"
+              >
+                <div className="flex items-center space-x-3 mb-3">
+                  <Skeleton circle height={40} width={40} />
+                  <div className="flex-1">
+                    <Skeleton height={16} width={120} />
+                    <Skeleton height={12} width={80} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Skeleton height={14} width={100} />
+                  <Skeleton height={14} width={80} />
+                  <Skeleton height={14} width={60} />
+                </div>
+              </div>
+            ))
+          : staff.map((member) => {
+              const attendanceInfo = getAttendanceStatus(member);
+              const salaryInfo = getSalaryStatus(member.currentMonthSalary);
+              const AttendanceIcon = attendanceInfo.icon;
+
+              return (
+                <div
+                  key={member.id}
+                  className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm"
+                >
+                  {/* Header */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center space-x-3">
+                      <div className="h-10 w-10 bg-gray-300 rounded-full flex items-center justify-center">
+                        <span className="text-sm font-medium text-gray-700">
+                          {member.firstName?.charAt(0) ||
+                            member.email.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {member.firstName} {member.lastName}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {member.email}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex space-x-2">
+                      <Link
+                        href={`/admin/users/${member.id}`}
+                        className="p-2 text-indigo-600 hover:text-indigo-900 hover:bg-indigo-50 rounded-full transition-colors"
+                        title="View staff profile"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Link>
+                      <Link
+                        href={`/admin/users/${member.id}/reports`}
+                        className="p-2 text-green-600 hover:text-green-900 hover:bg-green-50 rounded-full transition-colors"
+                        title="View reports"
+                      >
+                        <FileText className="h-4 w-4" />
+                      </Link>
+                    </div>
+                  </div>
+
+                  {/* Status Info */}
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">
+                        Today's Attendance
+                      </p>
+                      <div className="flex items-center">
+                        <AttendanceIcon
+                          className={`h-3 w-3 mr-1 ${
+                            attendanceInfo.status === "Present"
+                              ? "text-green-500"
+                              : attendanceInfo.status === "Pending"
+                                ? "text-yellow-500"
+                                : attendanceInfo.status === "Rejected"
+                                  ? "text-red-500"
+                                  : "text-gray-500"
+                          }`}
+                        />
+                        <span
+                          className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${attendanceInfo.color}`}
+                        >
+                          {attendanceInfo.status}
+                        </span>
+                      </div>
+                      {member.pendingAttendanceCount > 0 && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          {member.pendingAttendanceCount} pending
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">
+                        Salary Status
+                      </p>
+                      <div>
+                        <span
+                          className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${salaryInfo.color}`}
+                        >
+                          {salaryInfo.status}
+                        </span>
+                        {member.currentMonthSalary && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            ₹
+                            {member.currentMonthSalary.netAmount?.toLocaleString() ||
+                              0}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  {member.todayAttendance?.status === "PENDING" && (
+                    <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                      <span className="text-xs text-gray-500">
+                        Attendance Actions:
+                      </span>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() =>
+                            onAttendanceAction(
+                              member.todayAttendance.id,
+                              "APPROVE",
+                            )
+                          }
+                          disabled={actionLoading === member.todayAttendance.id}
+                          className="p-2 text-green-600 hover:text-green-900 hover:bg-green-50 rounded-full disabled:opacity-50 transition-colors"
+                          title="Approve attendance"
+                        >
+                          <Check className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() =>
+                            onAttendanceAction(
+                              member.todayAttendance.id,
+                              "REJECT",
+                            )
+                          }
+                          disabled={actionLoading === member.todayAttendance.id}
+                          className="p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-full disabled:opacity-50 transition-colors"
+                          title="Reject attendance"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
       </div>
 
       <div className="flex items-center justify-between mt-6">

@@ -67,7 +67,7 @@ export default function StaffNotificationsPage() {
       <div className="min-h-screen p-4">
         <div className="max-w-md mx-auto space-y-4">
           <div className="animate-pulse space-y-4">
-            <div className="h-20 bg-white rounded-2xl shadow-lg"></div>
+            <div className="h-20 bg-white rounded-2xl "></div>
             <div className="space-y-3">
               <div className="h-24 bg-white rounded-xl shadow-sm"></div>
               <div className="h-24 bg-white rounded-xl shadow-sm"></div>
@@ -83,7 +83,7 @@ export default function StaffNotificationsPage() {
 
   return (
     <div className="min-h-screen p-4">
-      <div className="max-w-md mx-auto space-y-4">
+      <div className=" mx-auto space-y-4">
         {/* Header */}
         <div className="text-center py-2">
           <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
@@ -91,7 +91,7 @@ export default function StaffNotificationsPage() {
         </div>
 
         {/* Stats Card */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+        <div className="bg-white rounded-2xl  p-6 border border-gray-100">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center">
@@ -117,7 +117,7 @@ export default function StaffNotificationsPage() {
         {/* Notifications List */}
         <div className="space-y-3">
           {notifications.length === 0 ? (
-            <div className="bg-white rounded-2xl shadow-lg p-8 text-center border border-gray-100">
+            <div className="bg-white rounded-2xl  p-8 text-center border border-gray-100">
               <Bell className="h-16 w-16 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
                 No notifications yet
@@ -130,7 +130,7 @@ export default function StaffNotificationsPage() {
             notifications.map((notification) => (
               <div
                 key={notification.id}
-                className={`bg-white rounded-2xl shadow-lg border transition-all duration-200 hover:shadow-xl ${
+                className={`bg-white rounded-2xl  border transition-all duration-200 hover:shadow-xl ${
                   !notification.read
                     ? "border-blue-200 bg-gradient-to-r from-blue-50/50 to-white"
                     : "border-gray-100"

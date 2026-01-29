@@ -13,6 +13,8 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const date = searchParams.get("date");
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "10");
 
     if (!date) {
       return NextResponse.json(
@@ -51,7 +53,6 @@ export async function GET(request: NextRequest) {
         id: true,
         firstName: true,
         lastName: true,
-        email: true,
         phone: true,
       },
     });
@@ -77,10 +78,22 @@ export async function GET(request: NextRequest) {
       (staff) => !attendedUserIds.has(staff.id),
     );
 
+    // Apply pagination
+    const total = missingAttendanceStaff.length;
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const paginatedStaff = missingAttendanceStaff.slice(startIndex, endIndex);
+
     return NextResponse.json({
       date,
-      missingStaff: missingAttendanceStaff,
-      totalMissing: missingAttendanceStaff.length,
+      missingStaff: paginatedStaff,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+      totalMissing: total,
     });
   } catch (error) {
     console.error("Missing attendance fetch error:", error);
@@ -100,7 +113,14 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { userId, date, punchIn, punchOut, reason } = body;
+    const {
+      userId,
+      date,
+      status = "APPROVED",
+      punchIn,
+      punchOut,
+      reason,
+    } = body;
 
     if (!userId || !date) {
       return NextResponse.json(
@@ -155,6 +175,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Calculate working hours based on status
+    let workingHours: number | undefined;
+    if (status === "APPROVED") {
+      // Calculate from shift start to end
+      if (admin.company.shiftStartTime && admin.company.shiftEndTime) {
+        const start = new Date(`1970-01-01T${admin.company.shiftStartTime}:00`);
+        const end = new Date(`1970-01-01T${admin.company.shiftEndTime}:00`);
+        const diffMs = end.getTime() - start.getTime();
+        workingHours = Math.max(0, diffMs / (1000 * 60 * 60)); // hours
+      }
+    } else if (status === "ABSENT" || status === "LEAVE") {
+      workingHours = 0;
+    }
+
     // Create attendance record
     const attendance = await prisma.attendance.create({
       data: {
@@ -163,9 +197,13 @@ export async function POST(request: NextRequest) {
         attendanceDate,
         punchIn: punchIn ? new Date(punchIn) : null,
         punchOut: punchOut ? new Date(punchOut) : null,
-        status: "APPROVED", // Auto-approve manual entries
-        approvedBy: session.user.id,
-        approvedAt: new Date(),
+        status: status as any,
+        workingHours:
+          workingHours !== undefined
+            ? Math.round(workingHours * 100) / 100
+            : undefined,
+        approvedBy: status === "APPROVED" ? session.user.id : undefined,
+        approvedAt: status === "APPROVED" ? new Date() : undefined,
         approvalReason: reason || "Manual entry by admin",
       },
     });

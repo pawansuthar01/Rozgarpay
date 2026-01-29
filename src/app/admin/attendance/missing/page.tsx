@@ -1,11 +1,19 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
-import { CheckCircle, Clock, User, AlertTriangle } from "lucide-react";
+import {
+  CheckCircle,
+  Clock,
+  User,
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import Link from "next/link";
+import { useMissingAttendance, useMarkAttendance } from "@/hooks";
 
 interface MissingStaff {
   id: string;
@@ -17,71 +25,44 @@ interface MissingStaff {
 
 export default function MissingAttendancePage() {
   const { data: session } = useSession();
-  const [missingStaff, setMissingStaff] = useState<MissingStaff[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     const today = new Date();
     return today.toISOString().split("T")[0];
   });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageLimit, setPageLimit] = useState(10);
+  const [loadingStaffId, setLoadingStaffId] = useState<string | null>(null);
+
+  // Use the custom hooks
+  const {
+    data: missingData,
+    isLoading: loading,
+    error: fetchError,
+  } = useMissingAttendance({
+    date: selectedDate,
+    page: currentPage,
+    limit: pageLimit,
+  });
+
+  const markAttendanceMutation = useMarkAttendance();
 
   useEffect(() => {
-    fetchMissingAttendance();
-  }, [selectedDate]);
-
-  const fetchMissingAttendance = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams({
-        date: selectedDate,
-      });
-
-      const res = await fetch(`/api/admin/attendance/missing?${params}`);
-      const data = await res.json();
-
-      if (res.ok) {
-        setMissingStaff(data.missingStaff || []);
-      } else {
-        setError(data.error || "Failed to fetch missing attendance");
-        setMissingStaff([]);
-      }
-    } catch (error) {
-      console.error("Failed to fetch missing attendance:", error);
-      setError("Failed to fetch missing attendance");
-      setMissingStaff([]);
-    } finally {
-      setLoading(false);
+    if (!markAttendanceMutation.isPending) {
+      setLoadingStaffId(null);
     }
-  };
+  }, [markAttendanceMutation.isPending]);
 
-  const handleMarkAttendance = async (userId: string) => {
-    setActionLoading(userId);
-    try {
-      const res = await fetch("/api/admin/attendance/missing", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId,
-          date: selectedDate,
-          reason: "Manual attendance entry by admin",
-        }),
-      });
-
-      if (res.ok) {
-        // Remove from missing list
-        setMissingStaff((prev) => prev.filter((staff) => staff.id !== userId));
-      } else {
-        const data = await res.json();
-        alert(data.error || "Failed to mark attendance");
-      }
-    } catch (error) {
-      console.error("Failed to mark attendance:", error);
-      alert("Failed to mark attendance");
-    } finally {
-      setActionLoading(null);
-    }
+  const handleMarkAttendance = (
+    userId: string,
+    status: "APPROVED" | "ABSENT" | "LEAVE" = "APPROVED",
+  ) => {
+    setLoadingStaffId(userId);
+    markAttendanceMutation.mutate({
+      userId,
+      date: selectedDate,
+      status,
+      reason: "Manual attendance entry by admin",
+    });
   };
 
   if (!session || session.user.role !== "ADMIN") {
@@ -150,7 +131,7 @@ export default function MissingAttendancePage() {
                 <div>
                   <p className="text-sm text-gray-600">Missing Attendance</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {loading ? "..." : missingStaff.length}
+                    {loading ? "..." : missingData?.totalMissing || 0}
                   </p>
                 </div>
               </div>
@@ -165,13 +146,15 @@ export default function MissingAttendancePage() {
         </div>
 
         {/* Error */}
-        {error && (
+        {fetchError && (
           <div className="mb-6">
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
               <div className="flex items-center">
                 <AlertTriangle className="h-5 w-5 text-red-400 flex-shrink-0" />
                 <div className="ml-3">
-                  <p className="text-sm text-red-700">{error}</p>
+                  <p className="text-sm text-red-700">
+                    Failed to load missing attendance data. Please try again.
+                  </p>
                 </div>
               </div>
             </div>
@@ -194,7 +177,7 @@ export default function MissingAttendancePage() {
                   <Skeleton height={16} width="40%" className="mt-2" />
                 </div>
               ))
-            ) : missingStaff.length === 0 ? (
+            ) : (missingData?.missingStaff?.length || 0) === 0 ? (
               <div className="px-6 py-8 text-center">
                 <CheckCircle className="mx-auto h-12 w-12 text-green-400" />
                 <h3 className="mt-2 text-sm font-medium text-gray-900">
@@ -206,7 +189,7 @@ export default function MissingAttendancePage() {
                 </p>
               </div>
             ) : (
-              missingStaff.map((staff) => (
+              missingData?.missingStaff?.map((staff) => (
                 <div key={staff.id} className="px-6 py-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
@@ -221,24 +204,125 @@ export default function MissingAttendancePage() {
                         <p className="text-sm text-gray-500">{staff.phone}</p>
                       </div>
                     </div>
-                    <button
-                      onClick={() => handleMarkAttendance(staff.id)}
-                      disabled={actionLoading === staff.id}
-                      className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
-                    >
-                      {actionLoading === staff.id ? (
-                        <Clock className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <CheckCircle className="h-4 w-4" />
-                      )}
-                      <span>Mark Present</span>
-                    </button>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() =>
+                          handleMarkAttendance(staff.id, "APPROVED")
+                        }
+                        disabled={loadingStaffId === staff.id}
+                        className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-1 text-sm"
+                      >
+                        {loadingStaffId === staff.id ? (
+                          <Clock className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <CheckCircle className="h-4 w-4" />
+                        )}
+                        <span>Present</span>
+                      </button>
+                      <button
+                        onClick={() => handleMarkAttendance(staff.id, "ABSENT")}
+                        disabled={loadingStaffId === staff.id}
+                        className="bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-1 text-sm"
+                      >
+                        {loadingStaffId === staff.id ? (
+                          <Clock className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <CheckCircle className="h-4 w-4" />
+                        )}
+                        <span>Absent</span>
+                      </button>
+                      <button
+                        onClick={() => handleMarkAttendance(staff.id, "LEAVE")}
+                        disabled={loadingStaffId === staff.id}
+                        className="bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-1 text-sm"
+                      >
+                        {loadingStaffId === staff.id ? (
+                          <Clock className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <CheckCircle className="h-4 w-4" />
+                        )}
+                        <span>Leave</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))
             )}
           </div>
         </div>
+
+        {/* Pagination */}
+        {missingData?.pagination && missingData.pagination.totalPages > 1 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between mt-6 gap-4">
+            <div className="text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded-lg">
+              <span className="font-medium">
+                {missingData.missingStaff.length}
+              </span>{" "}
+              records on page <span className="font-medium">{currentPage}</span>{" "}
+              of{" "}
+              <span className="font-medium">
+                {missingData.pagination.totalPages}
+              </span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 hover:border-gray-400 transition-colors"
+                aria-label="Previous page"
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                <span className="hidden sm:inline">Previous</span>
+              </button>
+              <div className="flex items-center space-x-1">
+                {Array.from(
+                  { length: Math.min(5, missingData.pagination.totalPages) },
+                  (_, i) => {
+                    const pageNum =
+                      Math.max(
+                        1,
+                        Math.min(
+                          missingData.pagination.totalPages - 4,
+                          currentPage - 2,
+                        ),
+                      ) + i;
+                    if (pageNum > missingData.pagination.totalPages)
+                      return null;
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          pageNum === currentPage
+                            ? "bg-blue-600 text-white shadow-sm"
+                            : "text-gray-700 hover:bg-gray-100"
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  },
+                )}
+              </div>
+              <button
+                onClick={() =>
+                  setCurrentPage(
+                    Math.min(
+                      missingData.pagination.totalPages,
+                      currentPage + 1,
+                    ),
+                  )
+                }
+                disabled={currentPage === missingData.pagination.totalPages}
+                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 hover:border-gray-400 transition-colors"
+                aria-label="Next page"
+              >
+                <span className="hidden sm:inline">Next</span>
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

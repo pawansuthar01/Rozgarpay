@@ -99,7 +99,7 @@ export async function GET(request: Request) {
           } else {
             todayStatus = "ABSENT";
           }
-          lastPunchTime = todayAttendance.punchIn.toISOString();
+          lastPunchTime = todayAttendance?.punchIn?.toISOString() ?? null;
         }
 
         return {

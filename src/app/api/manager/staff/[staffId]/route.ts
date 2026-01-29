@@ -3,10 +3,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "../../../auth/[...nextauth]/route";
 
-export async function GET(
-  request: Request,
-  { params }: { params: { staffId: string } },
-) {
+export async function GET(request: Request, { params }: any) {
   try {
     const session = await getServerSession(authOptions);
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useParams } from "next/navigation";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
@@ -28,141 +28,62 @@ import {
   ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
-import { AttendanceRecord, AttendanceTrend } from "@/types/attendance";
-
-interface AttendanceDetail {
-  id: string;
-  userId: string;
-  user: {
-    id: string;
-    firstName: string | null;
-    lastName: string | null;
-    email: string;
-    phone: string | null;
-  };
-  attendanceDate: string;
-  timeIn: string | null;
-  timeOut: string | null;
-  status: string;
-  punchImageUrl?: string;
-  approvedByUser?: {
-    firstName: string | null;
-    lastName: string | null;
-    email: string;
-  } | null;
-  createdAt: string;
-}
+import {
+  useAttendanceById,
+  useAttendance,
+  useUpdateAttendanceStatus,
+} from "@/hooks";
+import { useModal } from "@/components/ModalProvider";
 
 export default function AdminAttendanceDetailPage() {
   const { data: session } = useSession();
   const params = useParams();
   const attendanceId = params.attendanceId as string;
-
-  const [attendance, setAttendance] = useState<AttendanceDetail | null>(null);
-  const [auditRecords, setAuditRecords] = useState<AttendanceRecord[]>([]);
-  const [attendanceTrends, setAttendanceTrends] = useState<AttendanceTrend[]>(
-    [],
-  );
-  const [loading, setLoading] = useState(true);
-  const [auditLoading, setAuditLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { showMessage } = useModal();
 
   // Audit filters
   const [auditPage, setAuditPage] = useState(1);
   const [auditLimit, setAuditLimit] = useState(10);
   const [auditSortBy, setAuditSortBy] = useState("attendanceDate");
   const [auditSortOrder, setAuditSortOrder] = useState("desc");
-  const [auditTotalPages, setAuditTotalPages] = useState(1);
 
-  useEffect(() => {
-    if (attendanceId) {
-      fetchAttendanceDetail();
-      fetchAuditHistory();
-    }
-  }, [attendanceId]);
+  // Use hooks
+  const {
+    data: attendanceDetail,
+    isLoading: loading,
+    error: attendanceError,
+  } = useAttendanceById(attendanceId);
 
-  useEffect(() => {
-    if (attendance) {
-      fetchAuditHistory();
-    }
-  }, [auditPage, auditLimit, auditSortBy, auditSortOrder]);
+  const { data: auditData, isLoading: auditLoading } = useAttendance({
+    userId: attendanceDetail?.attendance?.userId,
+    page: auditPage,
+    limit: auditLimit,
+    sortBy: auditSortBy,
+    sortOrder: auditSortOrder,
+  });
 
-  const fetchAttendanceDetail = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/admin/attendance/${attendanceId}`);
-      const data = await res.json();
-
-      if (res.ok) {
-        setAttendance(data.attendance);
-        setAttendanceTrends(data.charts?.attendanceTrends || []);
-      } else {
-        setError(data.error || "Failed to fetch attendance detail");
-      }
-    } catch (error) {
-      console.error("Failed to fetch attendance detail:", error);
-      setError("Failed to fetch attendance detail");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchAuditHistory = async () => {
-    if (!attendance) return;
-
-    setAuditLoading(true);
-    try {
-      const params = new URLSearchParams({
-        page: auditPage.toString(),
-        limit: auditLimit.toString(),
-        sortBy: auditSortBy,
-        sortOrder: auditSortOrder,
-      });
-
-      // Fetch user's attendances for audit history
-      const res = await fetch(
-        `/api/admin/attendance?userId=${attendance.userId}&${params}`,
-      );
-      const data = await res.json();
-
-      if (res.ok) {
-        setAuditRecords(data.records || []);
-        setAuditTotalPages(data.pagination?.totalPages || 1);
-      }
-    } catch (error) {
-      console.error("Failed to fetch audit history:", error);
-    } finally {
-      setAuditLoading(false);
-    }
-  };
+  const updateAttendanceMutation = useUpdateAttendanceStatus();
 
   const handleAttendanceAction = async (action: "APPROVE" | "REJECT") => {
-    setActionLoading(true);
     try {
-      const res = await fetch(`/api/attendance/${attendanceId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      await updateAttendanceMutation.mutateAsync({
+        attendanceId,
+        data: {
           status: action === "APPROVE" ? "APPROVED" : "REJECTED",
-          approvedBy: session?.user?.id,
-        }),
+        },
       });
-
-      if (res.ok) {
-        await fetchAttendanceDetail(); // Refresh
-      } else {
-        const data = await res.json();
-        alert(data.error || "Failed to update attendance");
-      }
     } catch (error) {
       console.error("Failed to update attendance:", error);
-      alert("Failed to update attendance");
-    } finally {
-      setActionLoading(false);
+      showMessage("error", "Error", "Failed to update attendance");
     }
   };
+
+  // Extract data from hooks
+  const attendance = attendanceDetail?.attendance;
+  const attendanceTrends = attendanceDetail?.charts?.attendanceTrends || [];
+  const auditRecords = auditData?.records || [];
+  const auditTotalPages = auditData?.pagination?.totalPages || 1;
+  const error = attendanceError?.message || null;
 
   const getStatusInfo = (status: string) => {
     switch (status) {
@@ -227,7 +148,7 @@ export default function AdminAttendanceDetailPage() {
                 <p className="text-sm font-medium text-gray-900">
                   {attendance.user.firstName} {attendance.user.lastName}
                 </p>
-                <p className="text-sm text-gray-500">{attendance.user.email}</p>
+                <p className="text-sm text-gray-500">{attendance.user.phone}</p>
               </div>
             </div>
             <div className="flex items-center space-x-3">
@@ -259,8 +180,8 @@ export default function AdminAttendanceDetailPage() {
               <Clock className="h-5 w-5 text-green-500" />
               <div>
                 <p className="text-sm font-medium text-gray-900">
-                  {attendance.timeIn
-                    ? new Date(attendance.timeIn).toLocaleTimeString()
+                  {attendance.punchIn
+                    ? new Date(attendance.punchIn).toLocaleTimeString()
                     : "Not punched in"}
                 </p>
                 <p className="text-sm text-gray-500">Punch In</p>
@@ -270,8 +191,8 @@ export default function AdminAttendanceDetailPage() {
               <Clock className="h-5 w-5 text-red-500" />
               <div>
                 <p className="text-sm font-medium text-gray-900">
-                  {attendance.timeOut
-                    ? new Date(attendance.timeOut).toLocaleTimeString()
+                  {attendance.punchOut
+                    ? new Date(attendance.punchOut).toLocaleTimeString()
                     : "Not punched out"}
                 </p>
                 <p className="text-sm text-gray-500">Punch Out</p>
@@ -288,7 +209,7 @@ export default function AdminAttendanceDetailPage() {
           <div className="flex space-x-4">
             <button
               onClick={() => handleAttendanceAction("APPROVE")}
-              disabled={actionLoading}
+              disabled={updateAttendanceMutation.isPending}
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
               aria-label="Approve attendance"
             >
@@ -297,7 +218,7 @@ export default function AdminAttendanceDetailPage() {
             </button>
             <button
               onClick={() => handleAttendanceAction("REJECT")}
-              disabled={actionLoading}
+              disabled={updateAttendanceMutation.isPending}
               className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
               aria-label="Reject attendance"
             >

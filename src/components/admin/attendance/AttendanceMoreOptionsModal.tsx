@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { X, Clock, AlertTriangle, Save } from "lucide-react";
 import { AttendanceRecord } from "@/types/attendance";
+import { formatHoursToHM, parseHMToHours, isValidHMFormat } from "@/lib/utils";
+import { useModal } from "@/components/ModalProvider";
 
 interface AttendanceMoreOptionsModalProps {
   isOpen: boolean;
@@ -17,37 +19,67 @@ export default function AttendanceMoreOptionsModal({
   attendance,
   onSave,
 }: AttendanceMoreOptionsModalProps) {
+  const { showMessage } = useModal();
   const [overtimeHours, setOvertimeHours] = useState<string>("");
-  const [lateMinutes, setLateMinutes] = useState<string>("");
+  const [lateMinutes, setLateMinutes] = useState<number>(0);
   const [workingHours, setWorkingHours] = useState<string>("");
+  const [shiftDurationHours, setShiftDurationHours] = useState<string>("");
   const [reason, setReason] = useState<string>("");
   const [saving, setSaving] = useState(false);
-
   useEffect(() => {
     if (attendance && isOpen) {
-      setOvertimeHours(attendance.overtimeHours?.toString() || "0");
-      setLateMinutes(attendance.isLate ? "1" : "0");
-      setWorkingHours(attendance.workingHours?.toString() || "");
+      setOvertimeHours(formatHoursToHM(attendance.overtimeHours ?? 0));
+      setLateMinutes(attendance?.LateMinute ? attendance?.LateMinute : 0);
+      setWorkingHours(formatHoursToHM(attendance.workingHours ?? null));
+      setShiftDurationHours(
+        formatHoursToHM(attendance.shiftDurationHours ?? null),
+      );
       setReason("");
     }
   }, [attendance, isOpen]);
-
+  console.log(attendance);
   const handleSave = async () => {
     if (!attendance) return;
 
     setSaving(true);
     try {
-      // Parse and validate numbers with proper precision
-      const parsedOvertimeHours = overtimeHours ? parseFloat(overtimeHours) : 0;
-      const parsedWorkingHours = workingHours ? parseFloat(workingHours) : null;
+      if (workingHours && !isValidHMFormat(workingHours)) {
+        showMessage(
+          "error",
+          "Invalid Format",
+          "Working Hours must be in H:M format",
+        );
+        setSaving(false);
+        return;
+      }
+      if (overtimeHours && !isValidHMFormat(overtimeHours)) {
+        showMessage(
+          "error",
+          "Invalid Format",
+          "Overtime Hours must be in H:M format",
+        );
+        setSaving(false);
+        return;
+      }
+      if (shiftDurationHours && !isValidHMFormat(shiftDurationHours)) {
+        showMessage(
+          "error",
+          "Invalid Format",
+          "Shift Duration Hours must be in H:M format",
+        );
+        setSaving(false);
+        return;
+      }
+      // Parse H:M format to decimal hours
+      const parsedOvertimeHours = parseHMToHours(overtimeHours) || 0;
+      const parsedWorkingHours = parseHMToHours(workingHours);
+      const parsedShiftDurationHours = parseHMToHours(shiftDurationHours);
 
-      // Round to 2 decimal places to avoid floating point issues
       const updates: any = {
-        overtimeHours: Math.round(parsedOvertimeHours * 100) / 100,
-        workingHours: parsedWorkingHours
-          ? Math.round(parsedWorkingHours * 100) / 100
-          : null,
-        isLate: parseInt(lateMinutes) > 0,
+        overtimeHours: parsedOvertimeHours,
+        workingHours: parsedWorkingHours,
+        shiftDurationHours: parsedShiftDurationHours,
+        LateMinute: lateMinutes,
       };
 
       if (reason.trim()) {
@@ -56,9 +88,8 @@ export default function AttendanceMoreOptionsModal({
 
       await onSave(attendance.id, updates);
       onClose();
-    } catch (error) {
-      console.error("Failed to save attendance updates:", error);
-      alert("Failed to save changes");
+    } catch (error: any) {
+      showMessage("error", "Error", error?.error || "Failed to save changes");
     } finally {
       setSaving(false);
     }
@@ -69,8 +100,14 @@ export default function AttendanceMoreOptionsModal({
   return (
     <>
       {/* Desktop Modal */}
-      <div className="hidden md:flex fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm animate-in fade-in duration-200">
-        <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-200">
+      <div
+        className="hidden md:flex fixed inset-0 z-50 items-center justify-center backdrop-blur-sm animate-in fade-in duration-200"
+        onClick={onClose}
+      >
+        <div
+          className="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-200"
+          onClick={(e) => e.stopPropagation()}
+        >
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
             <div>
@@ -104,7 +141,7 @@ export default function AttendanceMoreOptionsModal({
                     {attendance.user.firstName} {attendance.user.lastName}
                   </h4>
                   <p className="text-sm text-gray-600">
-                    {attendance.user.email}
+                    {attendance.user.phone}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
                     {new Date(attendance.attendanceDate).toLocaleDateString(
@@ -129,24 +166,41 @@ export default function AttendanceMoreOptionsModal({
                   <div className="p-1.5 bg-blue-100 rounded-lg mr-3 group-focus-within:bg-blue-200 transition-colors">
                     <Clock className="h-4 w-4 text-blue-600" />
                   </div>
-                  Working Hours
+                  Working Hours (H:M)
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="24"
-                  value={workingHours}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    // Allow only up to 2 decimal places
-                    if (value === "" || /^\d*\.?\d{0,2}$/.test(value)) {
-                      setWorkingHours(value);
+                <div className="flex items-center space-x-2">
+                  <select
+                    value={(workingHours || "00:00").split(":")[0]}
+                    onChange={(e) =>
+                      setWorkingHours(
+                        `${e.target.value}:${(workingHours || "00:00").split(":")[1]}`,
+                      )
                     }
-                  }}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-gray-300"
-                  placeholder="8.50"
-                />
+                    className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-gray-300"
+                  >
+                    {Array.from({ length: 12 }, (_, i) => (
+                      <option key={i} value={i.toString().padStart(2, "0")}>
+                        {i.toString().padStart(2, "0")}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-gray-500">:</span>
+                  <select
+                    value={(workingHours || "00:00").split(":")[1]}
+                    onChange={(e) =>
+                      setWorkingHours(
+                        `${(workingHours || "00:00").split(":")[0]}:${e.target.value}`,
+                      )
+                    }
+                    className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-gray-300"
+                  >
+                    {Array.from({ length: 60 }, (_, i) => (
+                      <option key={i} value={i.toString().padStart(2, "0")}>
+                        {i.toString().padStart(2, "0")}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Overtime Hours */}
@@ -155,24 +209,84 @@ export default function AttendanceMoreOptionsModal({
                   <div className="p-1.5 bg-green-100 rounded-lg mr-3 group-focus-within:bg-green-200 transition-colors">
                     <Clock className="h-4 w-4 text-green-600" />
                   </div>
-                  Overtime Hours
+                  Overtime Hours (H:M)
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="16"
-                  value={overtimeHours}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    // Allow only up to 2 decimal places
-                    if (value === "" || /^\d*\.?\d{0,2}$/.test(value)) {
-                      setOvertimeHours(value);
+                <div className="flex items-center space-x-2">
+                  <select
+                    value={(overtimeHours || "00:00").split(":")[0]}
+                    onChange={(e) =>
+                      setOvertimeHours(
+                        `${e.target.value}:${(overtimeHours || "00:00").split(":")[1]}`,
+                      )
                     }
-                  }}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-gray-300"
-                  placeholder="2.00"
-                />
+                    className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-gray-300"
+                  >
+                    {Array.from({ length: 12 }, (_, i) => (
+                      <option key={i} value={i.toString().padStart(2, "0")}>
+                        {i.toString().padStart(2, "0")}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-gray-500">:</span>
+                  <select
+                    value={(overtimeHours || "00:00").split(":")[1]}
+                    onChange={(e) =>
+                      setOvertimeHours(
+                        `${(overtimeHours || "00:00").split(":")[0]}:${e.target.value}`,
+                      )
+                    }
+                    className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-gray-300"
+                  >
+                    {Array.from({ length: 60 }, (_, i) => (
+                      <option key={i} value={i.toString().padStart(2, "0")}>
+                        {i.toString().padStart(2, "0")}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Shift Duration Hours */}
+              <div className="group">
+                <label className="block text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                  <div className="p-1.5 bg-purple-100 rounded-lg mr-3 group-focus-within:bg-purple-200 transition-colors">
+                    <Clock className="h-4 w-4 text-purple-600" />
+                  </div>
+                  Shift Duration Hours (H:M)
+                </label>
+                <div className="flex items-center space-x-2">
+                  <select
+                    value={(shiftDurationHours || "00:00").split(":")[0]}
+                    onChange={(e) =>
+                      setShiftDurationHours(
+                        `${e.target.value}:${(shiftDurationHours || "00:00").split(":")[1]}`,
+                      )
+                    }
+                    className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-gray-300"
+                  >
+                    {Array.from({ length: 12 }, (_, i) => (
+                      <option key={i} value={i.toString().padStart(2, "0")}>
+                        {i.toString().padStart(2, "0")}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-gray-500">:</span>
+                  <select
+                    value={(shiftDurationHours || "00:00").split(":")[1]}
+                    onChange={(e) =>
+                      setShiftDurationHours(
+                        `${(shiftDurationHours || "00:00").split(":")[0]}:${e.target.value}`,
+                      )
+                    }
+                    className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-gray-300"
+                  >
+                    {Array.from({ length: 60 }, (_, i) => (
+                      <option key={i} value={i.toString().padStart(2, "0")}>
+                        {i.toString().padStart(2, "0")}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Late Minutes */}
@@ -183,15 +297,17 @@ export default function AttendanceMoreOptionsModal({
                   </div>
                   Late Minutes
                 </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="480"
+                <select
                   value={lateMinutes}
-                  onChange={(e) => setLateMinutes(e.target.value)}
+                  onChange={(e) => setLateMinutes(parseInt(e.target.value))}
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-gray-300"
-                  placeholder="15"
-                />
+                >
+                  {Array.from({ length: 97 }, (_, i) => (
+                    <option key={i} value={i * 5}>
+                      {i * 5}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Reason */}
@@ -234,6 +350,11 @@ export default function AttendanceMoreOptionsModal({
         </div>
       </div>
 
+      {/* Mobile Backdrop */}
+      <div
+        className="md:hidden fixed inset-0 z-40 bg-black bg-opacity-50"
+        onClick={onClose}
+      ></div>
       {/* Mobile Bottom Sheet */}
       <div
         className="md:hidden fixed inset-x-0 bottom-0 z-50 transform transition-transform duration-300 ease-out"
@@ -265,7 +386,7 @@ export default function AttendanceMoreOptionsModal({
                 {attendance.user.firstName} {attendance.user.lastName}
               </h4>
               <p className="text-xs text-gray-600 mt-1">
-                {attendance.user.email}
+                {attendance.user.phone}
               </p>
               <p className="text-xs text-gray-500 mt-1">
                 {new Date(attendance.attendanceDate).toLocaleDateString()}
@@ -278,48 +399,123 @@ export default function AttendanceMoreOptionsModal({
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
                   <Clock className="h-4 w-4 mr-2 text-blue-600" />
-                  Working Hours
+                  Working Hours (H:M)
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="24"
-                  value={workingHours}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    // Allow only up to 2 decimal places
-                    if (value === "" || /^\d*\.?\d{0,2}$/.test(value)) {
-                      setWorkingHours(value);
+                <div className="flex items-center space-x-2">
+                  <select
+                    value={(workingHours || "00:00").split(":")[0]}
+                    onChange={(e) =>
+                      setWorkingHours(
+                        `${e.target.value}:${(workingHours || "00:00").split(":")[1]}`,
+                      )
                     }
-                  }}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                  placeholder="8.50"
-                />
+                    className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  >
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <option key={i} value={i.toString().padStart(2, "0")}>
+                        {i.toString().padStart(2, "0")}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-gray-500 text-sm">:</span>
+                  <select
+                    value={(workingHours || "00:00").split(":")[1]}
+                    onChange={(e) =>
+                      setWorkingHours(
+                        `${(workingHours || "00:00").split(":")[0]}:${e.target.value}`,
+                      )
+                    }
+                    className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  >
+                    {Array.from({ length: 60 }, (_, i) => (
+                      <option key={i} value={i.toString().padStart(2, "0")}>
+                        {i.toString().padStart(2, "0")}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Overtime Hours */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
                   <Clock className="h-4 w-4 mr-2 text-green-600" />
-                  Overtime Hours
+                  Overtime Hours (H:M)
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="16"
-                  value={overtimeHours}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    // Allow only up to 2 decimal places
-                    if (value === "" || /^\d*\.?\d{0,2}$/.test(value)) {
-                      setOvertimeHours(value);
+                <div className="flex items-center space-x-2">
+                  <select
+                    value={(overtimeHours || "00:00").split(":")[0]}
+                    onChange={(e) =>
+                      setOvertimeHours(
+                        `${e.target.value}:${(overtimeHours || "00:00").split(":")[1]}`,
+                      )
                     }
-                  }}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                  placeholder="2.00"
-                />
+                    className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  >
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <option key={i} value={i.toString().padStart(2, "0")}>
+                        {i.toString().padStart(2, "0")}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-gray-500 text-sm">:</span>
+                  <select
+                    value={(overtimeHours || "00:00").split(":")[1]}
+                    onChange={(e) =>
+                      setOvertimeHours(
+                        `${(overtimeHours || "00:00").split(":")[0]}:${e.target.value}`,
+                      )
+                    }
+                    className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  >
+                    {Array.from({ length: 60 }, (_, i) => (
+                      <option key={i} value={i.toString().padStart(2, "0")}>
+                        {i.toString().padStart(2, "0")}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Shift Duration Hours */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                  <Clock className="h-4 w-4 mr-2 text-purple-600" />
+                  Shift Duration Hours (H:M)
+                </label>
+                <div className="flex items-center space-x-2">
+                  <select
+                    value={(shiftDurationHours || "00:00").split(":")[0]}
+                    onChange={(e) =>
+                      setShiftDurationHours(
+                        `${e.target.value}:${(shiftDurationHours || "00:00").split(":")[1]}`,
+                      )
+                    }
+                    className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  >
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <option key={i} value={i.toString().padStart(2, "0")}>
+                        {i.toString().padStart(2, "0")}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-gray-500 text-sm">:</span>
+                  <select
+                    value={(shiftDurationHours || "00:00").split(":")[1]}
+                    onChange={(e) =>
+                      setShiftDurationHours(
+                        `${(shiftDurationHours || "00:00").split(":")[0]}:${e.target.value}`,
+                      )
+                    }
+                    className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  >
+                    {Array.from({ length: 60 }, (_, i) => (
+                      <option key={i} value={i.toString().padStart(2, "0")}>
+                        {i.toString().padStart(2, "0")}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Late Minutes */}
@@ -328,15 +524,17 @@ export default function AttendanceMoreOptionsModal({
                   <AlertTriangle className="h-4 w-4 mr-2 text-orange-600" />
                   Late Minutes
                 </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="480"
+                <select
                   value={lateMinutes}
-                  onChange={(e) => setLateMinutes(e.target.value)}
+                  onChange={(e) => setLateMinutes(parseInt(e.target.value))}
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                  placeholder="15"
-                />
+                >
+                  {Array.from({ length: 97 }, (_, i) => (
+                    <option key={i} value={i * 5}>
+                      {i * 5}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Reason */}

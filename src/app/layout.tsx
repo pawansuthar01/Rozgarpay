@@ -1,21 +1,29 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Providers } from "@/components/providers";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
 
 export const metadata: Metadata = {
-  title: "SMSystem",
-  description: "Payroll & Staff Management App",
+  title: "Rozgarpay - Payroll & Staff Management Platform",
+  description:
+    "Simplify your payroll management with Rozgarpay. Track attendance, manage salaries, generate reports, and ensure compliance with our comprehensive staff management platform.",
+  keywords:
+    "payroll software, staff management, attendance tracking, salary management, HR platform, payroll system",
+  authors: [{ name: "Rozgarpay" }],
+  creator: "Rozgarpay",
+  publisher: "Rozgarpay",
+  robots: "index, follow",
+  openGraph: {
+    title: "Rozgarpay - Payroll & Staff Management Platform",
+    description:
+      "Streamline your payroll and staff management operations with Rozgarpay",
+    type: "website",
+  },
 };
 
 export default function RootLayout({
@@ -25,13 +33,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        <link rel="stylesheet" href=".globals.css" />
-      </head>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <Providers>{children}</Providers>
+      <body className={`antialiased`}>
+        <ErrorBoundary>
+          <Providers>{children}</Providers>
+        </ErrorBoundary>
       </body>
     </html>
   );

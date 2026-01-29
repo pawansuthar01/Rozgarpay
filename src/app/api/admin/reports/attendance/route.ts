@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "../../../auth/[...nextauth]/route";
+import { generateAttendancePDFBuffer } from "@/lib/attendanceReportGenerator";
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,6 +15,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
+    const format = searchParams.get("format") || "json";
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
 
@@ -129,7 +131,39 @@ export async function GET(request: NextRequest) {
       }),
     );
 
-    // Paginate staff summary
+    if (format === "pdf") {
+      // Generate PDF report
+      const pdfData = {
+        company: admin.company,
+        totalRecords,
+        present,
+        absent,
+        late,
+        trends: trendsData,
+        staffSummary: staffSummary,
+        generatedBy: {
+          firstName: session.user.firstName ?? null,
+          lastName: session.user.lastName ?? null,
+          phone: session.user.phone ?? null,
+          email: session.user.email ?? null,
+        },
+        dateRange: {
+          startDate,
+          endDate,
+        },
+      };
+
+      const pdfBuffer = generateAttendancePDFBuffer(pdfData);
+
+      return new NextResponse(new Uint8Array(pdfBuffer), {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `attachment; filename=attendance-report-${new Date().toISOString().split("T")[0]}.pdf`,
+        },
+      });
+    }
+
+    // Paginate staff summary for JSON response
     const startIndex = (page - 1) * limit;
     const endIndex = startIndex + limit;
     const paginatedStaff = staffSummary.slice(startIndex, endIndex);

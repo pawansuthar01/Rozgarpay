@@ -6,23 +6,24 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-export async function uploadImage(
+export const uploadToCloudinary = async (
   file: File,
-  folder: string = "attendance",
-): Promise<string> {
+  folder: string = "Rozgarpay",
+): Promise<string> => {
   try {
-    let buffer: Buffer;
-    let arrayBuffer: ArrayBuffer;
-    arrayBuffer = await file.arrayBuffer();
-    buffer = Buffer.from(arrayBuffer);
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
 
     return new Promise((resolve, reject) => {
       cloudinary.uploader
         .upload_stream(
           {
             folder,
-            resource_type: "image",
-            allowed_formats: ["jpg", "png", "jpeg"],
+            resource_type: "auto",
+            transformation: [
+              { width: 500, height: 500, crop: "limit" },
+              { quality: "auto" },
+            ],
           },
           (error, result) => {
             if (error) {
@@ -39,31 +40,49 @@ export async function uploadImage(
   } catch (error) {
     throw new Error("Failed to upload image");
   }
-}
+};
 
-export async function deleteImage(publicId: string): Promise<void> {
+export const deleteFromCloudinary = async (publicId: string): Promise<void> => {
   try {
-    await cloudinary.uploader.destroy(publicId, {
-      resource_type: "image",
-    });
+    await cloudinary.uploader.destroy(publicId);
   } catch (error) {
-    throw new Error("Failed to delete image");
+    console.error("Failed to delete from Cloudinary:", error);
   }
-}
-export async function uploadImageFromDataUrl(
-  dataUrl: string,
-  folder: string = "attendance",
-): Promise<string> {
+};
+
+export const extractPublicId = (url: string): string | null => {
+  const match = url.match(/\/upload\/(?:v\d+\/)?(.+)\.[a-zA-Z]+$/);
+  return match ? match[1] : null;
+};
+
+export const uploadPDF = async (
+  file: File | Buffer,
+  folder: string = "Rozgarpay",
+  filename?: string,
+): Promise<string> => {
   try {
+    let buffer: Buffer;
+
+    if (file instanceof File) {
+      const arrayBuffer = await file.arrayBuffer();
+      buffer = Buffer.from(arrayBuffer);
+    } else {
+      buffer = file;
+    }
+
     return new Promise((resolve, reject) => {
-      cloudinary.uploader.upload(
-        dataUrl,
-        {
-          folder,
-          resource_type: "image",
-          allowed_formats: ["jpg", "png", "jpeg"],
-        },
-        (error, result) => {
+      const uploadOptions: any = {
+        folder,
+        resource_type: "raw", // For PDFs and other non-image files
+        format: "pdf",
+      };
+
+      if (filename) {
+        uploadOptions.public_id = filename;
+      }
+
+      cloudinary.uploader
+        .upload_stream(uploadOptions, (error, result) => {
           if (error) {
             reject(error);
           } else if (result) {
@@ -71,10 +90,18 @@ export async function uploadImageFromDataUrl(
           } else {
             reject(new Error("Upload failed"));
           }
-        },
-      );
+        })
+        .end(buffer);
     });
   } catch (error) {
-    throw new Error("Failed to upload image");
+    throw new Error("Failed to upload PDF");
   }
-}
+};
+
+export const deletePDF = async (publicId: string): Promise<void> => {
+  try {
+    await cloudinary.uploader.destroy(publicId, { resource_type: "raw" });
+  } catch (error) {
+    console.error("Failed to delete PDF from Cloudinary:", error);
+  }
+};

@@ -2,11 +2,12 @@
 
 import { useRef, useState, useEffect } from "react";
 import { Camera, X, RotateCcw, Loader2, CheckCircle } from "lucide-react";
+import { useModal } from "./ModalProvider";
 
 interface PunchModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onPunch: (type: "in" | "out", image: string) => Promise<void>;
+  onPunch: (type: "in" | "out", image: string) => Promise<boolean>;
   punchType: "in" | "out";
 }
 
@@ -20,7 +21,7 @@ export default function PunchModal({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [shouldRender, setShouldRender] = useState(false);
-
+  const { showMessage } = useModal();
   const [stage, setStage] = useState<
     "idle" | "opening" | "live" | "preview" | "uploading" | "success"
   >("idle");
@@ -72,10 +73,13 @@ export default function PunchModal({
 
       setStage("live");
     } catch (err) {
-      console.error("Camera error:", err);
       // Instead of alert, we could emit an error event or use a callback
       // For now, we'll keep it simple but could be improved with a modal
-      alert("Camera access failed. Please allow permission.");
+      showMessage(
+        "error",
+        "Error",
+        "Camera access failed. Please allow permission.",
+      );
       setStage("idle");
     }
   }
@@ -103,7 +107,7 @@ export default function PunchModal({
 
     // VERY IMPORTANT
     if (video.videoWidth === 0 || video.videoHeight === 0) {
-      alert("Camera still loading, wait 1 second");
+      showMessage("info", "wait 1 sec", "Camera still loading, wait 1 second");
       return;
     }
 
@@ -131,7 +135,12 @@ export default function PunchModal({
     try {
       setStage("uploading");
       const image = canvasRef.current.toDataURL("image/jpeg", 0.85);
-      await onPunch(punchType, image);
+      const res = await onPunch(punchType, image);
+      if (!res) {
+        handleClose();
+        setStage("idle");
+        return;
+      }
       setStage("success");
 
       // Auto close after success
@@ -139,13 +148,16 @@ export default function PunchModal({
         handleClose();
         setStage("idle");
       }, 2000);
-    } catch (err) {
-      console.error(err);
-      alert("Punch failed, try again");
+    } catch (_) {
+      showMessage("error", "Error", "Punch failed, try again");
       setStage("preview");
     }
   };
   function handleClose() {
+    if (stage == "uploading") {
+      showMessage("warning", "Please wait ", "Please wait a few sec...");
+      return;
+    }
     setIsAnimating(false);
     setTimeout(() => {
       stopCamera();
@@ -195,7 +207,7 @@ export default function PunchModal({
           </div>
           <button
             onClick={handleClose}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            className="p-2 hover:bg-gray-100  cursor-pointer  rounded-full transition-colors"
           >
             <X className="w-5 h-5" />
           </button>

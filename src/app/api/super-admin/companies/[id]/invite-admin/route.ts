@@ -4,10 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { authOptions } from "../../../../auth/[...nextauth]/route";
 import { notificationManager } from "@/lib/notificationService";
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: NextRequest, { params }: any) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -21,7 +18,7 @@ export async function POST(
     if (!email || !phone) {
       return NextResponse.json(
         { error: "Email and phone are required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -33,7 +30,7 @@ export async function POST(
     if (!company || company.status !== "ACTIVE") {
       return NextResponse.json(
         { error: "Company not found or not active" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -47,7 +44,7 @@ export async function POST(
     if (existingUser) {
       return NextResponse.json(
         { error: "Email or phone already exists" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -63,7 +60,7 @@ export async function POST(
     if (existingInvitation) {
       return NextResponse.json(
         { error: "Invitation already sent to this email or phone" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -95,10 +92,11 @@ export async function POST(
           ["email", "whatsapp"],
           {
             role: "admin",
+            companyName: company.name,
             invitationUrl: joinLink,
             expiresAt: invitation.expiresAt.toISOString(),
             message,
-          }
+          },
         );
 
       console.log("Notifications sent:", notificationResults);
@@ -140,7 +138,7 @@ export async function POST(
     console.error(error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

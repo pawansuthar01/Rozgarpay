@@ -2,16 +2,20 @@ import { withAuth } from "next-auth/middleware";
 
 export default withAuth(
   function middleware(req) {
-    // Add custom logic here if needed
+    //
   },
   {
     callbacks: {
       authorized: ({ token, req }) => {
         const { pathname } = req.nextUrl;
-
         // Public routes
         if (
           pathname === "/login" ||
+          pathname === "/" ||
+          pathname === "/about" ||
+          pathname === "/contact" ||
+          pathname === "/privacy-policy" ||
+          pathname === "/onboarding" ||
           pathname.startsWith("/api/auth") ||
           pathname.startsWith("/join/") ||
           pathname.startsWith("/api/join/") ||
@@ -38,7 +42,7 @@ export default withAuth(
         return true;
       },
     },
-  }
+  },
 );
 
 export const config = {

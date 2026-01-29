@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession, signOut } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import {
@@ -16,8 +16,14 @@ import {
   Timer,
   Settings as SettingsIcon,
   AlertTriangle,
+  IndianRupee,
 } from "lucide-react";
 import MessageModal from "@/components/MessageModal";
+import {
+  useCompanySettings,
+  useUpdateCompanySettings,
+} from "@/hooks/useCompanySettings";
+import ImageUpload from "@/components/ImageUpload";
 
 interface Company {
   id: string;
@@ -25,6 +31,7 @@ interface Company {
   email: string;
   phone: string;
   address: string;
+  logo?: string | null;
 }
 
 interface AttendanceSettings {
@@ -47,26 +54,46 @@ interface AttendanceSettings {
 
 export default function AdminSettingsPage() {
   const { data: session } = useSession();
-  const [company, setCompany] = useState<Company | null>(null);
-  const [attendanceSettings, setAttendanceSettings] =
-    useState<AttendanceSettings>({
-      shiftStartTime: "09:00",
-      shiftEndTime: "18:00",
-      gracePeriodMinutes: 30,
-      minWorkingHours: 4.0,
-      maxDailyHours: 16.0,
-      autoPunchOutBufferMinutes: 30,
-      locationLat: undefined,
-      locationLng: undefined,
-      locationRadius: 100.0,
-      overtimeThresholdHours: 2.0,
-      nightPunchInWindowHours: 2.0,
-      enableLatePenalty: false,
-      latePenaltyPerMinute: 0,
-      enableAbsentPenalty: false,
-      absentPenaltyPerDay: 0,
-    });
-  const [loading, setLoading] = useState(true);
+  const { data: companyData, isLoading, error } = useCompanySettings();
+  const updateSettingsMutation = useUpdateCompanySettings();
+
+  const company = companyData?.company;
+  const attendanceSettings: AttendanceSettings = company
+    ? {
+        shiftStartTime: company.shiftStartTime || "09:00",
+        shiftEndTime: company.shiftEndTime || "18:00",
+        gracePeriodMinutes: company.gracePeriodMinutes || 30,
+        minWorkingHours: company.minWorkingHours || 4.0,
+        maxDailyHours: company.maxDailyHours || 16.0,
+        autoPunchOutBufferMinutes: company.autoPunchOutBufferMinutes || 30,
+        locationLat: company.locationLat || undefined,
+        locationLng: company.locationLng || undefined,
+        locationRadius: company.locationRadius || 100.0,
+        overtimeThresholdHours: company.overtimeThresholdHours || 2.0,
+        nightPunchInWindowHours: company.nightPunchInWindowHours || 2.0,
+        enableLatePenalty: company.enableLatePenalty || false,
+        latePenaltyPerMinute: company.latePenaltyPerMinute || 0,
+        enableAbsentPenalty: company.enableAbsentPenalty || false,
+        absentPenaltyPerDay: company.absentPenaltyPerDay || 0,
+      }
+    : {
+        shiftStartTime: "09:00",
+        shiftEndTime: "18:00",
+        gracePeriodMinutes: 30,
+        minWorkingHours: 4.0,
+        maxDailyHours: 16.0,
+        autoPunchOutBufferMinutes: 30,
+        locationLat: undefined,
+        locationLng: undefined,
+        locationRadius: 100.0,
+        overtimeThresholdHours: 2.0,
+        nightPunchInWindowHours: 2.0,
+        enableLatePenalty: false,
+        latePenaltyPerMinute: 0,
+        enableAbsentPenalty: false,
+        absentPenaltyPerDay: 0,
+      };
+
   const [editing, setEditing] = useState<string | null>(null);
   const [tempAttendanceSettings, setTempAttendanceSettings] =
     useState<AttendanceSettings>(attendanceSettings);
@@ -82,48 +109,6 @@ export default function AdminSettingsPage() {
     message: "",
   });
 
-  useEffect(() => {
-    fetchSettings();
-  }, []);
-
-  const fetchSettings = async () => {
-    setLoading(true);
-    try {
-      // Fetch company info and settings
-      const companyRes = await fetch("/api/admin/company");
-      if (companyRes.ok) {
-        const companyData = await companyRes.json();
-        setCompany(companyData.company);
-
-        // Set attendance settings from company data
-        setAttendanceSettings({
-          shiftStartTime: companyData.company.shiftStartTime || "09:00",
-          shiftEndTime: companyData.company.shiftEndTime || "18:00",
-          gracePeriodMinutes: companyData.company.gracePeriodMinutes || 30,
-          minWorkingHours: companyData.company.minWorkingHours || 4.0,
-          maxDailyHours: companyData.company.maxDailyHours || 16.0,
-          autoPunchOutBufferMinutes:
-            companyData.company.autoPunchOutBufferMinutes || 30,
-          locationLat: companyData.company.locationLat || undefined,
-          locationLng: companyData.company.locationLng || undefined,
-          locationRadius: companyData.company.locationRadius || 100.0,
-          overtimeThresholdHours:
-            companyData.company.overtimeThresholdHours || 2.0,
-          nightPunchInWindowHours:
-            companyData.company.nightPunchInWindowHours || 2.0,
-          enableLatePenalty: companyData.company.enableLatePenalty || false,
-          latePenaltyPerMinute: companyData.company.latePenaltyPerMinute || 0,
-          enableAbsentPenalty: companyData.company.enableAbsentPenalty || false,
-          absentPenaltyPerDay: companyData.company.absentPenaltyPerDay || 0,
-        });
-      }
-    } catch (error) {
-      console.error("Failed to fetch settings:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleEdit = (section: string) => {
     setEditing(section);
     setTempAttendanceSettings(attendanceSettings);
@@ -131,38 +116,21 @@ export default function AdminSettingsPage() {
 
   const handleSave = async (section: string) => {
     try {
-      // Save attendance settings to company
-      const response = await fetch("/api/admin/company", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(tempAttendanceSettings),
+      await updateSettingsMutation.mutateAsync(tempAttendanceSettings);
+      setEditing(null);
+      setMessageModal({
+        isOpen: true,
+        type: "success",
+        title: "Settings Saved",
+        message: "Attendance settings have been updated successfully.",
       });
-
-      if (response.ok) {
-        setAttendanceSettings(tempAttendanceSettings);
-        setEditing(null);
-        setMessageModal({
-          isOpen: true,
-          type: "success",
-          title: "Settings Saved",
-          message: "Attendance settings have been updated successfully.",
-        });
-      } else {
-        const error = await response.json();
-        setMessageModal({
-          isOpen: true,
-          type: "error",
-          title: "Save Failed",
-          message: error.error || "Failed to save settings",
-        });
-      }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to save settings:", error);
       setMessageModal({
         isOpen: true,
         type: "error",
         title: "Save Failed",
-        message: "Failed to save settings. Please try again.",
+        message: error.message || "Failed to save settings. Please try again.",
       });
     }
   };
@@ -172,18 +140,50 @@ export default function AdminSettingsPage() {
     setTempAttendanceSettings(attendanceSettings);
   };
 
+  const handleLogoUpload = async (file: File) => {
+    const formData = new FormData();
+    formData.append("logo", file);
+
+    const response = await fetch("/api/admin/company/logo", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to upload company logo");
+    }
+
+    // Refresh company data
+    window.location.reload();
+  };
+
+  const handleLogoDelete = async () => {
+    const response = await fetch("/api/admin/company/logo", {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to delete company logo");
+    }
+
+    // Refresh company data
+    window.location.reload();
+  };
+
   if (!session || session.user.role !== "ADMIN") {
     return <div>Access Denied</div>;
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+    <div className="min-h-screen ">
       <div className="max-w-6xl mx-auto px-4 py-6 space-y-6 md:space-y-8">
         {/* Header */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8">
+        <div className="bg-white rounded-lg p-6 md:p-8">
           <div className="text-center">
             <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
-              ⚙️ Settings
+              Settings
             </h1>
             <p className="text-gray-600 text-base md:text-lg">
               Configure attendance & payroll rules
@@ -192,25 +192,38 @@ export default function AdminSettingsPage() {
         </div>
 
         {/* Company Info */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl md:text-2xl font-semibold text-gray-900 flex items-center">
-              <Building className="h-6 w-6 mr-3 text-blue-600" />
-              Company Information
-            </h2>
-            <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-              Read-only
-            </span>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl md:text-2xl font-semibold text-gray-900 flex items-center">
+            <Building className="h-6 w-6 mr-3 text-blue-600" />
+            Company Information
+          </h2>
+        </div>
+        <div className="bg-white gap-2  sm:flex rounded-lg p-6 md:p-8">
+          {/* Company Logo */}
+          <div className="mb-6 flex flex-col ">
+            <h3 className="text-xm sm:text-lg  font-medium text-gray-900 mb-4 text-center">
+              Company Logo
+            </h3>
+            <ImageUpload
+              disabled
+              currentImage={company?.logo}
+              onUpload={handleLogoUpload}
+              onDelete={handleLogoDelete}
+              type="logo"
+              size="md"
+            />
           </div>
-          {loading ? (
+
+          {/* Company Details */}
+          {isLoading ? (
             <div className="space-y-4">
               <Skeleton height={20} width={250} />
               <Skeleton height={16} width={200} />
               <Skeleton height={16} width={220} />
             </div>
           ) : company ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div className="bg-gray-50 rounded-lg p-4">
+            <div className="flex flex-col gap-4">
+              <div className=" rounded-lg p-4">
                 <p className="text-sm font-medium text-gray-700 mb-1">
                   Company Name
                 </p>
@@ -218,20 +231,13 @@ export default function AdminSettingsPage() {
                   {company.name}
                 </p>
               </div>
-              <div className="bg-gray-50 rounded-lg p-4">
+
+              <div className=" rounded-lg p-4">
                 <p className="text-sm font-medium text-gray-700 mb-1">
-                  Email Address
+                  description
                 </p>
                 <p className="text-lg font-semibold text-gray-900">
-                  {company.email}
-                </p>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-4">
-                <p className="text-sm font-medium text-gray-700 mb-1">
-                  Phone Number
-                </p>
-                <p className="text-lg font-semibold text-gray-900">
-                  {company.phone}
+                  {company.description}
                 </p>
               </div>
             </div>
@@ -239,7 +245,7 @@ export default function AdminSettingsPage() {
         </div>
 
         {/* Shift Settings */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8">
+        <div className="bg-white rounded-lg p-6 md:p-8">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl md:text-2xl font-semibold text-gray-900 flex items-center">
               <Clock className="h-6 w-6 mr-3 text-green-600" />
@@ -362,7 +368,7 @@ export default function AdminSettingsPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-green-50 rounded-lg p-4">
+              <div className=" rounded-lg p-4">
                 <p className="text-base font-medium text-gray-700 mb-1">
                   Shift Hours
                 </p>
@@ -371,7 +377,7 @@ export default function AdminSettingsPage() {
                   {attendanceSettings.shiftEndTime}
                 </p>
               </div>
-              <div className="bg-green-50 rounded-lg p-4">
+              <div className=" rounded-lg p-4">
                 <p className="text-base font-medium text-gray-700 mb-1">
                   Day Shift Grace Period
                 </p>
@@ -380,7 +386,7 @@ export default function AdminSettingsPage() {
                 </p>
                 <p className="text-sm text-gray-600">Late arrival allowance</p>
               </div>
-              <div className="bg-green-50 rounded-lg p-4">
+              <div className=" rounded-lg p-4">
                 <p className="text-base font-medium text-gray-700 mb-1">
                   Night Shift Window
                 </p>
@@ -394,7 +400,7 @@ export default function AdminSettingsPage() {
         </div>
 
         {/* Working Hours Settings */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8">
+        <div className="bg-white rounded-lg p-6 md:p-8">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl md:text-2xl font-semibold text-gray-900 flex items-center">
               <Timer className="h-6 w-6 mr-3 text-orange-600" />
@@ -501,7 +507,7 @@ export default function AdminSettingsPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-orange-50 rounded-lg p-4">
+              <div className=" rounded-lg p-4">
                 <p className="text-base font-medium text-gray-700 mb-1">
                   Min Working Hours
                 </p>
@@ -512,7 +518,7 @@ export default function AdminSettingsPage() {
                   Required to count as working day
                 </p>
               </div>
-              <div className="bg-orange-50 rounded-lg p-4">
+              <div className=" rounded-lg p-4">
                 <p className="text-base font-medium text-gray-700 mb-1">
                   Max Daily Hours
                 </p>
@@ -523,7 +529,7 @@ export default function AdminSettingsPage() {
                   Safety limit for work hours
                 </p>
               </div>
-              <div className="bg-orange-50 rounded-lg p-4">
+              <div className=" rounded-lg p-4">
                 <p className="text-base font-medium text-gray-700 mb-1">
                   Auto Punch-out
                 </p>
@@ -537,7 +543,7 @@ export default function AdminSettingsPage() {
         </div>
 
         {/* Location Settings */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8">
+        <div className="bg-white rounded-lg p-6 md:p-8">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl md:text-2xl font-semibold text-gray-900 flex items-center">
               <MapPin className="h-6 w-6 mr-3 text-red-600" />
@@ -641,7 +647,7 @@ export default function AdminSettingsPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-red-50 rounded-lg p-4">
+              <div className=" rounded-lg p-4">
                 <p className="text-base font-medium text-gray-700 mb-1">
                   Office Coordinates
                 </p>
@@ -655,7 +661,7 @@ export default function AdminSettingsPage() {
                   GPS location for validation
                 </p>
               </div>
-              <div className="bg-red-50 rounded-lg p-4">
+              <div className=" rounded-lg p-4">
                 <p className="text-base font-medium text-gray-700 mb-1">
                   Validation Radius
                 </p>
@@ -671,10 +677,10 @@ export default function AdminSettingsPage() {
         </div>
 
         {/* Overtime Settings */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8">
+        <div className="bg-white rounded-lg p-6 md:p-8">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl md:text-2xl font-semibold text-gray-900 flex items-center">
-              <DollarSign className="h-6 w-6 mr-3 text-purple-600" />
+              <IndianRupee className="h-6 w-6 mr-3 text-purple-600" />
               Overtime Policy
             </h2>
             {editing === "overtime" ? (
@@ -732,7 +738,7 @@ export default function AdminSettingsPage() {
               </div>
             </div>
           ) : (
-            <div className="bg-purple-50 rounded-lg p-6">
+            <div className=" rounded-lg p-6">
               <p className="text-base font-medium text-gray-700 mb-2">
                 Overtime Approval Threshold
               </p>
@@ -748,7 +754,7 @@ export default function AdminSettingsPage() {
         </div>
 
         {/* Penalty Settings */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8">
+        <div className="bg-white rounded-lg p-6 md:p-8">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl md:text-2xl font-semibold text-gray-900 flex items-center">
               <AlertTriangle className="h-6 w-6 mr-3 text-red-600" />
@@ -880,7 +886,7 @@ export default function AdminSettingsPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-red-50 rounded-lg p-4">
+              <div className=" rounded-lg p-4">
                 <p className="text-base font-medium text-gray-700 mb-1">
                   Late Arrival Penalties
                 </p>
@@ -895,7 +901,7 @@ export default function AdminSettingsPage() {
                     : "No penalties applied"}
                 </p>
               </div>
-              <div className="bg-red-50 rounded-lg p-4">
+              <div className=" rounded-lg p-4">
                 <p className="text-base font-medium text-gray-700 mb-1">
                   Absent Day Penalties
                 </p>

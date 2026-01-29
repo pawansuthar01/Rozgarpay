@@ -1,4 +1,4 @@
-import { Filter, Calendar } from "lucide-react";
+import { Filter, Calendar, Search } from "lucide-react";
 
 interface SalaryFiltersProps {
   month: number | null;
@@ -13,6 +13,8 @@ interface SalaryFiltersProps {
   setSortBy: (value: string) => void;
   sortOrder: string;
   setSortOrder: (value: string) => void;
+  search: string;
+  setSearch: (value: string) => void;
 }
 
 export default function SalaryFilters({
@@ -28,6 +30,8 @@ export default function SalaryFilters({
   setSortBy,
   sortOrder,
   setSortOrder,
+  search,
+  setSearch,
 }: SalaryFiltersProps) {
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 6 }, (_, i) => currentYear - 2 + i);
@@ -47,8 +51,20 @@ export default function SalaryFilters({
   ];
 
   return (
-    <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between mb-6">
-      <h3 className="text-lg font-semibold text-gray-900">Salary Records</h3>
+    <div className="flex flex-col gap-4 mb-6">
+      <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+        <h3 className="text-lg font-semibold text-gray-900">Salary Records</h3>
+        <div className="relative w-full lg:w-64">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md text-sm"
+            placeholder="Search staff by name or email..."
+          />
+        </div>
+      </div>
       <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
         <select
           value={month || ""}

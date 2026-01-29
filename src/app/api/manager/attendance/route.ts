@@ -86,10 +86,10 @@ export async function GET(request: Request) {
         "Unnamed",
       userEmail: record.user.email,
       attendanceDate: record.attendanceDate.toISOString(),
-      punchIn: record.punchIn.toISOString(),
+      punchIn: record?.punchIn?.toISOString(),
       punchOut: record.punchOut?.toISOString() || null,
       status: record.status,
-      imageUrl: record.imageUrl,
+      imageUrl: record.punchInImageUrl,
     }));
 
     const totalPages = Math.ceil(totalCount / limit);

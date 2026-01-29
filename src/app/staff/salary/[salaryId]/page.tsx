@@ -7,6 +7,7 @@ import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import { Download, ArrowLeft, Share2 } from "lucide-react";
 import Link from "next/link";
+import { formatCurrency } from "@/lib/utils";
 
 interface Salary {
   id: string;
@@ -204,7 +205,7 @@ export default function SalarySlipPage() {
     if (!salary) return;
     const shareData = {
       title: `Salary Slip - ${new Date(salary.year, salary.month - 1).toLocaleString("default", { month: "long", year: "numeric" })}`,
-      text: `My salary slip for ${new Date(salary.year, salary.month - 1).toLocaleString("default", { month: "long", year: "numeric" })} - Net Pay: ₹${salary.netAmount.toLocaleString()}`,
+      text: `My salary slip for ${new Date(salary.year, salary.month - 1).toLocaleString("default", { month: "long", year: "numeric" })} - Net Pay: ₹${formatCurrency(salary.netAmount)}`,
       url: window.location.href,
     };
 
@@ -430,14 +431,14 @@ export default function SalarySlipPage() {
                       {breakdown.description}
                     </span>
                     <span className="font-medium">
-                      ₹{breakdown.amount.toLocaleString()}
+                      ₹{formatCurrency(breakdown.amount)}
                     </span>
                   </div>
                 ))}
                 <div className="border-t pt-3">
                   <div className="flex justify-between font-semibold text-lg">
                     <span>Total Earnings</span>
-                    <span>₹{salary.grossAmount.toLocaleString()}</span>
+                    <span>₹{formatCurrency(salary.grossAmount)}</span>
                   </div>
                 </div>
               </div>
@@ -455,7 +456,7 @@ export default function SalarySlipPage() {
                       {breakdown.description}
                     </span>
                     <span className="font-medium text-red-600">
-                      ₹{Math.abs(breakdown.amount).toLocaleString()}
+                      ₹{formatCurrency(Math.abs(breakdown.amount))}
                     </span>
                   </div>
                 ))}
@@ -463,7 +464,7 @@ export default function SalarySlipPage() {
                   <div className="flex justify-between font-semibold text-lg">
                     <span>Total Deductions</span>
                     <span className="text-red-600">
-                      ₹{salary.deductions.toLocaleString()}
+                      ₹{formatCurrency(salary.deductions)}
                     </span>
                   </div>
                 </div>
@@ -477,7 +478,7 @@ export default function SalarySlipPage() {
               <span className="text-2xl font-bold text-gray-900">NET PAY</span>
             </div>
             <div className="text-3xl font-bold text-green-600 mb-2">
-              ₹{salary.netAmount.toLocaleString()}
+              ₹{formatCurrency(salary.netAmount)}
             </div>
             <div className="text-sm text-gray-700">
               {numberToWords(salary.netAmount)}

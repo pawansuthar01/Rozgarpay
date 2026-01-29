@@ -1,24 +1,12 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useEffect, useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import Link from "next/link";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
-import { debounce } from "@/lib/utils";
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-} from "recharts";
+import { bgColorRadom, debounce } from "@/lib/utils";
+import { useUsers } from "@/hooks/useUsers";
 import {
   Users,
   CheckCircle,
@@ -33,6 +21,7 @@ import {
   ChevronRight,
   Eye,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 interface User {
   id: string;
@@ -60,21 +49,24 @@ interface UsersStats {
 
 export default function AdminUsersPage() {
   const { data: session } = useSession();
-  const [users, setUsers] = useState<User[]>([]);
-  const [stats, setStats] = useState<UsersStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
   // Filters
+  const router = useRouter();
   const [roleFilter, setRoleFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const itemsPerPage = 10;
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  const { users, loading, error, totalPages, updateStatus } = useUsers(
+    currentPage,
+    itemsPerPage,
+    roleFilter,
+    statusFilter,
+    searchTerm,
+  );
 
   // Debounced search function
   const debouncedSetSearchTerm = useCallback(
@@ -85,70 +77,13 @@ export default function AdminUsersPage() {
     [],
   );
 
-  useEffect(() => {
-    fetchUsers();
-    fetchStats();
-  }, [currentPage, roleFilter, statusFilter, searchTerm]);
-
-  const fetchUsers = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams({
-        page: currentPage.toString(),
-        limit: itemsPerPage.toString(),
-        role: roleFilter,
-        status: statusFilter,
-        search: searchTerm,
-      });
-
-      const res = await fetch(`/api/admin/users?${params}`);
-      const data = await res.json();
-
-      if (res.ok) {
-        setUsers(data.users || []);
-        setTotalPages(data.pagination?.totalPages || 1);
-      } else {
-        setError(data.error || "Failed to fetch users");
-        setUsers([]);
-        setTotalPages(1);
-      }
-    } catch (error) {
-      console.error("Failed to fetch users:", error);
-      setError("Failed to fetch users");
-      setUsers([]);
-      setTotalPages(1);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchStats = async () => {
-    try {
-      const res = await fetch("/api/admin/users/stats");
-      const data = await res.json();
-      setStats(data);
-    } catch (error) {
-      console.error("Failed to fetch stats:", error);
-    }
-  };
-
   const handleStatusChange = async (
     userId: string,
     newStatus: "ACTIVE" | "SUSPENDED" | "DEACTIVATED",
   ) => {
     setActionLoading(userId);
     try {
-      const res = await fetch(`/api/admin/users/${userId}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      });
-
-      if (res.ok) {
-        await fetchUsers();
-        await fetchStats();
-      }
+      await updateStatus(userId, newStatus);
     } catch (error) {
       console.error("Failed to update user status:", error);
     } finally {
@@ -160,45 +95,8 @@ export default function AdminUsersPage() {
     return <div>Access Denied</div>;
   }
 
-  const roleData = stats
-    ? [
-        {
-          name: "Admin",
-          value: stats.roleDistribution.ADMIN,
-          color: "#8B5CF6",
-        },
-        {
-          name: "Manager",
-          value: stats.roleDistribution.MANAGER,
-          color: "#10B981",
-        },
-        {
-          name: "Accountant",
-          value: stats.roleDistribution.ACCOUNTANT,
-          color: "#3B82F6",
-        },
-        {
-          name: "Staff",
-          value: stats.roleDistribution.STAFF,
-          color: "#F59E0B",
-        },
-      ]
-    : [];
-
-  const statusData = stats
-    ? [
-        { name: "Active", value: stats.activeUsers, color: "#10B981" },
-        { name: "Suspended", value: stats.suspendedUsers, color: "#EF4444" },
-        {
-          name: "Deactivated",
-          value: stats.deactivatedUsers,
-          color: "#6B7280",
-        },
-      ]
-    : [];
-
   return (
-    <div className="space-y-6 p-4 md:p-6">
+    <div className="space-y-6 sm:p-4  md:p-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between">
         <div>
@@ -208,134 +106,6 @@ export default function AdminUsersPage() {
           <p className="mt-2 text-gray-600">
             Manage company users and their access
           </p>
-        </div>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-        <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Users</p>
-              {loading ? (
-                <Skeleton height={36} width={50} />
-              ) : (
-                <p className="text-3xl font-bold text-gray-900">
-                  {stats?.totalUsers || 0}
-                </p>
-              )}
-            </div>
-            <Users className="h-8 w-8 text-blue-600" />
-          </div>
-        </div>
-
-        <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Active Users</p>
-              {loading ? (
-                <Skeleton height={36} width={50} />
-              ) : (
-                <p className="text-3xl font-bold text-green-600">
-                  {stats?.activeUsers || 0}
-                </p>
-              )}
-            </div>
-            <UserCheck className="h-8 w-8 text-green-600" />
-          </div>
-        </div>
-
-        <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">
-                Suspended Users
-              </p>
-              {loading ? (
-                <Skeleton height={36} width={50} />
-              ) : (
-                <p className="text-3xl font-bold text-red-600">
-                  {stats?.suspendedUsers || 0}
-                </p>
-              )}
-            </div>
-            <UserX className="h-8 w-8 text-red-600" />
-          </div>
-        </div>
-
-        <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">
-                Deactivated Users
-              </p>
-              {loading ? (
-                <Skeleton height={36} width={50} />
-              ) : (
-                <p className="text-3xl font-bold text-gray-600">
-                  {stats?.deactivatedUsers || 0}
-                </p>
-              )}
-            </div>
-            <XCircle className="h-8 w-8 text-gray-600" />
-          </div>
-        </div>
-      </div>
-
-      {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
-        {/* Role Distribution Pie Chart */}
-        <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Users by Role
-          </h3>
-          {loading ? (
-            <Skeleton height={300} />
-          ) : (
-            <div className="h-64 md:h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={roleData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {roleData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
-
-        {/* Status Distribution Bar Chart */}
-        <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Users by Status
-          </h3>
-          {loading ? (
-            <Skeleton height={300} />
-          ) : (
-            <div className="h-64 md:h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={statusData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="value" fill="#10B981" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
         </div>
       </div>
 
@@ -439,12 +209,20 @@ export default function AdminUsersPage() {
                       </td>
                     </tr>
                   ))
-                : users.map((user) => (
-                    <tr key={user.id} className="hover:bg-gray-50">
+                : users.map((user: User) => (
+                    <tr
+                      key={user.id}
+                      onClick={() => router.push(`/admin/users/${user.id}`)}
+                      className="hover:bg-gray-50 cursor-pointer"
+                    >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
-                          <div className="h-8 w-8 bg-gray-300 rounded-full flex items-center justify-center">
-                            <span className="text-sm font-medium text-gray-700">
+                          <div
+                            className={`h-8 w-8  ${bgColorRadom()}  rounded-full flex items-center justify-center`}
+                          >
+                            <span
+                              className={`text-sm font-medium text-white  `}
+                            >
                               {user.firstName?.charAt(0) ||
                                 user.email.charAt(0).toUpperCase()}
                             </span>
@@ -455,6 +233,9 @@ export default function AdminUsersPage() {
                             </div>
                             <div className="text-sm text-gray-500">
                               {user.email}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              {user.phone}
                             </div>
                           </div>
                         </div>

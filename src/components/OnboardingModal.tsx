@@ -13,11 +13,11 @@ interface OnboardingStep {
 const getRoleBasedSteps = (role: string): OnboardingStep[] => {
   const baseSteps = [
     {
-      title: "Welcome to PagarBook",
+      title: "Welcome to payrollbook",
       description: "Your complete attendance management solution",
       icon: "🏢",
       content:
-        "PagarBook helps you manage employee attendance, track working hours, and generate payroll reports efficiently.",
+        "payrollbook helps you manage employee attendance, track working hours, and generate payroll reports efficiently.",
     },
   ];
 
@@ -102,7 +102,7 @@ const getRoleBasedSteps = (role: string): OnboardingStep[] => {
         ...baseSteps,
         {
           title: "Get Started",
-          description: "Begin using PagarBook",
+          description: "Begin using payrollbook",
           icon: "🚀",
           content:
             "Explore your dashboard, mark attendance, and start managing your work efficiently.",

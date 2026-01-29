@@ -15,6 +15,7 @@ import {
   LogOut,
   Edit,
 } from "lucide-react";
+import { useModal } from "@/components/ModalProvider";
 
 interface ProfileData {
   firstName: string | null;
@@ -27,6 +28,7 @@ export default function ManagerProfile() {
   const { data: session, update } = useSession();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
+  const { showMessage } = useModal();
   const [editing, setEditing] = useState(false);
   const [formData, setFormData] = useState<ProfileData>({
     firstName: "",
@@ -90,7 +92,7 @@ export default function ManagerProfile() {
 
   const handleChangePassword = async () => {
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      alert("New passwords do not match");
+      showMessage("info", "Password Not Match", "New passwords do not match");
       return;
     }
 
@@ -111,14 +113,22 @@ export default function ManagerProfile() {
           newPassword: "",
           confirmPassword: "",
         });
-        alert("Password changed successfully");
+        showMessage(
+          "success",
+          "Password Changed",
+          "Password changed successfully",
+        );
       } else {
         const error = await response.json();
-        alert(error.error || "Failed to change password");
+        showMessage(
+          "error",
+          "Error",
+          error.error || "Failed to change password",
+        );
       }
     } catch (error) {
       console.error("Failed to change password:", error);
-      alert("Failed to change password");
+      showMessage("error", "Error", "Failed to change password");
     } finally {
       setChangingPassword(false);
     }

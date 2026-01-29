@@ -3,10 +3,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "../../../auth/[...nextauth]/route";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: any) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -50,15 +47,12 @@ export async function GET(
     console.error(error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PUT(request: NextRequest, { params }: any) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -72,7 +66,7 @@ export async function PUT(
     if (!name || typeof name !== "string" || name.trim().length === 0) {
       return NextResponse.json(
         { error: "Company name is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -87,7 +81,7 @@ export async function PUT(
     if (company.status === "DEACTIVATED") {
       return NextResponse.json(
         { error: "Deactivated company cannot be modified" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -117,7 +111,7 @@ export async function PUT(
     } catch (auditError) {
       console.error(
         "Failed to create audit log for company update:",
-        auditError
+        auditError,
       );
       // Don't fail the request if audit log fails
     }
@@ -127,15 +121,12 @@ export async function PUT(
     console.error(error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(request: NextRequest, { params }: any) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -174,7 +165,7 @@ export async function DELETE(
           error:
             "Cannot delete company with existing data. Deactivate instead.",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -198,7 +189,7 @@ export async function DELETE(
     } catch (auditError) {
       console.error(
         "Failed to create audit log for company delete:",
-        auditError
+        auditError,
       );
       // Don't fail the request if audit log fails
     }
@@ -208,15 +199,12 @@ export async function DELETE(
     console.error(error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: any) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -237,7 +225,7 @@ export async function PATCH(
     if (company.status === "DEACTIVATED") {
       return NextResponse.json(
         { error: "Deactivated company cannot be modified" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -265,7 +253,7 @@ export async function PATCH(
     } catch (auditError) {
       console.error(
         "Failed to create audit log for company status toggle:",
-        auditError
+        auditError,
       );
       // Don't fail the request if audit log fails
     }
@@ -275,7 +263,7 @@ export async function PATCH(
     console.error(error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

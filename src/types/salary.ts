@@ -8,6 +8,7 @@ export interface SalaryRecord {
   };
   month: number;
   year: number;
+  pdfUrl?: string;
   totalDays: number;
   approvedDays: number;
   grossAmount: number;

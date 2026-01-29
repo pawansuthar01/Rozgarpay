@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import {
   Clock,
@@ -18,94 +18,51 @@ import {
   Play,
   Square,
   Camera,
+  IndianRupee,
 } from "lucide-react";
 import PunchModal from "@/components/PunchModal";
-
-interface DashboardData {
-  user: {
-    firstName?: string;
-    lastName?: string;
-    companyName?: string;
-  };
-  todayAttendance: {
-    status: "not_punched" | "punched_in" | "punched_out" | "pending";
-    punchInTime?: string;
-    punchOutTime?: string;
-    lastAttendance?: {
-      date: string;
-      punchIn: string;
-      punchOut?: string;
-      status: string;
-    };
-  };
-  notifications: Array<{
-    id: string;
-    title: string;
-    message: string;
-    type: "info" | "warning" | "success";
-    createdAt: string;
-  }>;
-}
+import { useModal } from "@/components/ModalProvider";
+import {
+  useStaffDashboard,
+  usePunchAttendance,
+} from "@/hooks/useStaffDashboard";
+import { useTodayAttendance } from "@/hooks/useStaffAttendance";
 
 export default function StaffDashboardPage() {
-  const [dashboardData, setDashboardData] = useState<DashboardData | null>(
-    null,
-  );
-  const [loading, setLoading] = useState(true);
+  const { showMessage } = useModal();
   const [punchModalOpen, setPunchModalOpen] = useState(false);
   const [punchType, setPunchType] = useState<"in" | "out">("in");
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
-  const fetchDashboardData = async () => {
-    try {
-      const response = await fetch("/api/staff/dashboard");
-      if (response.ok) {
-        const data = await response.json();
-        setDashboardData(data);
-      }
-    } catch (error) {
-      console.error("Failed to fetch dashboard data:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  const { data: dashboardData, isLoading, error } = useStaffDashboard();
+  const { data: todaysAttendance } = useTodayAttendance();
+  const punchMutation = usePunchAttendance();
   const handlePunch = (type: "in" | "out") => {
     setPunchType(type);
     setPunchModalOpen(true);
   };
 
   const handlePunchConfirm = async (type: "in" | "out", imageData: string) => {
-    try {
-      const imageDataRes = await fetch("api/upload", {
-        method: "POST",
-        body: JSON.stringify({ image: imageData }),
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (!imageDataRes.ok) {
-        throw new Error("Image upload failed");
-      }
-
-      const { imageUrl } = await imageDataRes.json();
-      const response = await fetch("/api/attendance/punch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, imageUrl }),
-      });
-      if (response.ok) {
-        fetchDashboardData(); // Refresh data
-        setPunchModalOpen(false);
-      } else {
-        throw new Error("Punch failed");
-      }
-    } catch (error) {
-      console.error("Failed to punch:", error);
-      alert("Failed to record attendance. Please try again.");
-    }
+    setPunchModalOpen(false);
+    punchMutation.mutate(
+      { type, imageData },
+      {
+        onSuccess: () => {
+          showMessage(
+            "success",
+            "Success",
+            "Attendance recorded successfully!",
+          );
+        },
+        onError: () => {
+          showMessage(
+            "error",
+            "Error",
+            "Failed to record attendance. Please try again.",
+          );
+        },
+      },
+    );
+    return true;
   };
 
   const getAttendanceStatusDisplay = (status: string) => {
@@ -159,13 +116,13 @@ export default function StaffDashboardPage() {
     }
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-        <div className="max-w-sm mx-auto px-4 py-6 space-y-6">
+      <div className="min-h-screen ">
+        <div className="max-w-sm md:max-w-2xl mx-auto px-4 py-6 space-y-6">
           {/* Skeleton for header */}
           <div className="animate-pulse">
-            <div className="h-16 bg-white rounded-2xl shadow-lg p-4 mb-6">
+            <div className="h-16 bg-white rounded-2xl  p-4 mb-6">
               <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
               <div className="h-3 bg-gray-200 rounded w-1/2"></div>
             </div>
@@ -173,47 +130,48 @@ export default function StaffDashboardPage() {
 
           {/* Skeleton for punch button */}
           <div className="animate-pulse">
-            <div className="h-20 bg-white rounded-2xl shadow-lg"></div>
+            <div className="h-20 bg-white rounded-2xl "></div>
           </div>
 
           {/* Skeleton for dashboard options */}
           <div className="animate-pulse space-y-4">
-            <div className="h-20 bg-white rounded-2xl shadow-lg"></div>
-            <div className="h-20 bg-white rounded-2xl shadow-lg"></div>
-            <div className="h-20 bg-white rounded-2xl shadow-lg"></div>
+            <div className="h-20 bg-white rounded-2xl "></div>
+            <div className="h-20 bg-white rounded-2xl "></div>
+            <div className="h-20 bg-white rounded-2xl "></div>
           </div>
 
           {/* Skeleton for notifications */}
           <div className="animate-pulse">
-            <div className="h-32 bg-white rounded-2xl shadow-lg"></div>
+            <div className="h-32 bg-white rounded-2xl "></div>
           </div>
 
           {/* Skeleton for more actions */}
           <div className="animate-pulse">
-            <div className="h-16 bg-white rounded-2xl shadow-lg"></div>
+            <div className="h-16 bg-white rounded-2xl "></div>
           </div>
         </div>
-
-        {/* Punch Modal */}
-        <PunchModal
-          isOpen={punchModalOpen}
-          onClose={() => setPunchModalOpen(false)}
-          onPunch={handlePunchConfirm}
-          punchType={punchType}
-        />
       </div>
     );
   }
 
-  const attendanceStatus = getAttendanceStatusDisplay(
-    dashboardData?.todayAttendance.status || "not_punched",
-  );
+  if (error) {
+    return (
+      <div className="min-h-screen  flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <p className="text-gray-600">
+            Failed to load dashboard. Please try again.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      <div className="max-w-sm mx-auto px-4 py-6 space-y-6">
+    <div className="min-h-screen ">
+      <div className="max-w-sm md:max-w-2xl mx-auto px-4 py-6 space-y-6">
         {/* Top Header with Company and User Info */}
-        <div className="bg-white rounded-2xl shadow-lg p-4">
+        <div className="bg-white rounded-2xl  p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <Building2 className="h-8 w-8 text-blue-600" />
@@ -240,24 +198,23 @@ export default function StaffDashboardPage() {
         </div>
 
         {/* Today's Attendance - Show only one button */}
-        {(dashboardData?.todayAttendance.status === "not_punched" ||
-          dashboardData?.todayAttendance.status === "punched_in") && (
-          <div className="bg-white rounded-2xl shadow-lg p-4">
+        {todaysAttendance && todaysAttendance.status == "PENDING" && (
+          <div className="bg-white rounded-2xl  p-4">
             <div className="text-center mb-4">
               <h2 className="text-lg font-semibold text-gray-900 mb-1">
                 Today's Attendance
               </h2>
               <p className="text-sm text-gray-600">
-                {dashboardData?.todayAttendance.status === "not_punched"
+                {todaysAttendance.punchIn == null
                   ? "Ready to start your day?"
                   : "Working session active"}
               </p>
             </div>
 
-            {dashboardData?.todayAttendance.status === "not_punched" ? (
+            {todaysAttendance == null ? (
               <button
                 onClick={() => handlePunch("in")}
-                className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-4 px-6 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center space-x-3"
+                className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-4 px-6 rounded-xl font-semibold  hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center space-x-3"
               >
                 <CheckCircle className="h-5 w-5" />
                 <span>Punch In</span>
@@ -265,7 +222,7 @@ export default function StaffDashboardPage() {
             ) : (
               <button
                 onClick={() => handlePunch("out")}
-                className="w-full bg-gradient-to-r from-red-500 to-red-600 text-white py-4 px-6 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center space-x-3"
+                className="w-full bg-gradient-to-r from-red-500 to-red-600 text-white py-4 px-6 rounded-xl font-semibold  hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center space-x-3"
               >
                 <CheckCircle className="h-5 w-5" />
                 <span>Punch Out</span>
@@ -282,7 +239,7 @@ export default function StaffDashboardPage() {
 
           <Link
             href="/staff/attendance"
-            className="block bg-white rounded-2xl shadow-lg p-4 hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
+            className="block bg-white rounded-2xl  p-4 hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
@@ -302,12 +259,12 @@ export default function StaffDashboardPage() {
 
           <Link
             href="/staff/salary"
-            className="block bg-white rounded-2xl shadow-lg p-4 hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
+            className="block bg-white rounded-2xl  p-4 hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <div className="p-2 bg-green-100 rounded-lg">
-                  <DollarSign className="h-5 w-5 text-green-600" />
+                  <IndianRupee className="h-5 w-5 text-green-600" />
                 </div>
                 <div>
                   <p className="font-semibold text-gray-900">Salary Overview</p>
@@ -321,8 +278,8 @@ export default function StaffDashboardPage() {
           </Link>
 
           <Link
-            href="/staff/salary"
-            className="block bg-white rounded-2xl shadow-lg p-4 hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
+            href="/staff/salary-slips"
+            className="block bg-white rounded-2xl  p-4 hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
@@ -342,7 +299,7 @@ export default function StaffDashboardPage() {
         </div>
 
         {/* Today's Notifications */}
-        <div className="bg-white rounded-2xl shadow-lg p-4">
+        <div className="bg-white rounded-2xl  p-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900">
               Today's Notifications
@@ -387,7 +344,7 @@ export default function StaffDashboardPage() {
         </div>
 
         {/* More Actions */}
-        <div className="bg-white rounded-2xl shadow-lg p-4">
+        <div className="bg-white rounded-2xl  p-4">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
             More Actions
           </h2>

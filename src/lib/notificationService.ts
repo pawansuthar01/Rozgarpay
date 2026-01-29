@@ -8,7 +8,9 @@ export type NotificationType =
   | "system_alert"
   | "admin_manual"
   | "staff_manual"
-  | "invitation";
+  | "invitation"
+  | "invitation_company"
+  | "invitation_staff";
 
 export type NotificationPriority = "low" | "medium" | "high" | "urgent";
 
@@ -165,7 +167,41 @@ export const NOTIFICATION_TEMPLATES: Record<
     type: "invitation",
     title: "You're Invited to Join TownKart",
     message:
-      "You've been invited to join TownKart as a {{role}}. Click here to complete your registration.",
+      "You've been invited to join RozgarPay as a {{role}}. Click here to complete your registration.",
+    priority: "high",
+    channels: ["in_app", "email", "whatsapp"], // Support all channels for invitations
+    variables: ["role", "invitationUrl", "expiresAt", "message"],
+    actions: [
+      {
+        label: "Accept Invitation",
+        action: "navigate",
+        params: { route: "{{invitationUrl}}" },
+      },
+    ],
+  },
+  invitation_company: {
+    id: "invitation",
+    type: "invitation",
+    title: "You're Invited to Join TownKart",
+    message:
+      "You've been invited to join RozgarPay as a {{role}}. Click here to complete your registration.",
+    priority: "high",
+    channels: ["in_app", "email", "whatsapp"], // Support all channels for invitations
+    variables: ["role", "invitationUrl", "expiresAt", "message"],
+    actions: [
+      {
+        label: "Accept Invitation",
+        action: "navigate",
+        params: { route: "{{invitationUrl}}" },
+      },
+    ],
+  },
+  invitation_staff: {
+    id: "invitation",
+    type: "invitation",
+    title: "You're Invited to Join TownKart",
+    message:
+      "You've been invited to join RozgarPay as a {{role}}. Click here to complete your registration.",
     priority: "high",
     channels: ["in_app", "email", "whatsapp"], // Support all channels for invitations
     variables: ["role", "invitationUrl", "expiresAt", "message"],
@@ -193,7 +229,7 @@ export class NotificationManager {
     userId: string,
     type: NotificationType,
     data: Record<string, any>,
-    channels?: NotificationChannel[]
+    channels?: NotificationChannel[],
   ): Promise<{ success: boolean; notificationId?: string; errors?: string[] }> {
     try {
       const subscription = this.subscriptions.get(userId);
@@ -246,7 +282,7 @@ export class NotificationManager {
       // Filter channels based on admin settings
       let allowedChannels = channels || subscription.channels;
       allowedChannels = allowedChannels.filter(
-        (channel) => adminSettings.channels[channel]
+        (channel) => adminSettings.channels[channel],
       );
 
       // Create notification
@@ -272,7 +308,7 @@ export class NotificationManager {
       // Send through channels
       const sendResults = await this.sendThroughChannels(
         notification,
-        subscription
+        subscription,
       );
 
       return {
@@ -295,14 +331,15 @@ export class NotificationManager {
     channels: ("email" | "whatsapp" | "sms")[],
     invitationData: {
       role: string;
+      companyName: string;
       invitationUrl: string;
       expiresAt: string;
       message?: string;
-    }
+    },
   ): Promise<{ channel: string; success: boolean; error?: string }[]> {
     const results: { channel: string; success: boolean; error?: string }[] = [];
     const roleDisplay =
-      invitationData.role === "store_manager" ? "Store Manager" : "Rider";
+      invitationData.role === "ADMIN" ? "Company Owner" : "staff";
 
     // Send email
     if (channels.includes("email")) {
@@ -311,8 +348,8 @@ export class NotificationManager {
       let errorMessage: string | undefined;
 
       try {
-        const emailSubject = `Invitation to join TownKart as ${roleDisplay}`;
-        const emailMessage = `You've been invited to join TownKart as a ${roleDisplay.toLowerCase()}.
+        const emailSubject = `Invitation to join company ${invitationData.companyName} as ${roleDisplay}`;
+        const emailMessage = `You've been invited to join ${invitationData.companyName} as a ${roleDisplay.toLowerCase()}.
 
 ${invitationData.message ? `Message: ${invitationData.message}` : ""}
 
@@ -323,7 +360,7 @@ This invitation expires on ${invitationData.expiresAt}.`;
           emailSubject,
           emailMessage,
           undefined,
-          [{ label: "Accept Invitation", url: invitationData.invitationUrl }]
+          [{ label: "Accept Invitation", url: invitationData.invitationUrl }],
         );
 
         if (emailSent) {
@@ -374,15 +411,12 @@ This invitation expires on ${invitationData.expiresAt}.`;
           id: `invitation_external_${Date.now()}`,
           userId: "system",
           type: "invitation" as const,
-          title: "You're Invited to Join TownKart",
-          message: `You've been invited to join TownKart as a ${roleDisplay.toLowerCase()}. Click here to complete your registration.`,
+          title: `You're Invited to Join ${invitationData.companyName}`,
+          message: `You've been invited to join ${invitationData.companyName} as a ${roleDisplay.toLowerCase()}. Click here to complete your registration.`,
           priority: "high" as const,
           channels: ["whatsapp"] as NotificationChannel[],
           data: {
-            role: roleDisplay.toLowerCase(),
-            invitationUrl: invitationData.invitationUrl,
-            expiresAt: invitationData.expiresAt,
-            message: invitationData.message || "",
+            ...invitationData,
             phone,
           },
           read: false,
@@ -438,7 +472,7 @@ This invitation expires on ${invitationData.expiresAt}.`;
   }): Promise<void> {
     try {
       // Use type assertion for now until Prisma client is regenerated
-      await (prisma as any).notificationLog.create({
+      await prisma.notificationLog.create({
         data: {
           type: data.type,
           channel: data.channel,
@@ -464,14 +498,14 @@ This invitation expires on ${invitationData.expiresAt}.`;
     subject: string,
     message: string,
     html?: string,
-    actions?: Array<{ label: string; url: string }>
+    actions?: Array<{ label: string; url: string }>,
   ): Promise<boolean> {
     try {
       const resendApiKey = process.env.RESEND_API_KEY;
 
       if (!resendApiKey) {
         console.warn(
-          "[EMAIL] RESEND_API_KEY not configured - email sending disabled"
+          "[EMAIL] RESEND_API_KEY not configured - email sending disabled",
         );
         console.warn("[EMAIL] To enable email notifications:");
         console.warn("[EMAIL] 1. Sign up at https://resend.com");
@@ -512,7 +546,7 @@ This invitation expires on ${invitationData.expiresAt}.`;
                     ${action.label}
                   </a>
                 </div>
-              `
+              `,
                   )
                   .join("") || ""
               }
@@ -520,20 +554,21 @@ This invitation expires on ${invitationData.expiresAt}.`;
               <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; text-align: center; color: #666; font-size: 14px;">
                 <p>If you have any questions, feel free to contact our support team.</p>
                 <p style="margin: 5px 0;">
-                  <a href="mailto:support@townkart.com" style="color: #667eea; text-decoration: none;">support@townkart.com</a>
+                  <a href="mailto:support@rozgarpay.com" style="color: #667eea; text-decoration: none;">support@rozgarpay.com</a>
                 </p>
               </div>
             </div>
 
             <div style="text-align: center; margin-top: 20px; color: #999; font-size: 12px;">
-              <p>© 2025 TownKart. All rights reserved.</p>
+              <p>© 2025 Rozgarpay. All rights reserved.</p>
             </div>
           </body>
         </html>
       `;
 
-      const fromEmail = process.env.RESEND_FROM_EMAIL || "noreply@townkart.com";
-      const fromName = process.env.RESEND_FROM_NAME || "TownKart";
+      const fromEmail =
+        process.env.RESEND_FROM_EMAIL || "noreply@rozgarpay.com";
+      const fromName = process.env.RESEND_FROM_NAME || "rozgarpay";
 
       const data = await resend.emails.send({
         from: `${fromName} <${fromEmail}>`,
@@ -565,7 +600,7 @@ This invitation expires on ${invitationData.expiresAt}.`;
         console.error("❌ 2. Add and verify your domain (townkart.com)");
         console.error("❌ 3. Or use a verified domain in RESEND_FROM_EMAIL");
         console.error(
-          "❌ 4. For development, use: noreply@your-verified-domain.com"
+          "❌ 4. For development, use: noreply@your-verified-domain.com",
         );
       } else if (error.statusCode === 401) {
         console.error("❌ INVALID API KEY:");
@@ -584,7 +619,7 @@ This invitation expires on ${invitationData.expiresAt}.`;
     }>,
     type: NotificationType,
     data: Record<string, any>,
-    channels?: NotificationChannel[]
+    channels?: NotificationChannel[],
   ): Promise<{
     success: boolean;
     results: Array<{ userId: string; success: boolean; error?: string }>;
@@ -595,14 +630,14 @@ This invitation expires on ${invitationData.expiresAt}.`;
           recipient.userId,
           type,
           data,
-          channels
+          channels,
         );
         return {
           userId: recipient.userId,
           success: result.success,
           error: result.errors?.[0],
         };
-      })
+      }),
     );
 
     return {
@@ -619,7 +654,7 @@ This invitation expires on ${invitationData.expiresAt}.`;
       type?: NotificationType;
       limit?: number;
       offset?: number;
-    } = {}
+    } = {},
   ): Notification[] {
     const userNotifications = this.notifications.get(userId) || [];
 
@@ -693,7 +728,7 @@ This invitation expires on ${invitationData.expiresAt}.`;
   // Update subscription preferences
   updateSubscription(
     userId: string,
-    updates: Partial<NotificationSubscription>
+    updates: Partial<NotificationSubscription>,
   ): boolean {
     const subscription = this.subscriptions.get(userId);
     if (!subscription) return false;
@@ -815,7 +850,7 @@ This invitation expires on ${invitationData.expiresAt}.`;
   // Private methods
   private async sendThroughChannels(
     notification: Notification,
-    subscription: NotificationSubscription
+    subscription: NotificationSubscription,
   ): Promise<
     Array<{ channel: NotificationChannel; success: boolean; error?: string }>
   > {
@@ -861,7 +896,7 @@ This invitation expires on ${invitationData.expiresAt}.`;
 
   private async sendPushNotification(
     notification: Notification,
-    subscription: NotificationSubscription
+    subscription: NotificationSubscription,
   ): Promise<void> {
     // Implement push notification sending (Firebase, etc.)
     console.log("Sending push notification:", notification.title);
@@ -923,7 +958,7 @@ This invitation expires on ${invitationData.expiresAt}.`;
                     ${action.label}
                   </a>
                 </div>
-              `
+              `,
                   )
                   .join("") || ""
               }
@@ -931,13 +966,13 @@ This invitation expires on ${invitationData.expiresAt}.`;
               <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; text-align: center; color: #666; font-size: 14px;">
                 <p>If you have any questions, feel free to contact our support team.</p>
                 <p style="margin: 5px 0;">
-                  <a href="mailto:support@payrollBook.com" style="color: #667eea; text-decoration: none;">support@townkart.com</a>
+                  <a href="mailto:support@payrollBook.com" style="color: #667eea; text-decoration: none;">support@Rozgarpay.com</a>
                 </p>
               </div>
             </div>
 
             <div style="text-align: center; margin-top: 20px; color: #999; font-size: 12px;">
-              <p>© 2024 TownKart. All rights reserved.</p>
+              <p>© 2024 Rozgarpay. All rights reserved.</p>
             </div>
           </body>
         </html>
@@ -965,6 +1000,10 @@ This invitation expires on ${invitationData.expiresAt}.`;
         process.env.MSG91_WHATSAPP_TEMPLATE_INVITATION_V2_NAME ||
         "townkart_invitation_v2",
 
+      invitation_company:
+        process.env.MSG91_WHATSAPP_TEMPLATE_COMPANY_JOIN_NAME || "company_join",
+      invitation_staff:
+        process.env.MSG91_WHATSAPP_TEMPLATE_STAFF_JOIN_NAME || "staff_join",
       customer_support:
         process.env.MSG91_WHATSAPP_TEMPLATE_GENERAL_NAME || "townkart_general",
       promotional:
@@ -1004,7 +1043,7 @@ This invitation expires on ${invitationData.expiresAt}.`;
       // Validate template exists
       if (!templateName || templateName === "townkart_general") {
         console.warn(
-          "⚠️  Using fallback template. Make sure templates are configured in MSG91:"
+          "⚠️  Using fallback template. Make sure templates are configured in MSG91:",
         );
         console.warn("⚠️  - townkart_invitation_v2 (for invitations)");
         console.warn("⚠️  - townkart_order_update (for orders)");
@@ -1016,32 +1055,21 @@ This invitation expires on ${invitationData.expiresAt}.`;
       if (!authKey) {
         console.log(`[MOCK WhatsApp] Message: ${notification.message}`);
         console.log(
-          `[MOCK WhatsApp] Please configure MSG91_WHATSAPP_AUTH_KEY in your .env file`
+          `[MOCK WhatsApp] Please configure MSG91_WHATSAPP_AUTH_KEY in your .env file`,
         );
         return;
       }
 
       // Find user phone number
-      let recipientPhone: string;
-      if (notification.data?.phone) {
+      if (!notification.data?.phone) {
         // External phone (for invitations)
-        recipientPhone = notification.data.phone;
-      } else {
-        // Registered user
-        const user = await prisma.user.findUnique({
-          where: { id: notification.userId },
-          select: { phone: true },
-        });
-        if (!user?.phone) {
-          throw new Error("User phone number not found");
-        }
-        recipientPhone = user.phone;
+        throw new Error("phone number is requited to send notifications...");
       }
 
       // Clean phone number (ensure it starts with country code)
-      const cleanPhone = recipientPhone.startsWith("+91")
-        ? recipientPhone
-        : `+91${recipientPhone.replace(/^\+91/, "").replace(/\D/g, "")}`;
+      const cleanPhone = notification.data.phone.startsWith("+91")
+        ? notification.data.phone
+        : `+91${notification.data.phone.replace(/^\+91/, "").replace(/\D/g, "")}`;
 
       if (cleanPhone.length !== 13 || !cleanPhone.startsWith("+91")) {
         throw new Error("Invalid phone number format. Must be +91XXXXXXXXXX");
@@ -1064,6 +1092,35 @@ This invitation expires on ${invitationData.expiresAt}.`;
             },
             button_1: {
               subtype: "url",
+              type: "text",
+              value: notification.data?.invitationUrl || "#",
+            },
+          };
+          break;
+        case "invitation_company":
+          components = {
+            body_1: {
+              type: "text",
+              value: notification.data?.companyName || "team member",
+            },
+
+            body_2: {
+              type: "text",
+              value: notification.data?.invitationUrl || "#",
+            },
+          };
+          break;
+        case "invitation_staff":
+          components = {
+            body_1: {
+              type: "text",
+              value: notification.data?.StaffName || "team member",
+            },
+            body_2: {
+              type: "text",
+              value: notification.data?.companyName || "N/A",
+            },
+            body_3: {
               type: "text",
               value: notification.data?.invitationUrl || "#",
             },
@@ -1113,11 +1170,11 @@ This invitation expires on ${invitationData.expiresAt}.`;
             "Content-Type": "application/json",
           },
           body: JSON.stringify(whatsappData),
-        }
+        },
       );
 
       const result = await response.json();
-
+      console.log(result);
       if (!response.ok || result.error) {
         console.error("WhatsApp API Error:", {
           status: response.status,
@@ -1127,14 +1184,14 @@ This invitation expires on ${invitationData.expiresAt}.`;
         throw new Error(
           result.message ||
             result.error ||
-            `WhatsApp API error: ${response.status}`
+            `WhatsApp API error: ${response.status}`,
         );
       }
 
       console.log(
         `✅ WhatsApp message sent successfully via MSG91: ${
           result.requestId || result.messageId || "Success"
-        }`
+        }`,
       );
     } catch (error) {
       console.error("Failed to send WhatsApp message:", error);
@@ -1150,7 +1207,7 @@ This invitation expires on ${invitationData.expiresAt}.`;
 
   private interpolateObject(
     obj: Record<string, any>,
-    data: Record<string, any>
+    data: Record<string, any>,
   ): Record<string, any> {
     const result: Record<string, any> = {};
 
@@ -1212,6 +1269,8 @@ export function getNotificationIcon(type: NotificationType): string {
     admin_manual: "📢",
     staff_manual: "🏪",
     invitation: "📨",
+    invitation_company: "📨",
+    invitation_staff: "📨",
   };
   return icons[type] || "🔔";
 }

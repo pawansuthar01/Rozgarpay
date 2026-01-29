@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import {
@@ -17,85 +17,48 @@ import {
   ExternalLink,
 } from "lucide-react";
 import Link from "next/link";
-
-interface AttendanceRecord {
-  id: string;
-  userId: string;
-  userName: string;
-  userEmail: string;
-  attendanceDate: string;
-  punchIn: string;
-  punchOut: string | null;
-  status: string;
-  imageUrl: string | null;
-}
+import {
+  useManagerAttendance,
+  useUpdateAttendanceStatus,
+} from "@/hooks/useAttendance";
 
 export default function ManagerAttendance() {
   const { data: session } = useSession();
-  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
-  const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [dateFilter, setDateFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const itemsPerPage = 10;
 
-  useEffect(() => {
-    fetchAttendance();
-  }, [currentPage, dateFilter, statusFilter, search]);
+  // Use the custom hook for fetching attendance
+  const {
+    data: attendanceData,
+    isLoading: loading,
+    error: attendanceError,
+  } = useManagerAttendance({
+    page: currentPage,
+    limit: itemsPerPage,
+    date: dateFilter || undefined,
+    status: statusFilter || undefined,
+    search: search || undefined,
+  });
 
-  const fetchAttendance = () => {
-    setLoading(true);
-    const params = new URLSearchParams({
-      page: currentPage.toString(),
-      limit: itemsPerPage.toString(),
-      date: dateFilter,
-      status: statusFilter,
-      search,
+  // Use the mutation hook for updating attendance status
+  const updateStatusMutation = useUpdateAttendanceStatus();
+
+  const handleApprove = (id: string) => {
+    updateStatusMutation.mutate({
+      attendanceId: id,
+      data: { status: "APPROVED" },
     });
-
-    fetch(`/api/manager/attendance?${params}`)
-      .then((res) => res.json())
-      .then((data) => {
-        setAttendance(data.records);
-        setTotalPages(data.totalPages);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
   };
 
-  const handleApprove = async (id: string) => {
-    try {
-      const response = await fetch(`/api/attendance/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "APPROVED" }),
-      });
-
-      if (response.ok) {
-        fetchAttendance(); // Refresh the list
-      }
-    } catch (error) {
-      console.error("Failed to approve attendance:", error);
-    }
-  };
-
-  const handleReject = async (id: string) => {
-    try {
-      const response = await fetch(`/api/attendance/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "REJECTED" }),
-      });
-
-      if (response.ok) {
-        fetchAttendance(); // Refresh the list
-      }
-    } catch (error) {
-      console.error("Failed to reject attendance:", error);
-    }
+  const handleReject = (id: string) => {
+    updateStatusMutation.mutate({
+      attendanceId: id,
+      data: { status: "REJECTED" },
+    });
   };
 
   if (!session || session.user.role !== "MANAGER") {
@@ -222,7 +185,7 @@ export default function ManagerAttendance() {
                   </div>
                 </div>
               ))
-            : attendance?.map((record) => (
+            : attendanceData?.records?.map((record) => (
                 <div key={record.id} className="p-4 hover:bg-gray-50">
                   <div className="flex flex-col md:grid md:grid-cols-6 md:gap-4 md:items-center">
                     {/* Staff */}
@@ -285,16 +248,26 @@ export default function ManagerAttendance() {
                         <div className="flex space-x-2">
                           <button
                             onClick={() => handleApprove(record.id)}
-                            className="inline-flex items-center px-3 py-1 text-sm font-medium text-green-600 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
+                            disabled={updateStatusMutation.isPending}
+                            className="inline-flex items-center px-3 py-1 text-sm font-medium text-green-600 bg-green-50 rounded-lg hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                           >
-                            <Check className="h-4 w-4 mr-1" />
+                            {updateStatusMutation.isPending ? (
+                              <div className="h-4 w-4 mr-1 animate-spin rounded-full border-2 border-green-600 border-t-transparent" />
+                            ) : (
+                              <Check className="h-4 w-4 mr-1" />
+                            )}
                             Approve
                           </button>
                           <button
                             onClick={() => handleReject(record.id)}
-                            className="inline-flex items-center px-3 py-1 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                            disabled={updateStatusMutation.isPending}
+                            className="inline-flex items-center px-3 py-1 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                           >
-                            <X className="h-4 w-4 mr-1" />
+                            {updateStatusMutation.isPending ? (
+                              <div className="h-4 w-4 mr-1 animate-spin rounded-full border-2 border-red-600 border-t-transparent" />
+                            ) : (
+                              <X className="h-4 w-4 mr-1" />
+                            )}
                             Reject
                           </button>
                         </div>
@@ -307,7 +280,7 @@ export default function ManagerAttendance() {
       </div>
 
       {/* Pagination */}
-      {totalPages > 1 && (
+      {attendanceData && attendanceData.totalPages > 1 && (
         <div className="flex justify-between items-center">
           <button
             onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
@@ -317,17 +290,33 @@ export default function ManagerAttendance() {
             Previous
           </button>
           <span className="text-sm text-gray-600">
-            Page {currentPage} of {totalPages}
+            Page {currentPage} of {attendanceData.totalPages}
           </span>
           <button
             onClick={() =>
-              setCurrentPage(Math.min(totalPages, currentPage + 1))
+              setCurrentPage(
+                Math.min(attendanceData.totalPages, currentPage + 1),
+              )
             }
-            disabled={currentPage === totalPages}
+            disabled={currentPage === attendanceData.totalPages}
             className="px-4 py-2 bg-gray-200 text-gray-700 rounded disabled:opacity-50 hover:bg-gray-300 transition-colors"
           >
             Next
           </button>
+        </div>
+      )}
+
+      {/* Error Display */}
+      {attendanceError && (
+        <div className="bg-red-50 border border-red-200 rounded-md p-4">
+          <div className="flex">
+            <XCircle className="h-5 w-5 text-red-400" />
+            <div className="ml-3">
+              <p className="text-sm text-red-700">
+                Failed to load attendance records. Please try again.
+              </p>
+            </div>
+          </div>
         </div>
       )}
 

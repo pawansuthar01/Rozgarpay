@@ -70,7 +70,7 @@ export async function GET(request: Request) {
         ).length;
         const lateDays = attendances.filter((a) => {
           if (a.status !== "APPROVED") return false;
-          const punchTime = new Date(a.punchIn);
+          const punchTime = new Date(a?.punchIn || 0);
           const lateThreshold = new Date(a.attendanceDate);
           lateThreshold.setHours(9, 30, 0, 0);
           return punchTime > lateThreshold;

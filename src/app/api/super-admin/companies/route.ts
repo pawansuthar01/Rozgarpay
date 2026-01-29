@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
           } catch (auditError) {
             console.error(
               "Failed to create audit log for bulk update:",
-              auditError
+              auditError,
             );
             // Don't fail the request if audit log fails
           }
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
               company._count.users === 0 &&
               company._count.attendances === 0 &&
               company._count.salaries === 0 &&
-              company._count.reports === 0
+              company._count.reports === 0,
           );
 
           if (companiesToDelete.length > 0) {
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
             } catch (auditError) {
               console.error(
                 "Failed to create audit log for bulk delete:",
-                auditError
+                auditError,
               );
               // Don't fail the request if audit log fails
             }
@@ -117,14 +117,14 @@ export async function POST(request: NextRequest) {
     if (!name || typeof name !== "string" || name.trim().length === 0) {
       return NextResponse.json(
         { error: "Company name is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     if (!adminEmail || !adminPhone) {
       return NextResponse.json(
         { error: "Admin email and phone are required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
     if (existingUser) {
       return NextResponse.json(
         { error: "Admin email or phone already exists" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -176,10 +176,11 @@ export async function POST(request: NextRequest) {
       ["email", "whatsapp"],
       {
         role: "admin",
+        companyName: name,
         invitationUrl: joinLink,
         expiresAt: invitation.expiresAt.toISOString(),
         message,
-      }
+      },
     );
 
     // ✅ Audit log
@@ -215,7 +216,7 @@ export async function POST(request: NextRequest) {
     console.error(error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -288,7 +289,7 @@ export async function GET(request: NextRequest) {
     console.error(error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

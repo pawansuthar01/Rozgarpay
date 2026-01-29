@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import {
@@ -25,6 +25,7 @@ import {
   Filter,
 } from "lucide-react";
 import Link from "next/link";
+import { useSalaryReports } from "@/hooks";
 
 interface SalaryReport {
   totalPayout: number;
@@ -40,45 +41,24 @@ interface SalaryReport {
 
 export default function AdminSalaryReportsPage() {
   const { data: session } = useSession();
-  const [report, setReport] = useState<SalaryReport | null>(null);
-  const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
-  const [totalPages, setTotalPages] = useState(1);
 
-  useEffect(() => {
-    if (startDate && endDate) {
-      fetchReport();
-    }
-  }, [startDate, endDate, page, limit]);
+  // Use the custom hook
+  const {
+    data: report,
+    isLoading: loading,
+    error: fetchError,
+  } = useSalaryReports({
+    startDate,
+    endDate,
+    page,
+    limit,
+  });
 
-  const fetchReport = async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        startDate,
-        endDate,
-        page: page.toString(),
-        limit: limit.toString(),
-      });
-
-      const res = await fetch(`/api/admin/reports/salary?${params}`);
-      const data = await res.json();
-
-      if (res.ok) {
-        setReport(data);
-        setTotalPages(data.totalPages || 1);
-      } else {
-        console.error("Failed to fetch report");
-      }
-    } catch (error) {
-      console.error("Failed to fetch report:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const totalPages = report?.totalPages || 1;
 
   if (!session || session.user.role !== "ADMIN") {
     return <div>Access Denied</div>;

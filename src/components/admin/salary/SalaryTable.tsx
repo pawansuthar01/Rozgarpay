@@ -1,7 +1,19 @@
 import Skeleton from "react-loading-skeleton";
-import { ChevronLeft, ChevronRight, Check, X } from "lucide-react";
-import { SalaryRecord } from "@/types/salary";
+import { useState } from "react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Check,
+  X,
+  Eye,
+  RotateCcw,
+} from "lucide-react";
+import Link from "next/link";
+
 import { CheckCircle, Clock, FileText, XCircle } from "lucide-react";
+import MarkPaidModal from "@/components/admin/MarkPaidModal";
+import { formatCurrency } from "@/lib/utils";
+import { SalaryRecord } from "@/hooks";
 
 interface SalaryTableProps {
   records: SalaryRecord[];
@@ -14,9 +26,21 @@ interface SalaryTableProps {
   onReject?: (salaryId: string, reason: string) => void;
   onMarkAsPaid?: (
     salaryId: string,
-    paymentData: { date: string; method: string; reference?: string },
+    paymentData: {
+      date: string;
+      method: string;
+      reference?: string;
+      sendNotification?: boolean;
+    },
   ) => void;
+  onRecalculate?: (salaryId: string) => void;
   showActions?: boolean;
+  loadingIds?: {
+    approve?: string | null;
+    reject?: string | null;
+    markPaid?: string | null;
+    recalculate?: string | null;
+  };
 }
 
 export default function SalaryTable({
@@ -29,8 +53,67 @@ export default function SalaryTable({
   onApprove,
   onReject,
   onMarkAsPaid,
+  onRecalculate,
   showActions = false,
+  loadingIds,
 }: SalaryTableProps) {
+  const [markPaidModal, setMarkPaidModal] = useState<{
+    isOpen: boolean;
+    salaryId: string;
+    salaryAmount: number;
+    staffName: string;
+    month: number;
+    year: number;
+  }>({
+    isOpen: false,
+    salaryId: "",
+    salaryAmount: 0,
+    staffName: "",
+    month: 0,
+    year: 0,
+  });
+  const [markPaidLoading, setMarkPaidLoading] = useState(false);
+
+  const handleOpenMarkPaidModal = (salary: SalaryRecord) => {
+    setMarkPaidModal({
+      isOpen: true,
+      salaryId: salary.id,
+      salaryAmount: salary.netAmount || 0,
+      staffName: `${salary.user?.firstName || ""} ${salary.user?.lastName || ""}`,
+      month: salary.month,
+      year: salary.year,
+    });
+  };
+
+  const handleMarkAsPaid = async (data: {
+    date: string;
+    method: string;
+    reference?: string;
+    sendNotification: boolean;
+  }) => {
+    setMarkPaidLoading(true);
+    try {
+      await onMarkAsPaid?.(markPaidModal.salaryId, {
+        date: data.date,
+        method: data.method,
+        reference: data.reference,
+        sendNotification: data.sendNotification,
+      });
+      setMarkPaidModal({
+        isOpen: false,
+        salaryId: "",
+        salaryAmount: 0,
+        staffName: "",
+        month: 0,
+        year: 0,
+      });
+    } catch (error) {
+      console.error("Failed to mark as paid:", error);
+    } finally {
+      setMarkPaidLoading(false);
+    }
+  };
+
   const getStatusInfo = (status: string) => {
     switch (status) {
       case "PENDING":
@@ -61,6 +144,10 @@ export default function SalaryTable({
     "December",
   ];
 
+  const isRecordLoading = (recordId: string) => {
+    return Object.values(loadingIds || {}).some((id) => id === recordId);
+  };
+
   return (
     <>
       <div className="overflow-x-auto">
@@ -73,13 +160,13 @@ export default function SalaryTable({
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Month/Year
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="hidden sm:table-cell px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Total Days
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="hidden sm:table-cell px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Approved Days
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="hidden md:table-cell px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Gross Amount
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -88,11 +175,9 @@ export default function SalaryTable({
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Status
               </th>
-              {showActions && (
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              )}
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -105,13 +190,13 @@ export default function SalaryTable({
                     <td className="px-6 py-4 whitespace-nowrap">
                       <Skeleton height={16} width={80} />
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="hidden sm:table-cell px-6 py-4 whitespace-nowrap">
                       <Skeleton height={16} width={40} />
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="hidden sm:table-cell px-6 py-4 whitespace-nowrap">
                       <Skeleton height={16} width={40} />
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap">
                       <Skeleton height={16} width={70} />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -120,11 +205,9 @@ export default function SalaryTable({
                     <td className="px-6 py-4 whitespace-nowrap">
                       <Skeleton height={16} width={80} />
                     </td>
-                    {showActions && (
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <Skeleton height={16} width={100} />
-                      </td>
-                    )}
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <Skeleton height={16} width={100} />
+                    </td>
                   </tr>
                 ))
               : records.map((record) => {
@@ -135,26 +218,27 @@ export default function SalaryTable({
                     <tr key={record.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
-                          {record.user.firstName} {record.user.lastName}
+                          {record.user?.firstName || ""}{" "}
+                          {record.user?.lastName || ""}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {record.user.email}
+                          {record.user?.email || ""}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {months[record.month - 1]} {record.year}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {record.totalDays}
+                      <td className="hidden sm:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {record.totalDays || 0}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {record.approvedDays}
+                      <td className="hidden sm:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {record.approvedDays || 0}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ₹{record.grossAmount.toLocaleString()}
+                      <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ₹{formatCurrency(record.grossAmount || 0)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        ₹{record.netAmount.toLocaleString()}
+                        ₹{formatCurrency(record.netAmount || 0)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
@@ -166,60 +250,86 @@ export default function SalaryTable({
                           </span>
                         </div>
                       </td>
-                      {showActions && (
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          {record.status === "PENDING" && (
-                            <div className="flex space-x-2">
-                              <button
-                                onClick={() => onApprove?.(record.id)}
-                                className="text-green-600 hover:text-green-900 inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 rounded-md"
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex items-center space-x-2">
+                          {record.pdfUrl ? (
+                            <div>
+                              <Link
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                href={`${record.pdfUrl}`}
+                                className="text-indigo-600 hover:text-indigo-900 inline-flex items-center px-2 py-1 text-xs font-medium bg-indigo-100 rounded-md"
+                                title="View detailed report"
                               >
-                                <Check className="h-3 w-3 mr-1" />
-                                Approve
-                              </button>
-                              <button
-                                onClick={() => {
-                                  const reason = prompt(
-                                    "Enter rejection reason:",
-                                  );
-                                  if (reason) onReject?.(record.id, reason);
-                                }}
-                                className="text-red-600 hover:text-red-900 inline-flex items-center px-2 py-1 text-xs font-medium bg-red-100 rounded-md"
-                              >
-                                <X className="h-3 w-3 mr-1" />
-                                Reject
-                              </button>
+                                <Eye className="h-3 w-3 mr-1" />
+                                View Report
+                              </Link>
                             </div>
-                          )}
-                          {record.status === "APPROVED" && (
-                            <button
-                              onClick={() => {
-                                const date = prompt(
-                                  "Enter payment date (YYYY-MM-DD):",
-                                  new Date().toISOString().split("T")[0],
-                                );
-                                const method = prompt(
-                                  "Enter payment method (Bank/Cash/UPI):",
-                                  "Bank",
-                                );
-                                const reference = prompt(
-                                  "Enter transaction reference (optional):",
-                                );
-                                if (date && method) {
-                                  onMarkAsPaid?.(record.id, {
-                                    date,
-                                    method,
-                                    reference: reference || undefined,
-                                  });
-                                }
-                              }}
-                              className="text-blue-600 hover:text-blue-900 inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 rounded-md"
+                          ) : (
+                            <Link
+                              href={`/admin/users/${record.userId}/reports?month=${record.year}-${String(record.month).padStart(2, "0")}&type=salary`}
+                              className="text-indigo-600 hover:text-indigo-900 inline-flex items-center px-2 py-1 text-xs font-medium bg-indigo-100 rounded-md"
+                              title="View detailed report"
                             >
-                              Mark Paid
-                            </button>
+                              <Eye className="h-3 w-3 mr-1" />
+                              View Report
+                            </Link>
                           )}
-                        </td>
-                      )}
+
+                          {showActions && (
+                            <>
+                              {record.status === "PENDING" && (
+                                <div className="flex space-x-1">
+                                  <button
+                                    onClick={() => onApprove?.(record.id)}
+                                    disabled={isRecordLoading(record.id)}
+                                    className="text-green-600 hover:text-green-900 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 rounded-md"
+                                  >
+                                    <Check className="h-3 w-3 mr-1" />
+                                    Approve
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      const reason = prompt(
+                                        "Enter rejection reason:",
+                                      );
+                                      if (reason) onReject?.(record.id, reason);
+                                    }}
+                                    disabled={isRecordLoading(record.id)}
+                                    className="text-red-600 hover:text-red-900 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center px-2 py-1 text-xs font-medium bg-red-100 rounded-md"
+                                  >
+                                    <X className="h-3 w-3 mr-1" />
+                                    Reject
+                                  </button>
+                                </div>
+                              )}
+                              {record.status === "APPROVED" &&
+                                record.netAmount > 0 && (
+                                  <button
+                                    onClick={() =>
+                                      handleOpenMarkPaidModal(record)
+                                    }
+                                    disabled={isRecordLoading(record.id)}
+                                    className="text-blue-600 hover:text-blue-900 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 rounded-md"
+                                  >
+                                    Mark Paid
+                                  </button>
+                                )}
+                              {record.status === "PENDING" && (
+                                <button
+                                  onClick={() => onRecalculate?.(record.id)}
+                                  disabled={isRecordLoading(record.id)}
+                                  className="text-purple-600 hover:text-purple-900 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center px-2 py-1 text-xs font-medium bg-purple-100 rounded-md"
+                                  title="Recalculate salary based on latest attendance"
+                                >
+                                  <RotateCcw className="h-3 w-3 mr-1" />
+                                  Recalculate
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
@@ -250,6 +360,27 @@ export default function SalaryTable({
           </button>
         </div>
       </div>
+
+      {/* Mark Paid Modal */}
+      <MarkPaidModal
+        isOpen={markPaidModal.isOpen}
+        onClose={() =>
+          setMarkPaidModal({
+            isOpen: false,
+            salaryId: "",
+            salaryAmount: 0,
+            staffName: "",
+            month: 0,
+            year: 0,
+          })
+        }
+        onSubmit={handleMarkAsPaid}
+        salaryAmount={markPaidModal.salaryAmount}
+        staffName={markPaidModal.staffName}
+        month={markPaidModal.month}
+        year={markPaidModal.year}
+        loading={markPaidLoading}
+      />
     </>
   );
 }

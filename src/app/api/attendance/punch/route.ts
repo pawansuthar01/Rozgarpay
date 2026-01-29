@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
         companyId,
         punchIn: { not: null },
         punchOut: null,
+        attendanceDate,
       },
       orderBy: { punchIn: "desc" },
     });
@@ -85,29 +86,31 @@ export async function POST(request: NextRequest) {
         openAttendance = null;
       }
     }
+
     if (openAttendance) {
-      // Location validation (only if enabled)
-      if (settings.locationLat && settings.locationLng) {
-        if (!location) {
-          return NextResponse.json(
-            { error: "Location is required for punch-out." },
-            { status: 400 },
-          );
-        }
+      //location system in not ready now
 
-        const valid = isLocationValid(
-          location,
-          { lat: settings.locationLat, lng: settings.locationLng },
-          settings.locationRadius,
-        );
+      // if (settings.locationLat && settings.locationLng) {
+      //   if (!location) {
+      //     return NextResponse.json(
+      //       { error: "Location is required for punch-out." },
+      //       { status: 400 },
+      //     );
+      //   }
 
-        if (!valid) {
-          return NextResponse.json(
-            { error: "You are not within company premises." },
-            { status: 400 },
-          );
-        }
-      }
+      //   const valid = isLocationValid(
+      //     location,
+      //     { lat: settings.locationLat, lng: settings.locationLng },
+      //     settings.locationRadius,
+      //   );
+
+      //   if (!valid) {
+      //     return NextResponse.json(
+      //       { error: "You are not within company premises." },
+      //       { status: 400 },
+      //     );
+      //   }
+      // }
 
       // Punch-out rules
       const punchOutCheck = isPunchOutAllowed(
@@ -166,9 +169,9 @@ export async function POST(request: NextRequest) {
           userId,
           companyId,
           punchOut: null,
+          attendanceDate: attendanceDate,
         },
       });
-
       if (existingOpen) {
         return NextResponse.json(
           {
@@ -192,46 +195,35 @@ export async function POST(request: NextRequest) {
           { status: 400 },
         );
       }
+      //location system in not ready now
+      // if (settings.locationLat && settings.locationLng) {
+      //   if (!location) {
+      //     return NextResponse.json(
+      //       { error: "Location is required for punch-in." },
+      //       { status: 400 },
+      //     );
+      //   }
 
-      if (settings.locationLat && settings.locationLng) {
-        if (!location) {
-          return NextResponse.json(
-            { error: "Location is required for punch-in." },
-            { status: 400 },
-          );
-        }
+      //   const valid = isLocationValid(
+      //     location,
+      //     { lat: settings.locationLat, lng: settings.locationLng },
+      //     settings.locationRadius,
+      //   );
 
-        const valid = isLocationValid(
-          location,
-          { lat: settings.locationLat, lng: settings.locationLng },
-          settings.locationRadius,
-        );
-
-        if (!valid) {
-          return NextResponse.json(
-            { error: "You are not within company premises." },
-            { status: 400 },
-          );
-        }
-      }
-
-      // Calculate late minutes if late
-      let lateMinutes = 0;
-      if (punchInCheck.isLate) {
-        const shiftStart = new Date(now);
-        const [h, m] = settings.shiftStartTime.split(":").map(Number);
-        shiftStart.setHours(h, m, 0, 0);
-        lateMinutes = Math.max(
-          0,
-          Math.floor((now.getTime() - shiftStart.getTime()) / (1000 * 60)),
-        );
-      }
+      //   if (!valid) {
+      //     return NextResponse.json(
+      //       { error: "You are not within company premises." },
+      //       { status: 400 },
+      //     );
+      //   }
+      // }
 
       attendance = await prisma.attendance.create({
         data: {
           userId,
           companyId,
           attendanceDate,
+          LateMinute: punchInCheck.lateMin,
           punchIn: now,
           punchInLocation: location
             ? JSON.stringify(location)

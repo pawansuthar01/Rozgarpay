@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
     const sortBy = searchParams.get("sortBy") || "attendanceDate";
     const sortOrder = searchParams.get("sortOrder") || "desc";
     const userId = searchParams.get("userId");
+    const search = searchParams.get("search") || "";
 
     // Get admin's company
     const admin = await prisma.user.findUnique({
@@ -48,6 +49,17 @@ export async function GET(request: NextRequest) {
 
     if (userId) {
       where.userId = userId;
+    }
+
+    if (search) {
+      where.user = {
+        ...where.user,
+        OR: [
+          { firstName: { contains: search, mode: "insensitive" } },
+          { lastName: { contains: search, mode: "insensitive" } },
+          { phone: { contains: search, mode: "insensitive" } },
+        ],
+      };
     }
 
     if (startDate && endDate) {
@@ -81,7 +93,7 @@ export async function GET(request: NextRequest) {
           select: {
             firstName: true,
             lastName: true,
-            email: true,
+            phone: true,
           },
         },
       },
@@ -105,6 +117,7 @@ export async function GET(request: NextRequest) {
       approved: statsResult.find((s) => s.status === "APPROVED")?._count || 0,
       rejected: statsResult.find((s) => s.status === "REJECTED")?._count || 0,
       absent: statsResult.find((s) => s.status === "ABSENT")?._count || 0,
+      leave: statsResult.find((s) => s.status === "LEAVE")?._count || 0,
     };
 
     // Status distribution for pie chart

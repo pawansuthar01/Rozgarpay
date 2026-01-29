@@ -3,10 +3,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "../../../../auth/[...nextauth]/route";
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ userId: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: any) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -30,7 +27,7 @@ export async function PATCH(
     if (!admin?.company) {
       return NextResponse.json(
         { error: "Admin company not found" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -72,7 +69,7 @@ export async function PATCH(
     console.error("User status update error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

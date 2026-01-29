@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
+import { salaryService } from "@/lib/salaryService";
 import { authOptions } from "../../../../auth/[...nextauth]/route";
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ attendanceId: string }> },
-) {
+export async function PUT(request: NextRequest, { params }: any) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -20,12 +18,18 @@ export async function PATCH(
     const { attendanceId } = await params;
     const body = await request.json();
     const {
-      overtimeHours,
-      workingHours,
-      isLate,
-      approvalReason,
-      shiftDurationHours,
-    } = body;
+      overtimeHours = 0,
+      workingHours = 0,
+      LateMinute = 0,
+      approvalReason = "N/A",
+      shiftDurationHours = 0,
+    } = body as {
+      overtimeHours: number;
+      workingHours: number;
+      LateMinute: number;
+      approvalReason: string;
+      shiftDurationHours: number;
+    };
 
     // Get admin's company
     const admin = await prisma.user.findUnique({
@@ -63,14 +67,18 @@ export async function PATCH(
           workingHours !== undefined && workingHours !== null
             ? Math.round(parseFloat(workingHours.toString()) * 100) / 100
             : undefined,
+        LateMinute: LateMinute !== null ? LateMinute : 0,
         shiftDurationHours:
           shiftDurationHours !== undefined && shiftDurationHours !== null
             ? Math.round(parseFloat(shiftDurationHours.toString()) * 100) / 100
             : undefined,
-        isLate: isLate !== undefined ? Boolean(isLate) : undefined,
+        isLate: LateMinute !== null && LateMinute > 0,
         approvalReason: approvalReason || undefined,
         approvedBy: session.user.id,
         approvedAt: new Date(),
+      },
+      include: {
+        user: { select: { firstName: true, lastName: true, phone: true } },
       },
     });
 
@@ -86,12 +94,59 @@ export async function PATCH(
             overtimeHours,
             workingHours,
             shiftDurationHours,
-            isLate,
+            LateMinute,
             approvalReason,
           },
         },
       },
     });
+
+    // Auto-recalculate salary for the current month if attendance affects it
+    try {
+      const attendanceDate = new Date(updatedAttendance.attendanceDate);
+      const currentMonth = attendanceDate.getMonth() + 1;
+      const currentYear = attendanceDate.getFullYear();
+
+      // Check if there's a salary record for this month that needs recalculation
+      const existingSalary = await prisma.salary.findUnique({
+        where: {
+          userId_month_year: {
+            userId: updatedAttendance.userId,
+            month: currentMonth,
+            year: currentYear,
+          },
+        },
+      });
+
+      if (
+        existingSalary &&
+        existingSalary.status !== "PAID" &&
+        !existingSalary.lockedAt
+      ) {
+        console.log(
+          `Auto-recalculating salary for user ${updatedAttendance.userId} - ${currentMonth}/${currentYear}`,
+        );
+
+        const recalcResult = await salaryService.recalculateSalary(
+          existingSalary.id,
+        );
+
+        if (!recalcResult.success) {
+          console.error(
+            "Failed to auto-recalculate salary:",
+            recalcResult.error,
+          );
+          // Don't fail the attendance update if salary recalculation fails
+        } else {
+          console.log(
+            `Successfully auto-recalculated salary for user ${updatedAttendance.userId}`,
+          );
+        }
+      }
+    } catch (salaryError) {
+      console.error("Error during auto salary recalculation:", salaryError);
+      // Don't fail the attendance update if salary recalculation fails
+    }
 
     return NextResponse.json({ attendance: updatedAttendance });
   } catch (error) {

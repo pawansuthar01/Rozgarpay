@@ -3,10 +3,12 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
+  relationMode = "prisma"
 }
+
 enum Role {
   SUPER_ADMIN
   ADMIN
@@ -40,6 +42,10 @@ enum AuditAction {
 enum CorrectionType {
   MISSED_PUNCH_IN
   MISSED_PUNCH_OUT
+  ATTENDANCE_MISS
+  LEAVE_REQUEST
+  SUPPORT_REQUEST
+  SALARY_REQUEST
 }
 
 enum SalaryType {
@@ -75,10 +81,40 @@ enum ReportType {
   USER
   COMPANY
 }
+
+enum SalaryLedgerType {
+   PAYMENT
+   RECOVERY
+   EARNING
+   DEDUCTION
+}
+
+enum CashbookTransactionType {
+   SALARY_PAYMENT
+   ADVANCE
+   RECOVERY
+   VENDOR_PAYMENT
+   CLIENT_PAYMENT
+   EXPENSE
+   ADJUSTMENT
+}
+
+enum CashbookDirection {
+   CREDIT
+   DEBIT
+}
+
+enum PaymentMode {
+   CASH
+   BANK
+   UPI
+   CHEQUE
+}
 model Company {
    id          String        @id @default(uuid()) @db.Uuid
    name        String
    description String?
+   logo        String?       // URL to company logo image
    status      AccountStatus @default(ACTIVE)
    // Attendance & Payroll Settings
    shiftStartTime      String?       @default("09:00") // HH:MM format
@@ -108,6 +144,8 @@ model Company {
    users         User[]
    attendances   Attendance[]
    salaries      Salary[]
+   salaryLedgers SalaryLedger[]
+   cashbookEntries CashbookEntry[]
    notifications Notification[]
    reports       Report[]
    invitations   CompanyInvitation[]
@@ -156,6 +194,7 @@ model User {
   email                String        @unique
   phone                String        @unique
   password             String
+  profileImg           String?       // URL to profile image
   role                 Role
   status               AccountStatus @default(ACTIVE)
   companyId            String?       @db.Uuid
@@ -178,12 +217,17 @@ model User {
   salaries          Salary[]
   approvedSalaries  Salary[]          @relation("SalaryApprovedBy")
   rejectedSalaries  Salary[]          @relation("SalaryRejectedBy")
+  salaryLedgers     SalaryLedger[]    @relation("LedgerUser")
+  createdLedgers    SalaryLedger[]    @relation("LedgerCreatedBy")
+  cashbookEntries   CashbookEntry[]
+  createdCashbookEntries CashbookEntry[] @relation("CashbookCreator")
   notifications     Notification[]
   pushSubscriptions PushSubscription[]
   auditLogs         AuditLog[]
   correctionRequests CorrectionRequest[]
   reviewedCorrections CorrectionRequest[] @relation("CorrectionReviewedBy")
 
+  @@index([companyId, role])
   @@map("users")
 }
 model Attendance {
@@ -191,6 +235,8 @@ model Attendance {
    userId         String           @db.Uuid
    companyId      String           @db.Uuid
    attendanceDate DateTime
+  LateMinute Int? @default(0)
+     
 
    punchIn        DateTime?
    punchOut       DateTime?
@@ -230,17 +276,19 @@ model CorrectionRequest {
   userId         String           @db.Uuid
   companyId      String           @db.Uuid
   attendanceId   String?          @db.Uuid
- attendanceDate  DateTime 
+  attendanceDate  DateTime
+  endDate        DateTime?        // For leave requests - end date of leave period
   type           CorrectionType
-  requestedTime  DateTime?        // For missed punch out, the requested punch out time
-  reason         String
+  requestedTime  DateTime?        // For missed punch out/in, the requested punch time
+  requestedAmount Float?          // For salary requests - amount requested
+  reason         String           // Staff's reason for the request
   evidence       String?          // URL to evidence file
   status         AttendanceStatus @default(PENDING)
   reviewedBy     String?          @db.Uuid
   reviewedAt     DateTime?
+  reviewReason   String?          // Admin's reason for approval/rejection
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
-
   user            User       @relation(fields: [userId], references: [id])
   company         Company    @relation(fields: [companyId], references: [id])
   attendance      Attendance? @relation(fields: [attendanceId], references: [id])
@@ -290,14 +338,18 @@ model Salary {
   recalculatedAt     DateTime?
   version            Int         @default(1)
 
+  // PDF Storage
+  pdfUrl             String?
+
   createdAt          DateTime    @default(now())
   updatedAt          DateTime    @updatedAt
 
   user               User        @relation(fields: [userId], references: [id])
   company            Company     @relation(fields: [companyId], references: [id])
-  approvedByUser     User?       @relation("SalaryApprovedBy", fields: [approvedBy], references: [id])
-  rejectedByUser     User?       @relation("SalaryRejectedBy", fields: [rejectedBy], references: [id])
+  approvedByUser     User?           @relation("SalaryApprovedBy", fields: [approvedBy], references: [id])
+  rejectedByUser     User?           @relation("SalaryRejectedBy", fields: [rejectedBy], references: [id])
   breakdowns         SalaryBreakdown[]
+  ledger             SalaryLedger[]
   audits             AuditLog[]
 
   @@unique([userId, month, year])
@@ -319,6 +371,60 @@ model SalaryBreakdown {
 
   @@index([salaryId])
   @@map("salary_breakdowns")
+}
+
+model SalaryLedger {
+  id          String          @id @default(uuid()) @db.Uuid
+  salaryId    String          @db.Uuid
+  userId      String          @db.Uuid
+  companyId   String          @db.Uuid
+  type        SalaryLedgerType
+  amount      Float
+  reason      String
+  reference   String?         // Payment reference, transaction ID, etc.
+  createdBy   String          @db.Uuid
+  createdAt   DateTime        @default(now())
+
+  salary      Salary          @relation(fields: [salaryId], references: [id])
+  user        User            @relation("LedgerUser", fields: [userId], references: [id])
+  company     Company         @relation(fields: [companyId], references: [id])
+  creator     User            @relation("LedgerCreatedBy", fields: [createdBy], references: [id])
+
+  @@index([salaryId])
+  @@index([userId])
+  @@index([companyId])
+  @@index([type])
+  @@map("salary_ledgers")
+}
+
+model CashbookEntry {
+  id              String                 @id @default(uuid()) @db.Uuid
+  companyId       String                 @db.Uuid
+  userId          String?                @db.Uuid  // Optional: staff/vendor/client
+  transactionType CashbookTransactionType
+  direction       CashbookDirection
+  amount          Float
+  paymentMode     PaymentMode?
+  reference       String?                // salaryId, attendanceId, invoiceId, etc.
+  description     String
+  notes           String?
+  transactionDate DateTime               @default(now())
+  createdBy       String                 @db.Uuid
+  reversalOf      String?                @db.Uuid  // Reference to reversed transaction
+  isReversed      Boolean                @default(false)
+  createdAt       DateTime               @default(now())
+
+  company         Company                @relation(fields: [companyId], references: [id])
+  user            User?                  @relation(fields: [userId], references: [id])
+  creator         User                   @relation("CashbookCreator", fields: [createdBy], references: [id])
+  reversedEntry   CashbookEntry?         @relation("CashbookReversal", fields: [reversalOf], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  reversals       CashbookEntry[]        @relation("CashbookReversal")
+
+  @@index([companyId, transactionDate])
+  @@index([companyId, direction])
+  @@index([companyId, userId])
+  @@index([reference])
+  @@map("cashbook_entries")
 }
 
 model Otp {
@@ -391,6 +497,7 @@ model AuditLog {
    user User @relation(fields: [userId], references: [id])
 
    @@index([entity, entityId])
+   @@index([userId])
 }
 
 

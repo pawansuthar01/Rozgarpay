@@ -59,7 +59,7 @@ export async function GET(request: Request) {
       staffName:
         `${record.user.firstName || ""} ${record.user.lastName || ""}`.trim() ||
         record.user.email,
-      punchIn: record.punchIn.toISOString(),
+      punchIn: record?.punchIn?.toISOString(),
       punchOut: record.punchOut?.toISOString() || null,
       status: record.status,
     }));

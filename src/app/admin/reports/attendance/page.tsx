@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import {
@@ -26,6 +26,7 @@ import {
   Filter,
 } from "lucide-react";
 import Link from "next/link";
+import { useAttendanceReports } from "@/hooks/useAttendance";
 
 interface AttendanceReport {
   totalRecords: number;
@@ -44,8 +45,6 @@ interface AttendanceReport {
 
 export default function AdminAttendanceReportsPage() {
   const { data: session } = useSession();
-  const [report, setReport] = useState<AttendanceReport | null>(null);
-  const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState<string>(() => {
     const today = new Date();
     today.setDate(today.getDate() - 1);
@@ -57,39 +56,20 @@ export default function AdminAttendanceReportsPage() {
   });
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
-  const [totalPages, setTotalPages] = useState(1);
 
-  useEffect(() => {
-    if (startDate && endDate) {
-      fetchReport();
-    }
-  }, [startDate, endDate, page, limit]);
+  // Use the custom hook
+  const {
+    data: report,
+    isLoading: loading,
+    error: fetchError,
+  } = useAttendanceReports({
+    startDate,
+    endDate,
+    page,
+    limit,
+  });
 
-  const fetchReport = async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        startDate,
-        endDate,
-        page: page.toString(),
-        limit: limit.toString(),
-      });
-
-      const res = await fetch(`/api/admin/reports/attendance?${params}`);
-      const data = await res.json();
-
-      if (res.ok) {
-        setReport(data);
-        setTotalPages(data.totalPages || 1);
-      } else {
-        console.error("Failed to fetch report");
-      }
-    } catch (error) {
-      console.error("Failed to fetch report:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const totalPages = report?.totalPages || 1;
 
   const statusData = report
     ? [
@@ -399,27 +379,29 @@ export default function AdminAttendanceReportsPage() {
                         </td>
                       </tr>
                     ))
-                  : report?.staffSummary.map((staff) => (
-                      <tr key={staff.userId} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
-                            {staff.user.firstName} {staff.user.lastName}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {staff.user.email}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {staff.present}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {staff.absent}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {staff.late}
-                        </td>
-                      </tr>
-                    ))}
+                  : report?.staffSummary.map(
+                      (staff: AttendanceReport["staffSummary"][0]) => (
+                        <tr key={staff.userId} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {staff.user.firstName} {staff.user.lastName}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              {staff.user.email}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {staff.present}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {staff.absent}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {staff.late}
+                          </td>
+                        </tr>
+                      ),
+                    )}
               </tbody>
             </table>
           </div>
@@ -438,43 +420,45 @@ export default function AdminAttendanceReportsPage() {
                     </div>
                   </div>
                 ))
-              : report?.staffSummary.map((staff) => (
-                  <div
-                    key={staff.userId}
-                    className="p-4 hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <h4 className="text-sm font-semibold text-gray-900">
-                          {staff.user.firstName} {staff.user.lastName}
-                        </h4>
-                        <p className="text-xs text-gray-500">
-                          {staff.user.email}
-                        </p>
+              : report?.staffSummary.map(
+                  (staff: AttendanceReport["staffSummary"][0]) => (
+                    <div
+                      key={staff.userId}
+                      className="p-4 hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h4 className="text-sm font-semibold text-gray-900">
+                            {staff.user.firstName} {staff.user.lastName}
+                          </h4>
+                          <p className="text-xs text-gray-500">
+                            {staff.user.email}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-4 text-sm">
+                        <div className="text-center">
+                          <p className="text-green-600 font-semibold">
+                            {staff.present}
+                          </p>
+                          <p className="text-xs text-gray-500">Present</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-red-600 font-semibold">
+                            {staff.absent}
+                          </p>
+                          <p className="text-xs text-gray-500">Absent</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-yellow-600 font-semibold">
+                            {staff.late}
+                          </p>
+                          <p className="text-xs text-gray-500">Late</p>
+                        </div>
                       </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-4 text-sm">
-                      <div className="text-center">
-                        <p className="text-green-600 font-semibold">
-                          {staff.present}
-                        </p>
-                        <p className="text-xs text-gray-500">Present</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-red-600 font-semibold">
-                          {staff.absent}
-                        </p>
-                        <p className="text-xs text-gray-500">Absent</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-yellow-600 font-semibold">
-                          {staff.late}
-                        </p>
-                        <p className="text-xs text-gray-500">Late</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  ),
+                )}
           </div>
 
           {/* Pagination */}

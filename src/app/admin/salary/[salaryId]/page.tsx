@@ -25,6 +25,8 @@ import {
   ChevronLeft,
 } from "lucide-react";
 import Link from "next/link";
+import SalaryMarkPaidModal from "@/components/admin/SalaryMarkPaidModal";
+import { useModal } from "@/components/ModalProvider";
 
 interface SalaryDetail {
   id: string;
@@ -56,12 +58,14 @@ export default function AdminSalaryDetailPage() {
   const { data: session } = useSession();
   const params = useParams();
   const salaryId = params.salaryId as string;
+  const { showMessage } = useModal();
 
   const [salary, setSalary] = useState<SalaryDetail | null>(null);
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [markPaidModalOpen, setMarkPaidModalOpen] = useState(false);
 
   useEffect(() => {
     if (salaryId) {
@@ -83,38 +87,62 @@ export default function AdminSalaryDetailPage() {
         setError(data.error || "Failed to fetch salary detail");
       }
     } catch (error) {
-      console.error("Failed to fetch salary detail:", error);
       setError("Failed to fetch salary detail");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleMarkAsPaid = async () => {
+  const handleMarkAsPaid = () => {
+    setMarkPaidModalOpen(true);
+  };
+
+  const handleMarkPaidConfirm = async (
+    salaryId: string,
+    paymentData: {
+      date: string;
+      method: string;
+      reference?: string;
+      sendNotification?: boolean;
+    },
+  ) => {
     setUpdating(true);
     try {
-      const res = await fetch(`/api/admin/salary/${salaryId}`, {
-        method: "PATCH",
+      const res = await fetch(`/api/admin/salary/${salaryId}/mark-paid`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "PAID" }),
+        body: JSON.stringify({
+          date: paymentData.date,
+          method: paymentData.method,
+          reference: paymentData.reference,
+          sendNotification: paymentData.sendNotification ?? true,
+        }),
       });
 
       if (res.ok) {
         await fetchSalaryDetail(); // Refresh
       } else {
         const data = await res.json();
-        alert(data.error || "Failed to update salary");
+        showMessage(
+          "error",
+          "Error",
+          data.error || "Failed to mark salary as paid",
+        );
       }
     } catch (error) {
-      console.error("Failed to update salary:", error);
-      alert("Failed to update salary");
+      console.error("Failed to mark salary as paid:", error);
+      showMessage("error", "Error", "Failed to mark salary as paid");
     } finally {
       setUpdating(false);
     }
   };
 
   const generatePayslipPDF = () => {
-    alert("PDF generation feature coming soon. Please use print for now.");
+    showMessage(
+      "info",
+      "Coming Soon",
+      "PDF generation feature coming soon. Please use print for now.",
+    );
     window.print();
   };
 
@@ -291,6 +319,14 @@ export default function AdminSalaryDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Mark Paid Modal */}
+      <SalaryMarkPaidModal
+        isOpen={markPaidModalOpen}
+        onClose={() => setMarkPaidModalOpen(false)}
+        salary={salary}
+        onMarkPaid={handleMarkPaidConfirm}
+      />
     </div>
   );
 }

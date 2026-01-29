@@ -7,15 +7,19 @@ import "react-loading-skeleton/dist/skeleton.css";
 import { Calculator, CheckCircle, XCircle } from "lucide-react";
 
 interface SalaryPreview {
-  userId: string;
   user: {
+    id: string;
     firstName: string | null;
     lastName: string | null;
     email: string;
   };
-  approvedDays: number;
-  grossAmount: number;
-  netAmount: number;
+  salary: {
+    totalWorkingDays: number;
+    grossAmount: number;
+    netAmount: number;
+  };
+  breakdowns?: any[];
+  error?: string;
 }
 
 export default function AdminSalaryGeneratePage() {
@@ -45,7 +49,7 @@ export default function AdminSalaryGeneratePage() {
 
   const years = Array.from(
     { length: 5 },
-    (_, i) => new Date().getFullYear() - 2 + i
+    (_, i) => new Date().getFullYear() - 2 + i,
   );
 
   const handleCalculate = async () => {
@@ -62,7 +66,7 @@ export default function AdminSalaryGeneratePage() {
       const data = await res.json();
 
       if (res.ok) {
-        setSalaries(data.salaries);
+        setSalaries(data.previews);
       } else {
         setError(data.error || "Failed to calculate salaries");
       }
@@ -216,7 +220,7 @@ export default function AdminSalaryGeneratePage() {
                     Staff Member
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Approved Days
+                    Working Days
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Gross Amount
@@ -227,8 +231,11 @@ export default function AdminSalaryGeneratePage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {salaries.map((salary) => (
-                  <tr key={salary.userId} className="hover:bg-gray-50">
+                {salaries.map((salary, index) => (
+                  <tr
+                    key={salary.user.id || index}
+                    className="hover:bg-gray-50"
+                  >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
                         {salary.user.firstName} {salary.user.lastName}
@@ -236,15 +243,20 @@ export default function AdminSalaryGeneratePage() {
                       <div className="text-sm text-gray-500">
                         {salary.user.email}
                       </div>
+                      {salary.error && (
+                        <div className="text-sm text-red-600 mt-1">
+                          Error: {salary.error}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {salary.approvedDays}
+                      {salary.salary?.totalWorkingDays || 0}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      ₹{salary.grossAmount.toLocaleString()}
+                      ₹{salary.salary?.grossAmount?.toLocaleString() || 0}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      ₹{salary.netAmount.toLocaleString()}
+                      ₹{salary.salary?.netAmount?.toLocaleString() || 0}
                     </td>
                   </tr>
                 ))}

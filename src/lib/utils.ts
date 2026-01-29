@@ -7,8 +7,6 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatCurrency(amount: number, currency = "INR"): string {
   return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency,
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   }).format(amount);
@@ -219,3 +217,69 @@ export function DateRange(startDate?: string, endDate?: string) {
     end: end ? end.toISOString() : null,
   };
 }
+
+// Convert decimal hours to H:M format
+export function formatHoursToHM(hours: number | null): string {
+  if (hours === null || hours === undefined) return "";
+
+  const totalMinutes = Math.round(hours * 60);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+
+  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+}
+
+// Convert H:M format to decimal hours
+export function parseHMToHours(hm: string): number | null {
+  if (!hm || !hm.includes(":")) return null;
+
+  const [h, m] = hm.split(":").map(Number);
+  if (isNaN(h) || isNaN(m)) return null;
+
+  return Math.round((h + m / 60) * 100) / 100; // Round to 2 decimal places
+}
+
+// Validate H:M format
+export function isValidHMFormat(value: string): boolean {
+  const hmRegex = /^\d{1,2}:\d{2}$/;
+  if (!hmRegex.test(value)) return false;
+
+  const [h, m] = value.split(":").map(Number);
+  return h >= 0 && h <= 24 && m >= 0 && m <= 59;
+}
+
+export const bgColorRadom = () => {
+  const colors = [
+    "bg-purple-500",
+    "bg-red-300",
+    "bg-yellow-600",
+    "bg-sky-500",
+    "bg-pink-300",
+    "bg-green-400",
+    "bg-blue-500",
+    "bg-indigo-500",
+    "bg-orange-400",
+    "bg-teal-400",
+    "bg-cyan-500",
+    "bg-lime-500",
+    "bg-emerald-500",
+    "bg-violet-500",
+    "bg-fuchsia-500",
+    "bg-rose-500",
+    "bg-amber-500",
+    "bg-stone-500",
+    "bg-neutral-500",
+    "bg-slate-500",
+  ];
+  const indexRadom = Math.floor(Math.random() * colors.length);
+  return colors[indexRadom];
+};
+export const copyToClipboard = async (text: string): Promise<boolean> => {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (err) {
+    console.error("Copy failed", err);
+    return false;
+  }
+};

@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     if (!notificationId) {
       return NextResponse.json(
         { error: "Notification ID is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
     if (!notificationData) {
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     if (!notificationData) {
       return NextResponse.json(
         { error: "Notification not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
     const { metadata, status, recipient, channel, type } = notificationData;
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     if (status !== "failed") {
       return NextResponse.json(
         { error: "Only failed notifications can be retried" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -56,12 +56,13 @@ export async function POST(request: NextRequest) {
           ["email"],
           {
             role: metadata.role,
+            companyName: metadata.companyName,
             invitationUrl: metadata.invitationUrl, // placeholder
             expiresAt: new Date(
-              Date.now() + 7 * 24 * 60 * 60 * 1000
+              Date.now() + 7 * 24 * 60 * 60 * 1000,
             ).toISOString(),
             message: `Retrying notification: ${type}`,
-          }
+          },
         );
       } else if (channel === "whatsapp") {
         result = await notificationManager.sendExternalInvitation(
@@ -70,12 +71,13 @@ export async function POST(request: NextRequest) {
           ["whatsapp"],
           {
             role: metadata.role,
+            companyName: metadata.companyName,
             invitationUrl: metadata.invitationUrl, // placeholder
             expiresAt: new Date(
-              Date.now() + 7 * 24 * 60 * 60 * 1000
+              Date.now() + 7 * 24 * 60 * 60 * 1000,
             ).toISOString(),
             message: `Retrying notification: ${type}`,
-          }
+          },
         );
       }
 
@@ -131,14 +133,14 @@ export async function POST(request: NextRequest) {
           error: "Failed to resend notification",
           details: errorMessage,
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
   } catch (error) {
     console.error(error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -212,7 +214,7 @@ export async function GET(request: NextRequest) {
     console.error(error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

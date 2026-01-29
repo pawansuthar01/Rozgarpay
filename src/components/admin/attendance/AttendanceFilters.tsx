@@ -1,4 +1,5 @@
-import { Filter, Calendar } from "lucide-react";
+import { Filter, Calendar, Search } from "lucide-react";
+import { useDebounce } from "@/lib/hooks";
 
 interface AttendanceFiltersProps {
   statusFilter: string;
@@ -13,6 +14,8 @@ interface AttendanceFiltersProps {
   setSortBy: (value: string) => void;
   sortOrder: string;
   setSortOrder: (value: string) => void;
+  search: string;
+  setSearch: (value: string) => void;
 }
 
 export default function AttendanceFilters({
@@ -28,6 +31,8 @@ export default function AttendanceFilters({
   setSortBy,
   sortOrder,
   setSortOrder,
+  search,
+  setSearch,
 }: AttendanceFiltersProps) {
   return (
     <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
@@ -60,6 +65,21 @@ export default function AttendanceFilters({
             </summary>
             <div className="mt-3 space-y-3">
               <div className="grid grid-cols-1 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Search Staff
+                  </label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md text-sm"
+                      placeholder="Search by name or email..."
+                    />
+                  </div>
+                </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">
                     Date Range
@@ -154,6 +174,16 @@ export default function AttendanceFilters({
 
         {/* Desktop: Inline filters */}
         <div className="hidden md:flex flex-wrap gap-3 items-center">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10 pr-4 py-2 border border-gray-300 rounded-md text-sm w-64"
+              placeholder="Search staff by name or phone..."
+            />
+          </div>
           <div className="flex gap-2">
             <div className="relative">
               <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />

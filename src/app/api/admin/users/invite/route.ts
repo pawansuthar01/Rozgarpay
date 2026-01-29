@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     if (!name || !email || !role) {
       return NextResponse.json(
         { error: "Name, email, and role are required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     if (existingUser) {
       return NextResponse.json(
         { error: "User already exists with this email or phone" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     if (existingInvitation) {
       return NextResponse.json(
         { error: "An active invitation already exists for this email" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     if (!admin?.company) {
       return NextResponse.json(
         { error: "Admin company not found" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -100,10 +100,11 @@ export async function POST(request: NextRequest) {
       ["email", "whatsapp"],
       {
         role: "admin",
+        companyName: admin.company.name,
         invitationUrl: inviteLink,
         expiresAt: invitation.expiresAt.toISOString(),
         message,
-      }
+      },
     );
 
     // Create audit log
@@ -139,7 +140,7 @@ export async function POST(request: NextRequest) {
     console.error("Invitation creation error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

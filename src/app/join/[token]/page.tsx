@@ -15,6 +15,8 @@ import {
   AlertTriangle,
   ArrowRight,
 } from "lucide-react";
+import { useSendLoginOtp } from "@/hooks";
+import { signOut, useSession } from "next-auth/react";
 
 interface Invitation {
   id: string;
@@ -31,9 +33,10 @@ interface Invitation {
 
 export default function JoinPage() {
   const params = useParams();
+  const { status } = useSession();
   const router = useRouter();
   const token = params.token as string;
-
+  const sendOtp = useSendLoginOtp();
   const [invitation, setInvitation] = useState<Invitation | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -84,6 +87,13 @@ export default function JoinPage() {
   useEffect(() => {
     validateInvitation();
   }, [token]);
+  useEffect(() => {
+    if (status == "authenticated") {
+      signOut({
+        redirect: false,
+      });
+    }
+  }, [status]);
 
   // Countdown timer for OTP cooldown
   useEffect(() => {
@@ -120,7 +130,7 @@ export default function JoinPage() {
     // Check if still in cooldown
     if (otpCooldown[type] > 0) {
       setError(
-        `Please wait ${otpCooldown[type]} seconds before requesting another OTP`
+        `Please wait ${otpCooldown[type]} seconds before requesting another OTP`,
       );
       setSuccessMessage("");
       return;
@@ -197,7 +207,7 @@ export default function JoinPage() {
       if (res.success) {
         setOtpVerified((prev) => ({ ...prev, [type]: true }));
         setSuccessMessage(
-          `${type === "phone" ? "Phone" : "Email"} OTP verified successfully`
+          `${type === "phone" ? "Phone" : "Email"} OTP verified successfully`,
         );
         setError("");
       } else {
@@ -280,7 +290,7 @@ export default function JoinPage() {
   if (error && !invitation) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="max-w-md w-full mx-4">
+        <div className="max-w-md sm:max-w-lg w-full mx-4">
           <div className="bg-white p-8 rounded-lg shadow text-center">
             <AlertTriangle className="h-16 w-16 text-red-500 mx-auto mb-4" />
             <h1 className="text-2xl font-bold text-gray-900 mb-2">
@@ -302,7 +312,7 @@ export default function JoinPage() {
   if (step === "complete") {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="max-w-md w-full mx-4">
+        <div className="max-w-md sm:max-w-lg w-full mx-4">
           <div className="bg-white p-8 rounded-lg shadow text-center">
             <CheckCircle className="h-16 w-16 text-green-600 mx-auto mb-4" />
             <h1 className="text-2xl font-bold text-gray-900 mb-2">
@@ -326,7 +336,7 @@ export default function JoinPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-md mx-auto py-12 px-4">
+      <div className="max-w-md sm:max-w-lg mx-auto py-12 px-4">
         <div className="bg-white p-8 rounded-lg shadow">
           {/* Header */}
           <div className="text-center mb-8">
@@ -482,8 +492,8 @@ export default function JoinPage() {
                     {otpCooldown.phone > 0
                       ? `Wait ${otpCooldown.phone}s`
                       : sendingOTP.phone
-                      ? "Sending..."
-                      : "Send"}
+                        ? "Sending..."
+                        : "Send"}
                   </button>
                   <button
                     type="button"
@@ -498,8 +508,8 @@ export default function JoinPage() {
                     {verifyingOTP.phone
                       ? "Verifying..."
                       : otpVerified.phone
-                      ? "✓ Verified"
-                      : "Verify"}
+                        ? "✓ Verified"
+                        : "Verify"}
                   </button>
                 </div>
               </div>
@@ -527,8 +537,8 @@ export default function JoinPage() {
                     {otpCooldown.email > 0
                       ? `Wait ${otpCooldown.email}s`
                       : sendingOTP.email
-                      ? "Sending..."
-                      : "Send"}
+                        ? "Sending..."
+                        : "Send"}
                   </button>
                   <button
                     type="button"
@@ -543,8 +553,8 @@ export default function JoinPage() {
                     {verifyingOTP.email
                       ? "Verifying..."
                       : otpVerified.email
-                      ? "✓ Verified"
-                      : "Verify"}
+                        ? "✓ Verified"
+                        : "Verify"}
                   </button>
                 </div>
               </div>

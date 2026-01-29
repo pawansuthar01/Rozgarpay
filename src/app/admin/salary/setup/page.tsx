@@ -5,6 +5,7 @@ import { useEffect, useState, useCallback } from "react";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import { debounce } from "@/lib/utils";
+import { useSalarySetup, useUpdateSalarySetup } from "@/hooks";
 import {
   Search,
   Users,
@@ -22,38 +23,52 @@ import {
   Building,
 } from "lucide-react";
 
-interface StaffMember {
-  id: string;
-  firstName: string | null;
-  lastName: string | null;
-  email: string;
-  role: string;
-  baseSalary: number | null;
-  hourlyRate: number | null;
-  dailyRate: number | null;
-  salaryType: string | null;
-  workingDays: number | null;
-  overtimeRate: number | null;
-  pfEsiApplicable: boolean | null;
-  joiningDate: string | null;
-  createdAt: string;
-}
-
 export default function AdminSalarySetupPage() {
   const { data: session } = useSession();
-  const [staff, setStaff] = useState<StaffMember[]>([]);
   const [selectedStaff, setSelectedStaff] = useState<Set<string>>(new Set());
   const [editingStaff, setEditingStaff] = useState<Set<string>>(new Set());
   const [salaryConfigs, setSalaryConfigs] = useState<Record<string, any>>({});
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
-  const [totalCount, setTotalCount] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
+
+  const {
+    data,
+    isLoading,
+    error: queryError,
+  } = useSalarySetup({
+    page: currentPage,
+    limit: itemsPerPage,
+    search: searchTerm,
+  });
+
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const updateSalarySetup = useUpdateSalarySetup();
+
+  const staff = data?.staff || [];
+  const totalCount = data?.pagination?.totalCount || 0;
+  const totalPages = data?.pagination?.totalPages || 1;
+  const loading = isLoading;
+  const saving = updateSalarySetup.isPending;
+
+  // Handle query errors
+  useEffect(() => {
+    if (queryError) {
+      setError(queryError.message);
+    } else {
+      setError(null);
+    }
+  }, [queryError]);
+
+  // Clear success/error messages when mutation starts
+  useEffect(() => {
+    if (updateSalarySetup.isPending) {
+      setError(null);
+      setSuccess(null);
+    }
+  }, [updateSalarySetup.isPending]);
 
   // Debounced search function
   const debouncedSetSearchTerm = useCallback(
@@ -64,57 +79,27 @@ export default function AdminSalarySetupPage() {
     [],
   );
 
+  // Initialize salary configs when data changes
   useEffect(() => {
-    fetchStaff();
-  }, [currentPage, searchTerm]);
-
-  const fetchStaff = async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        page: currentPage.toString(),
-        limit: itemsPerPage.toString(),
+    if (staff.length > 0) {
+      const configs: Record<string, any> = {};
+      staff.forEach((s) => {
+        configs[s.id] = {
+          baseSalary: s.baseSalary || "",
+          hourlyRate: s.hourlyRate || "",
+          dailyRate: s.dailyRate || "",
+          salaryType: s.salaryType || "MONTHLY",
+          workingDays: s.workingDays || 26,
+          overtimeRate: s.overtimeRate || "",
+          pfEsiApplicable: s.pfEsiApplicable ?? true,
+          joiningDate: s.joiningDate
+            ? new Date(s.joiningDate).toISOString().split("T")[0]
+            : new Date(s.createdAt).toISOString().split("T")[0],
+        };
       });
-
-      if (searchTerm) {
-        params.set("search", searchTerm);
-      }
-
-      const res = await fetch(`/api/admin/salary-setup?${params}`);
-      const data = await res.json();
-
-      if (res.ok) {
-        setStaff(data.staff);
-        setTotalCount(data.pagination.totalCount);
-        setTotalPages(data.pagination.totalPages);
-
-        // Initialize salary configs
-        const configs: Record<string, any> = {};
-        data.staff.forEach((s: StaffMember) => {
-          configs[s.id] = {
-            baseSalary: s.baseSalary || "",
-            hourlyRate: s.hourlyRate || "",
-            dailyRate: s.dailyRate || "",
-            salaryType: s.salaryType || "MONTHLY",
-            workingDays: s.workingDays || 26,
-            overtimeRate: s.overtimeRate || "",
-            pfEsiApplicable: s.pfEsiApplicable ?? true,
-            joiningDate: s.joiningDate
-              ? new Date(s.joiningDate).toISOString().split("T")[0]
-              : new Date(s.createdAt).toISOString().split("T")[0],
-          };
-        });
-        setSalaryConfigs(configs);
-      } else {
-        setError(data.error || "Failed to fetch staff");
-      }
-    } catch (error) {
-      console.error("Failed to fetch staff:", error);
-      setError("Failed to fetch staff");
-    } finally {
-      setLoading(false);
+      setSalaryConfigs(configs);
     }
-  };
+  }, [staff]);
 
   const handleStaffSelection = (staffId: string, selected: boolean) => {
     const newSelected = new Set(selectedStaff);
@@ -153,40 +138,24 @@ export default function AdminSalarySetupPage() {
   };
 
   const handleSave = async () => {
-    setSaving(true);
-    setError(null);
-    setSuccess(null);
+    const staffUpdates = Array.from(editingStaff).map((staffId) => ({
+      userId: staffId,
+      ...salaryConfigs[staffId],
+    }));
 
     try {
-      const staffUpdates = Array.from(editingStaff).map((staffId) => ({
-        userId: staffId,
-        ...salaryConfigs[staffId],
-      }));
-
-      const res = await fetch("/api/admin/salary-setup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ staffUpdates }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        setSuccess(
-          `Salary configurations saved for ${staffUpdates.length} employee(s)!`,
-        );
-        setEditingStaff(new Set());
-        setSelectedStaff(new Set());
-        // Refresh data
-        await fetchStaff();
-      } else {
-        setError(data.error || "Failed to save salary configurations");
-      }
+      await updateSalarySetup.mutateAsync({ staffUpdates });
+      setSuccess(
+        `Salary configurations saved for ${staffUpdates.length} employee(s)!`,
+      );
+      setEditingStaff(new Set());
+      setSelectedStaff(new Set());
     } catch (error) {
-      console.error("Failed to save:", error);
-      setError("Failed to save salary configurations");
-    } finally {
-      setSaving(false);
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Failed to save salary configurations",
+      );
     }
   };
 
@@ -221,7 +190,7 @@ export default function AdminSalarySetupPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
+      <div className="max-w-7xl mx-auto  sm:px-6 lg:px-8 py-6 md:py-8">
         {/* Header */}
         <div className="mb-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
@@ -451,6 +420,7 @@ export default function AdminSalarySetupPage() {
                                     className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
                                   >
                                     <option value="MONTHLY">Monthly</option>
+                                    <option value="DAILY">Daily</option>
                                     <option value="HOURLY">Hourly</option>
                                   </select>
                                 </div>
@@ -469,6 +439,26 @@ export default function AdminSalarySetupPage() {
                                         handleSalaryConfigChange(
                                           member.id,
                                           "baseSalary",
+                                          e.target.value,
+                                        )
+                                      }
+                                      className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+                                    />
+                                  </div>
+                                ) : salaryConfigs[member.id]?.salaryType ===
+                                  "DAILY" ? (
+                                  <div>
+                                    <input
+                                      type="number"
+                                      placeholder="Daily"
+                                      value={
+                                        salaryConfigs[member.id]?.dailyRate ||
+                                        ""
+                                      }
+                                      onChange={(e) =>
+                                        handleSalaryConfigChange(
+                                          member.id,
+                                          "dailyRate",
                                           e.target.value,
                                         )
                                       }
@@ -539,15 +529,21 @@ export default function AdminSalarySetupPage() {
                                   <span className="font-medium">
                                     {member.salaryType === "MONTHLY"
                                       ? `₹${member.baseSalary || 0}/month`
-                                      : `₹${member.hourlyRate || 0}/hour`}
+                                      : member.salaryType === "DAILY"
+                                        ? `₹${member.dailyRate || 0}/day`
+                                        : `₹${member.hourlyRate || 0}/hour`}
                                   </span>
                                 </div>
-                                <div>
-                                  <span className="text-gray-500">Daily: </span>
-                                  <span className="font-medium">
-                                    ₹{member.dailyRate || 0}
-                                  </span>
-                                </div>
+                                {member.salaryType !== "DAILY" && (
+                                  <div>
+                                    <span className="text-gray-500">
+                                      Daily:{" "}
+                                    </span>
+                                    <span className="font-medium">
+                                      ₹{member.dailyRate || 0}
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
@@ -556,8 +552,8 @@ export default function AdminSalarySetupPage() {
                     </div>
 
                     {/* Mobile View */}
-                    <div className="md:hidden">
-                      <div className="flex items-start space-x-3">
+                    <div className="md:hidden overflow-x-auto">
+                      <div className="flex items-start space-x-3 overflow-x-auto scrollbar-hide">
                         <input
                           type="checkbox"
                           checked={isSelected}
@@ -606,6 +602,7 @@ export default function AdminSalarySetupPage() {
                                     className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                                   >
                                     <option value="MONTHLY">Monthly</option>
+                                    <option value="DAILY">Daily</option>
                                     <option value="HOURLY">Hourly</option>
                                   </select>
                                 </div>
@@ -627,6 +624,29 @@ export default function AdminSalarySetupPage() {
                                         handleSalaryConfigChange(
                                           member.id,
                                           "baseSalary",
+                                          e.target.value,
+                                        )
+                                      }
+                                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                                    />
+                                  </div>
+                                ) : salaryConfigs[member.id]?.salaryType ===
+                                  "DAILY" ? (
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                                      Daily Rate
+                                    </label>
+                                    <input
+                                      type="number"
+                                      placeholder="₹0"
+                                      value={
+                                        salaryConfigs[member.id]?.dailyRate ||
+                                        ""
+                                      }
+                                      onChange={(e) =>
+                                        handleSalaryConfigChange(
+                                          member.id,
+                                          "dailyRate",
                                           e.target.value,
                                         )
                                       }
@@ -780,15 +800,19 @@ export default function AdminSalarySetupPage() {
                                 <p className="font-semibold text-gray-900">
                                   {member.salaryType === "MONTHLY"
                                     ? `₹${member.baseSalary || 0}/month`
-                                    : `₹${member.hourlyRate || 0}/hour`}
+                                    : member.salaryType === "DAILY"
+                                      ? `₹${member.dailyRate || 0}/day`
+                                      : `₹${member.hourlyRate || 0}/hour`}
                                 </p>
                               </div>
-                              <div>
-                                <p className="text-gray-500">Daily Rate</p>
-                                <p className="font-semibold text-gray-900">
-                                  ₹{member.dailyRate || 0}
-                                </p>
-                              </div>
+                              {member.salaryType !== "DAILY" && (
+                                <div>
+                                  <p className="text-gray-500">Daily Rate</p>
+                                  <p className="font-semibold text-gray-900">
+                                    ₹{member.dailyRate || 0}
+                                  </p>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>

@@ -11,12 +11,58 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { attendanceDate, type, requestedTime, reason, evidence } =
-      await request.json();
+    const {
+      attendanceDate,
+      endDate,
+      type,
+      requestedTime,
+      requestedAmount,
+      reason,
+      evidence,
+    } = await request.json();
 
     if (!attendanceDate || !type || !reason) {
       return NextResponse.json(
         { error: "Missing required fields" },
+        { status: 400 },
+      );
+    }
+
+    // Validate endDate for leave requests (optional for single day)
+    if (
+      type === "LEAVE_REQUEST" &&
+      endDate &&
+      new Date(endDate) < new Date(attendanceDate)
+    ) {
+      return NextResponse.json(
+        { error: "End date cannot be before start date" },
+        { status: 400 },
+      );
+    }
+
+    // Validate requestedAmount for salary requests
+    if (
+      type === "SALARY_REQUEST" &&
+      (!requestedAmount || requestedAmount <= 0)
+    ) {
+      return NextResponse.json(
+        { error: "Valid amount is required for salary requests" },
+        { status: 400 },
+      );
+    }
+
+    const validTypes = [
+      "MISSED_PUNCH_IN",
+      "MISSED_PUNCH_OUT",
+      "ATTENDANCE_MISS",
+      "LEAVE_REQUEST",
+      "SUPPORT_REQUEST",
+      "SALARY_REQUEST",
+    ];
+
+    if (!validTypes.includes(type)) {
+      return NextResponse.json(
+        { error: "Invalid request type" },
         { status: 400 },
       );
     }
@@ -51,30 +97,40 @@ export async function POST(request: NextRequest) {
 
     if (existingRequest) {
       return NextResponse.json(
-        { error: "Correction request already exists" },
+        {
+          error:
+            " attendance is  already exist please content to admin or manager to change status...",
+        },
         { status: 400 },
       );
     }
 
-    // Find or create attendance record
-    let attendance = await prisma.attendance.findUnique({
-      where: {
-        userId_attendanceDate: {
-          userId,
-          attendanceDate: date,
-        },
-      },
-    });
-
-    if (!attendance) {
-      attendance = await prisma.attendance.create({
-        data: {
-          userId,
-          companyId,
-          attendanceDate: date,
-          imageUrl: "", // Placeholder
+    // Find or create attendance record (only for attendance-related requests)
+    let attendance = null;
+    if (
+      ["MISSED_PUNCH_IN", "MISSED_PUNCH_OUT", "ATTENDANCE_MISS"].includes(type)
+    ) {
+      attendance = await prisma.attendance.findUnique({
+        where: {
+          userId_companyId_attendanceDate: {
+            userId,
+            companyId,
+            attendanceDate: date,
+          },
         },
       });
+
+      if (!attendance) {
+        attendance = await prisma.attendance.create({
+          data: {
+            userId,
+            companyId,
+            attendanceDate: date,
+            punchInImageUrl: "",
+            punchOutImageUrl: "",
+          },
+        });
+      }
     }
 
     // Create correction request
@@ -82,10 +138,12 @@ export async function POST(request: NextRequest) {
       data: {
         userId,
         companyId,
-        attendanceId: attendance.id,
+        attendanceId: attendance?.id || null,
         attendanceDate: date,
+        endDate: endDate ? new Date(endDate) : null,
         type,
         requestedTime: requestedTime ? new Date(requestedTime) : null,
+        requestedAmount: requestedAmount || null,
         reason,
         evidence,
       },

@@ -3,10 +3,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "../../../auth/[...nextauth]/route";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ userId: string }> }
-) {
+export async function GET(request: NextRequest, { params }: any) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -29,7 +26,7 @@ export async function GET(
     if (!admin?.company) {
       return NextResponse.json(
         { error: "Admin company not found" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -105,8 +102,8 @@ export async function GET(
         stat.status === "APPROVED"
           ? "#10B981"
           : stat.status === "PENDING"
-          ? "#F59E0B"
-          : "#EF4444",
+            ? "#F59E0B"
+            : "#EF4444",
     }));
 
     // Calculate monthly attendance trend (last 6 months) - simplified approach
@@ -142,7 +139,7 @@ export async function GET(
         }
         return acc;
       },
-      []
+      [],
     );
 
     // Calculate salary trend (last 6 months) - simplified approach
@@ -232,15 +229,12 @@ export async function GET(
     console.error("User details fetch error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ userId: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: any) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -264,7 +258,7 @@ export async function PATCH(
     if (!admin?.company) {
       return NextResponse.json(
         { error: "Admin company not found" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -303,10 +297,9 @@ export async function PATCH(
       message: "User status updated successfully",
     });
   } catch (error) {
-    console.error("User status update error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

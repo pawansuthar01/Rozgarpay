@@ -1,0 +1,142 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { prisma } from "@/lib/prisma";
+import { salaryService } from "@/lib/salaryService";
+import { authOptions } from "../../../../auth/[...nextauth]/route";
+
+export async function GET(request: NextRequest, { params }: any) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session || session.user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { userId } = await params;
+    const companyId = session.user.companyId;
+    const { searchParams } = new URL(request.url);
+    const monthParam = searchParams.get("month");
+
+    if (!companyId) {
+      return NextResponse.json(
+        { error: "No company assigned" },
+        { status: 400 },
+      );
+    }
+
+    // Parse month parameter
+    let month: number, year: number;
+    if (monthParam && monthParam.includes("-")) {
+      [year, month] = monthParam.split("-").map(Number);
+    } else {
+      const currentDate = new Date();
+      month = currentDate.getMonth() + 1;
+      year = currentDate.getFullYear();
+    }
+
+    // Get salary record for the specified month
+    const salary = await prisma.salary.findFirst({
+      where: {
+        userId,
+        companyId,
+        month,
+        year,
+      },
+      include: {
+        ledger: {
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 100, // Limit ledger entries for performance
+        },
+      },
+    });
+
+    if (!salary) {
+      return NextResponse.json({
+        month,
+        year,
+        grossAmount: 0,
+        netAmount: 0,
+        totalPaid: 0,
+        totalRecovered: 0,
+        balanceAmount: 0,
+        payments: [],
+        deductions: [],
+        recoveries: [],
+      });
+    }
+
+    // Get ledger entries for calculations
+    const ledgerEntries = salary.ledger || [];
+
+    // Calculate totals from ledger
+    const totalPaid = ledgerEntries
+      .filter((entry) => entry.type === "PAYMENT")
+      .reduce((sum, entry) => sum + entry.amount, 0);
+
+    const totalRecovered = ledgerEntries
+      .filter((entry) => entry.type === "RECOVERY")
+      .reduce((sum, entry) => sum + Math.abs(entry.amount), 0);
+
+    const totalDeductions = ledgerEntries
+      .filter((entry) => entry.type === "DEDUCTION")
+      .reduce((sum, entry) => sum + Math.abs(entry.amount), 0);
+
+    const balanceAmount = salaryService.calculateSalaryBalance(
+      salary,
+      ledgerEntries,
+    );
+
+    // Group ledger entries
+    const payments = ledgerEntries
+      .filter((entry) => entry.type === "PAYMENT")
+      .map((entry) => ({
+        id: entry.id,
+        amount: entry.amount,
+        type: entry.type,
+        description: entry.reason,
+        date: entry.createdAt.toISOString().split("T")[0],
+      }));
+
+    const deductions = ledgerEntries
+      .filter((entry) => entry.type === "DEDUCTION")
+      .map((entry) => ({
+        id: entry.id,
+        amount: Math.abs(entry.amount),
+        type: entry.type,
+        description: entry.reason,
+        date: entry.createdAt.toISOString().split("T")[0],
+      }));
+
+    const recoveries = ledgerEntries
+      .filter((entry) => entry.type === "RECOVERY")
+      .map((entry) => ({
+        id: entry.id,
+        amount: Math.abs(entry.amount),
+        type: entry.type,
+        description: entry.reason,
+        date: entry.createdAt.toISOString().split("T")[0],
+      }));
+
+    return NextResponse.json({
+      month,
+      year,
+      grossAmount: salary.grossAmount,
+      netAmount: salary.netAmount,
+      totalPaid,
+      totalRecovered,
+      balanceAmount,
+      payments,
+      deductions,
+      recoveries,
+      pdfUrl: salary.pdfUrl,
+    });
+  } catch (error) {
+    console.error("Admin user salary GET error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
+  }
+}

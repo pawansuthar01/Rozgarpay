@@ -25,12 +25,6 @@ export function startCronJobs() {
     }
   });
 
-  // Optional: Add more cron jobs here in the future
-  // - Daily attendance reports
-  // - Salary calculations
-  // - Notification cleanup
-  // - etc.
-
   console.log("✅ Attendance cron jobs initialized");
 }
 

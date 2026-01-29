@@ -3,6 +3,7 @@
 import { useSession } from "next-auth/react";
 import { useState } from "react";
 import { Download, Share2 } from "lucide-react";
+import { useSalarySlipDownload } from "@/hooks";
 
 const currentYear = new Date().getFullYear();
 const currentMonth = new Date().getMonth() + 1;
@@ -13,39 +14,23 @@ export default function StaffSalarySlipsPage() {
   const [year, setYear] = useState<number | null>(null);
   const [month, setMonth] = useState<number | null>(null);
   const [type, setType] = useState<"full" | "summary" | null>(null);
-  const [loading, setLoading] = useState(false);
+
+  // Use the custom hook
+  const downloadMutation = useSalarySlipDownload();
 
   if (!session || session.user.role !== "STAFF") {
     return <div className="p-6 text-center">Access Denied</div>;
   }
 
-  const generatePdf = async (): Promise<File> => {
-    const params = new URLSearchParams({
-      year: String(year),
-      month: String(month),
-      type: type!,
-    });
-
-    const res = await fetch(`/api/staff/salary-slips/generate?${params}`);
-    const contentType = res.headers.get("content-type");
-
-    if (!res.ok || !contentType?.includes("pdf")) {
-      const err = await res.json();
-      throw new Error(err?.error || "Failed to generate PDF");
-    }
-
-    const blob = await res.blob();
-    return new File([blob], `${type}-salary-slip-${month}-${year}.pdf`, {
-      type: "application/pdf",
-    });
-  };
-
   const handleAction = async (share = false) => {
     if (!year || !month || !type) return;
-    setLoading(true);
 
     try {
-      const file = await generatePdf();
+      const file = await downloadMutation.mutateAsync({
+        year,
+        month,
+        type,
+      });
 
       if (share && navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file] });
@@ -59,8 +44,6 @@ export default function StaffSalarySlipsPage() {
       }
     } catch (e: any) {
       alert(e.message || "Failed to generate salary slip");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -136,7 +119,7 @@ export default function StaffSalarySlipsPage() {
           <div className="bg-white p-4 rounded-xl shadow-sm space-y-3">
             <button
               onClick={() => handleAction(false)}
-              disabled={loading}
+              disabled={downloadMutation.isPending}
               className="w-full bg-green-600 text-white py-3 rounded-lg flex justify-center gap-2"
             >
               <Download size={18} /> Download PDF
@@ -144,7 +127,7 @@ export default function StaffSalarySlipsPage() {
 
             <button
               onClick={() => handleAction(true)}
-              disabled={loading}
+              disabled={downloadMutation.isPending}
               className="w-full bg-blue-600 text-white py-3 rounded-lg flex justify-center gap-2"
             >
               <Share2 size={18} /> Share PDF
@@ -152,7 +135,7 @@ export default function StaffSalarySlipsPage() {
           </div>
         )}
 
-        {loading && (
+        {downloadMutation.isPending && (
           <p className="text-center text-sm text-gray-500">
             Generating salary slip…
           </p>

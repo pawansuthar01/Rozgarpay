@@ -4,8 +4,9 @@ export interface AttendanceRecord {
   user: {
     firstName: string | null;
     lastName: string | null;
-    email: string;
+    phone: string;
   };
+  LateMinute?: number;
   attendanceDate: string;
   punchIn: string | null;
   punchOut: string | null;
@@ -14,7 +15,7 @@ export interface AttendanceRecord {
   punchInImageUrl?: string;
   workingHours?: number;
   overtimeHours?: number;
-  isLate?: boolean;
+  shiftDurationHours?: number;
   requiresApproval?: boolean;
   approvalReason?: string;
   approvedBy?: string;
@@ -26,9 +27,10 @@ export interface AttendanceRecord {
 export interface AttendanceStats {
   totalRecords: number;
   pending: number;
+  absent: number;
   approved: number;
   rejected: number;
-  halfDay: number;
+  leave: number;
 }
 
 export interface AttendanceTrend {

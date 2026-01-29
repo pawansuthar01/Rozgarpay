@@ -31,33 +31,6 @@ export async function GET() {
       },
     });
 
-    // Get today's attendance
-    const todayAttendance = await prisma.attendance.findFirst({
-      where: {
-        userId,
-        attendanceDate: {
-          gte: today,
-          lt: tomorrow,
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
-
-    // Get last attendance (excluding today)
-    const lastAttendance = await prisma.attendance.findFirst({
-      where: {
-        userId,
-        attendanceDate: {
-          lt: today,
-        },
-      },
-      orderBy: {
-        attendanceDate: "desc",
-      },
-    });
-
     // Get recent notifications
     const notifications = await prisma.notification.findMany({
       where: {
@@ -69,38 +42,13 @@ export async function GET() {
       take: 3,
     });
 
-    // Determine today's status
-    let status: "not_punched" | "punched_in" | "punched_out" | "pending" =
-      "not_punched";
-    if (todayAttendance) {
-      if (todayAttendance.status === "PENDING") {
-        status = "pending";
-      } else if (todayAttendance.punchOut) {
-        status = "punched_out";
-      } else if (todayAttendance.punchIn) {
-        status = "punched_in";
-      }
-    }
-
     const dashboardData = {
       user: {
         firstName: user?.firstName,
         lastName: user?.lastName,
         companyName: user?.company?.name,
       },
-      todayAttendance: {
-        status,
-        punchInTime: todayAttendance?.punchIn?.toISOString(),
-        punchOutTime: todayAttendance?.punchOut?.toISOString(),
-        lastAttendance: lastAttendance
-          ? {
-              date: lastAttendance.attendanceDate.toISOString(),
-              punchIn: lastAttendance?.punchIn?.toISOString(),
-              punchOut: lastAttendance.punchOut?.toISOString(),
-              status: lastAttendance.status,
-            }
-          : undefined,
-      },
+
       notifications: notifications.map((notification) => ({
         id: notification.id,
         title: notification.title,

@@ -34,7 +34,7 @@ export async function GET(request: Request) {
     const totalStaff = await prisma.user.count({
       where: {
         companyId,
-        role: { in: ["STAFF", "ACCOUNTANT"] },
+        role: { in: ["STAFF"] },
         status: "ACTIVE",
       },
     });
@@ -75,10 +75,10 @@ export async function GET(request: Request) {
       const day = dailyStats.get(dateKey);
       day.total_records++;
 
-      if (record.status === "APPROVED") {
+      if (record?.punchIn && record.status === "APPROVED") {
         day.present++;
-        // Check if late (after 9:30 AM)
-        const punchTime = new Date(record.punchIn);
+
+        const punchTime = new Date(record?.punchIn);
         const lateThreshold = new Date(record.attendanceDate);
         lateThreshold.setHours(9, 30, 0, 0);
         if (punchTime > lateThreshold) {

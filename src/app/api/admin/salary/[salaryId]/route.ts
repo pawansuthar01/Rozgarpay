@@ -6,7 +6,8 @@ import { salaryService } from "@/lib/salaryService";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { salaryId: string } },
+
+  { params }: any,
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -109,10 +110,7 @@ export async function GET(
   }
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: { salaryId: string } },
-) {
+export async function PATCH(request: NextRequest, { params }: any) {
   try {
     const session = await getServerSession(authOptions);
 

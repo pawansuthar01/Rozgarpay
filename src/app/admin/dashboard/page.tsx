@@ -1,395 +1,379 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import Skeleton from "react-loading-skeleton";
-import "react-loading-skeleton/dist/skeleton.css";
-import OnboardingModal from "@/components/OnboardingModal";
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-} from "recharts";
 import {
   Users,
-  CheckCircle,
-  XCircle,
+  UserCheck,
+  UserX,
   Clock,
   DollarSign,
+  Wallet,
+  FileText,
+  TrendingUp,
+  Calendar,
+  BarChart3,
+  Settings,
+  ChevronRight,
   Activity,
-  UserPlus,
-  CheckSquare,
-  ArrowRight,
+  AlertCircle,
+  CheckCircle2,
+  IndianRupee,
 } from "lucide-react";
-
-interface DashboardStats {
-  totalStaff: number;
-  todaysAttendance: {
-    present: number;
-    absent: number;
-    pending: number;
-  };
-  monthlySalarySummary: {
-    totalPaid: number;
-    pending: number;
-  };
-  recentActivities: Array<{
-    id: string;
-    action: string;
-    user: string;
-    timestamp: string;
-  }>;
-}
+import { useDashboardStats } from "@/hooks/useDashboard";
 
 export default function AdminDashboard() {
-  const { data: session, update } = useSession();
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [auditLogs, setAuditLogs] = useState([]);
-  const [auditLoading, setAuditLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [filter, setFilter] = useState("");
-  const [showOnboarding, setShowOnboarding] = useState(false);
+  const { data: dashboardData, isLoading, error } = useDashboardStats();
 
-  useEffect(() => {
-    // Check if onboarding should be shown
-    if (session?.user && !session.user.onboardingCompleted) {
-      setShowOnboarding(true);
-    }
-  }, [session]);
-
-  useEffect(() => {
-    // Fetch dashboard stats
-    fetch("/api/admin/stats")
-      .then((res) => res.json())
-      .then((data) => {
-        setStats(data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-
-    // Fetch audit logs
-    fetchAuditLogs();
-  }, [currentPage, filter]);
-
-  const fetchAuditLogs = () => {
-    setAuditLoading(true);
-    fetch(`/api/admin/audit-logs?page=${currentPage}&filter=${filter}`)
-      .then((res) => res.json())
-      .then((data) => {
-        setAuditLogs(data.logs);
-        setAuditLoading(false);
-      })
-      .catch(() => setAuditLoading(false));
-  };
-
-  const handleOnboardingComplete = async () => {
-    try {
-      await fetch("/api/user/onboarding", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      setShowOnboarding(false);
-      // Update session to reflect onboarding completion
-      await update({
-        onboardingCompleted: true,
-      });
-    } catch (error) {
-      console.error("Failed to mark onboarding as complete:", error);
-    }
-  };
-
-  if (!session || session.user.role !== "ADMIN") {
-    return <div>Access Denied</div>;
-  }
-
-  const attendanceData = stats
-    ? [
-        {
-          name: "Present",
-          value: stats.todaysAttendance.present,
-          color: "#10B981",
-        },
-        {
-          name: "Absent",
-          value: stats.todaysAttendance.absent,
-          color: "#EF4444",
-        },
-        {
-          name: "Pending",
-          value: stats.todaysAttendance.pending,
-          color: "#F59E0B",
-        },
-      ]
-    : [];
-
-  const salaryData = stats
-    ? [
-        { name: "Paid", value: stats.monthlySalarySummary.totalPaid },
-        { name: "Pending", value: stats.monthlySalarySummary.pending },
-      ]
-    : [];
-
-  return (
-    <div className="space-y-8 p-4 md:p-6 lg:p-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-            Admin Dashboard
-          </h1>
-          <p className="mt-2 text-gray-600">
-            Manage your staff, attendance, and operations.
-          </p>
-        </div>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-        <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Staff</p>
-              {loading ? (
-                <Skeleton height={36} width={50} />
-              ) : (
-                <p className="text-3xl font-bold text-gray-900">
-                  {stats?.totalStaff || 0}
-                </p>
-              )}
-            </div>
-            <Users className="h-8 w-8 text-blue-600" />
-          </div>
-        </div>
-
-        <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Present Today</p>
-              {loading ? (
-                <Skeleton height={36} width={50} />
-              ) : (
-                <p className="text-3xl font-bold text-green-600">
-                  {stats?.todaysAttendance.present || 0}
-                </p>
-              )}
-            </div>
-            <CheckCircle className="h-8 w-8 text-green-600" />
-          </div>
-        </div>
-
-        <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Absent Today</p>
-              {loading ? (
-                <Skeleton height={36} width={50} />
-              ) : (
-                <p className="text-3xl font-bold text-red-600">
-                  {stats?.todaysAttendance.absent || 0}
-                </p>
-              )}
-            </div>
-            <XCircle className="h-8 w-8 text-red-600" />
-          </div>
-        </div>
-
-        <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">
-                Pending Approval
-              </p>
-              {loading ? (
-                <Skeleton height={36} width={50} />
-              ) : (
-                <p className="text-3xl font-bold text-yellow-600">
-                  {stats?.todaysAttendance.pending || 0}
-                </p>
-              )}
-            </div>
-            <Clock className="h-8 w-8 text-yellow-600" />
-          </div>
-        </div>
-      </div>
-
-      {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
-        {/* Attendance Pie Chart */}
-        <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Today's Attendance
-          </h3>
-          {loading ? (
-            <Skeleton height={300} />
-          ) : (
-            <div className="h-64 md:h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={attendanceData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {attendanceData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
-
-        {/* Salary Summary Bar Chart */}
-        <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Monthly Salary Summary
-          </h3>
-          {loading ? (
-            <Skeleton height={300} />
-          ) : (
-            <div className="h-64 md:h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={salaryData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="value" fill="#10B981" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Recent Activities */}
-      <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">
-            Recent Activities
-          </h3>
-          <div className="flex items-center space-x-2 mt-2 sm:mt-0">
-            <input
-              type="text"
-              placeholder="Filter activities..."
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-            />
-          </div>
-        </div>
-        <div className="space-y-4">
-          {auditLoading
-            ? Array.from({ length: 5 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="flex items-center space-x-4 p-4 bg-gray-50 rounded"
-                >
-                  <Skeleton circle height={32} width={32} />
-                  <div className="flex-1">
-                    <Skeleton height={16} width="60%" />
-                    <Skeleton height={12} width="40%" />
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+          {/* Skeleton Stats Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-6 sm:mb-8">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div
+                key={index}
+                className="bg-white p-4 rounded-xl border border-gray-200 animate-pulse"
+              >
+                <div className="flex flex-col items-center text-center space-y-2">
+                  <div className="w-8 h-8 bg-gray-200 rounded-lg"></div>
+                  <div className="w-full space-y-2">
+                    <div className="h-3 bg-gray-200 rounded w-3/4 mx-auto"></div>
+                    <div className="h-5 bg-gray-200 rounded w-1/2 mx-auto"></div>
                   </div>
-                  <Skeleton height={12} width={80} />
                 </div>
-              ))
-            : auditLogs.map((log: any) => (
+              </div>
+            ))}
+          </div>
+
+          {/* Skeleton Quick Actions */}
+          <div className="mb-8">
+            <div className="h-6 bg-gray-200 rounded w-32 mb-4 animate-pulse"></div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, index) => (
                 <div
-                  key={log.id}
-                  className="flex items-center space-x-4 p-4 bg-gray-50 rounded"
+                  key={index}
+                  className="bg-white p-4 rounded-xl border border-gray-200 animate-pulse"
                 >
-                  <Activity className="h-8 w-8 text-blue-600" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">
-                      {log.action}
-                    </p>
-                    <p className="text-xs text-gray-600">by {log.user}</p>
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-gray-200 rounded-lg"></div>
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                      <div className="h-3 bg-gray-200 rounded w-3/4"></div>
+                    </div>
+                    <div className="w-4 h-4 bg-gray-200 rounded"></div>
                   </div>
-                  <span className="text-xs text-gray-500">
-                    {new Date(log.timestamp).toLocaleString()}
-                  </span>
                 </div>
               ))}
-        </div>
-        {/* Pagination */}
-        <div className="flex justify-between items-center mt-4">
-          <button
-            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-            disabled={currentPage === 1}
-            className="px-4 py-2 bg-gray-200 text-gray-700 rounded disabled:opacity-50"
-          >
-            Previous
-          </button>
-          <span>Page {currentPage}</span>
-          <button
-            onClick={() => setCurrentPage(currentPage + 1)}
-            className="px-4 py-2 bg-gray-200 text-gray-700 rounded"
-          >
-            Next
-          </button>
+            </div>
+          </div>
+
+          {/* Skeleton Recent Activity */}
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="p-4 sm:p-6 border-b border-gray-200">
+              <div className="h-6 bg-gray-200 rounded w-40 animate-pulse"></div>
+            </div>
+            <div className="divide-y divide-gray-200">
+              {Array.from({ length: 5 }).map((_, index) => (
+                <div key={index} className="p-4 animate-pulse">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
+                      <div className="space-y-2">
+                        <div className="h-4 bg-gray-200 rounded w-32"></div>
+                        <div className="h-3 bg-gray-200 rounded w-48"></div>
+                      </div>
+                    </div>
+                    <div className="w-16 h-5 bg-gray-200 rounded-full"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
+    );
+  }
 
-      {/* Quick Actions */}
-      <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          Quick Actions
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Link
-            href="/admin/staff/add"
-            className="flex items-center justify-between p-4 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors group"
-          >
-            <div className="flex items-center space-x-3">
-              <UserPlus className="h-6 w-6 text-blue-600" />
-              <div>
-                <p className="font-medium text-gray-900">Add Staff</p>
-                <p className="text-sm text-gray-600">Add new staff member</p>
-              </div>
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+          <div className="text-center py-12">
+            <div className="mx-auto w-24 h-24 bg-red-100 rounded-full flex items-center justify-center mb-6">
+              <svg
+                className="w-12 h-12 text-red-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+                />
+              </svg>
             </div>
-            <ArrowRight className="h-5 w-5 text-blue-600 group-hover:translate-x-1 transition-transform" />
-          </Link>
-
-          <Link
-            href="/admin/attendance/approve"
-            className="flex items-center justify-between p-4 bg-green-50 hover:bg-green-100 rounded-lg transition-colors group"
-          >
-            <div className="flex items-center space-x-3">
-              <CheckSquare className="h-6 w-6 text-green-600" />
-              <div>
-                <p className="font-medium text-gray-900">Approve Attendance</p>
-                <p className="text-sm text-gray-600">
-                  Review pending attendance
-                </p>
-              </div>
+            <h2 className="text-2xl font-semibold text-gray-900 mb-2">
+              Oops! Something went wrong
+            </h2>
+            <p className="text-gray-600 mb-6 max-w-md mx-auto">
+              We're having trouble loading your dashboard data. This might be a
+              temporary issue with our servers.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <button
+                onClick={() => window.location.reload()}
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              >
+                Try Again
+              </button>
+              <button
+                onClick={() => window.history.back()}
+                className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+              >
+                Go Back
+              </button>
             </div>
-            <ArrowRight className="h-5 w-5 text-green-600 group-hover:translate-x-1 transition-transform" />
-          </Link>
+            <div className="mt-8 text-sm text-gray-500">
+              <p>If the problem persists, please contact support.</p>
+            </div>
+          </div>
         </div>
       </div>
+    );
+  }
+  const dashboardCards = [
+    {
+      title: "Total Staff",
+      value: dashboardData?.totalStaff || 0,
+      icon: Users,
+      color: "bg-blue-500",
+      bgColor: "bg-blue-50",
+      textColor: "text-blue-700",
+      href: "/admin/staff",
+    },
+    {
+      title: "Present Today",
+      value: dashboardData?.todaysAttendance.present || 0,
+      icon: UserCheck,
+      color: "bg-green-500",
+      bgColor: "bg-green-50",
+      textColor: "text-green-700",
+      href: "/admin/attendance",
+    },
+    {
+      title: "Absent Today",
+      value: dashboardData?.todaysAttendance.absent || 0,
+      icon: UserX,
+      color: "bg-red-500",
+      bgColor: "bg-red-50",
+      textColor: "text-red-700",
+      href: "/admin/attendance",
+    },
+    {
+      title: "Pending Approval",
+      value: dashboardData?.todaysAttendance.pending || 0,
+      icon: Clock,
+      color: "bg-yellow-500",
+      bgColor: "bg-yellow-50",
+      textColor: "text-yellow-700",
+      href: "/admin/attendance",
+    },
+    {
+      title: "Monthly Salary",
+      value: `₹${(dashboardData?.monthlySalarySummary.totalPaid || 0).toLocaleString()}`,
+      icon: IndianRupee,
+      color: "bg-purple-500",
+      bgColor: "bg-purple-50",
+      textColor: "text-purple-700",
+      href: "/admin/salary",
+    },
+    {
+      title: "Cash Balance",
+      value: `₹${(dashboardData?.cashbookBalance || 0).toLocaleString()}`,
+      icon: Wallet,
+      color: "bg-emerald-500",
+      bgColor: "bg-emerald-50",
+      textColor: "text-emerald-700",
+      href: "/admin/cashbook",
+    },
+  ];
 
-      <OnboardingModal
-        isOpen={showOnboarding}
-        onComplete={handleOnboardingComplete}
-        role={session?.user?.role || "ADMIN"}
-      />
+  const quickActions = [
+    {
+      title: "Add Staff",
+      description: "Invite new team member",
+      icon: Users,
+      href: "/admin/users/add",
+      color: "bg-blue-500",
+    },
+    {
+      title: "Mark Attendance",
+      description: "Record daily attendance",
+      icon: CheckCircle2,
+      href: "/admin/attendance/missing",
+      color: "bg-green-500",
+    },
+    {
+      title: "Generate Salary",
+      description: "Process monthly payroll",
+      icon: DollarSign,
+      href: "/admin/salary/generate",
+      color: "bg-purple-500",
+    },
+    {
+      title: "View Reports",
+      description: "Analytics & insights",
+      icon: BarChart3,
+      href: "/admin/reports",
+      color: "bg-orange-500",
+    },
+    {
+      title: "Manage Cashbook",
+      description: "Track transactions",
+      icon: Wallet,
+      href: "/admin/cashbook",
+      color: "bg-emerald-500",
+    },
+    {
+      title: "Settings",
+      description: "Configure system",
+      icon: Settings,
+      href: "/admin/settings",
+      color: "bg-gray-500",
+    },
+  ];
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+        {/* Stats Grid - Mobile-first responsive */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-6 sm:mb-8">
+          {dashboardCards.map((card, index) => {
+            const Icon = card.icon;
+            return (
+              <Link key={index} href={card.href} className="block">
+                <div
+                  className={`${card.bgColor} p-4 rounded-xl border border-gray-200 hover:shadow-md transition-all duration-200 group`}
+                >
+                  <div className="flex flex-col items-center text-center space-y-2">
+                    <div
+                      className={`${card.color} p-2 rounded-lg group-hover:scale-110 transition-transform duration-200`}
+                    >
+                      <Icon className="h-5 w-5 text-white sm:h-6 sm:w-6" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-gray-600 sm:text-sm">
+                        {card.title}
+                      </p>
+                      <p
+                        className={`text-lg font-bold sm:text-xl ${card.textColor}`}
+                      >
+                        {card.value}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+
+        {/* Quick Actions - Mobile-first grid */}
+        <div className="mb-8">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4 sm:text-xl">
+            Quick Actions
+          </h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {quickActions.map((action, index) => {
+              const Icon = action.icon;
+              return (
+                <Link
+                  key={index}
+                  href={action.href}
+                  className="block bg-white p-4 rounded-xl border border-gray-200 hover:shadow-md hover:border-gray-300 transition-all duration-200 group"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div
+                        className={`${action.color} p-2 rounded-lg group-hover:scale-110 transition-transform duration-200`}
+                      >
+                        <Icon className="h-4 w-4 text-white sm:h-5 sm:w-5" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900 text-sm sm:text-base">
+                          {action.title}
+                        </p>
+                        <p className="text-xs text-gray-600 sm:text-sm">
+                          {action.description}
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-gray-400 group-hover:text-gray-600 group-hover:translate-x-1 transition-all duration-200 sm:h-5 sm:w-5" />
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Recent Activity - Mobile optimized */}
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="p-4 sm:p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900 sm:text-xl">
+                Recent Activity
+              </h2>
+            </div>
+          </div>
+
+          <div className="divide-y divide-gray-200">
+            {/* Recent audit logs */}
+            {dashboardData?.recentActivities?.slice(0, 10).map((log: any) => (
+              <div
+                key={log.id}
+                className="p-4 hover:bg-gray-50 transition-colors"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                      <Activity className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        {log.action} {log.entity || ""}
+                      </p>
+                      <p className="text-xs text-gray-600">
+                        by {log.user} •{" "}
+                        {new Date(log.timestamp).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-700">
+                      {log.entity || "Activity"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {(!dashboardData?.recentActivities ||
+              dashboardData.recentActivities.length === 0) && (
+              <div className="p-8 text-center">
+                <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600">No recent activity</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer spacing for mobile */}
+        <div className="h-8 sm:h-12"></div>
+      </div>
     </div>
   );
 }

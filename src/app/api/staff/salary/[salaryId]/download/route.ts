@@ -4,10 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { authOptions } from "../../../../auth/[...nextauth]/route";
 import PDFDocument from "pdfkit";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { salaryId: string } },
-) {
+export async function GET(request: NextRequest, { params }: any) {
   try {
     const session = await getServerSession(authOptions);
 

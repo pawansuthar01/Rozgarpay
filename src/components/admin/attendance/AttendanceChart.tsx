@@ -12,7 +12,7 @@ import {
   Legend,
 } from "recharts";
 import Skeleton from "react-loading-skeleton";
-import { AttendanceStats, AttendanceTrend } from "@/types/attendance";
+import { AttendanceTrend } from "@/types/attendance";
 
 interface AttendanceChartProps {
   statusDistribution: { name: string; value: number; color: string }[];

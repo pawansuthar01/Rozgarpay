@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { toZonedTime, fromZonedTime } from "date-fns-tz";
+import { convertSeconds } from "./utils";
 
 export interface LocationData {
   lat: number;
@@ -125,8 +126,16 @@ export function isPunchInAllowed(
   if (now < early)
     return { allowed: false, isLate: false, reason: "Too early to punch in." };
 
-  if (now > late)
-    return { allowed: false, isLate: true, reason: "Too late to punch in." };
+  if (now > late) {
+    const lateMin = Math.floor((now.getTime() - late.getTime()) / (1000 * 60));
+
+    return {
+      allowed: true,
+      isLate: true,
+      reason: "Too late to punch in.",
+      lateMin,
+    };
+  }
 
   return { allowed: true, isLate: now > start };
 }
@@ -134,9 +143,14 @@ export function isPunchInAllowed(
 export function isPunchOutAllowed(punchIn: Date, min: number, max: number) {
   const hours = (Date.now() - punchIn.getTime()) / 36e5;
 
-  if (hours < min)
-    return { allowed: false, reason: "Minimum working hours not met." };
+  if (hours < min) {
+    const remainingMin = Math.ceil((min - hours) * 60);
 
+    return {
+      allowed: false,
+      reason: `Minimum working hours not met ,You can punch out after ${convertSeconds(remainingMin * 60)}`,
+    };
+  }
   if (hours > max)
     return {
       allowed: true,
@@ -153,20 +167,18 @@ export function calculateHours(
   shiftStart: string,
   shiftEnd: string,
   overtimeThreshold: number,
-  customShiftDurationHours?: number, // Manual shift duration
+  customShiftDurationHours?: number,
 ) {
   const worked = (punchOut.getTime() - punchIn.getTime()) / 36e5;
 
-  // Use custom duration if provided (for manual night shifts), otherwise use default calculation
   const shiftDuration =
     customShiftDurationHours ||
     (timeToMinutes(shiftEnd) - timeToMinutes(shiftStart)) / 60;
 
-  const overtimeStart = shiftDuration + overtimeThreshold;
-
+  // Overtime starts after regular shift duration
   return {
     workingHours: worked,
-    overtimeHours: Math.max(0, worked - overtimeStart),
+    overtimeHours: Math.max(0, worked - shiftDuration),
   };
 }
 // Simplified - just return today's date
@@ -176,3 +188,25 @@ export const getAttendanceBaseDate = () => {
   base.setHours(0, 0, 0, 0);
   return base;
 };
+
+export function calculateLateMinutes(
+  gracePeriodMinutes: number | null,
+  shiftStartTime: string | null,
+  punchIn: Date | null,
+  isLate: boolean = false,
+) {
+  if (!isLate || !punchIn || !shiftStartTime) return 0;
+
+  const [h, m] = shiftStartTime.split(":").map(Number);
+
+  const shiftStart = new Date(punchIn);
+  shiftStart.setHours(h, m, 0, 0);
+
+  shiftStart.setMinutes(shiftStart.getMinutes() + (gracePeriodMinutes ?? 0));
+
+  const diffMs = punchIn.getTime() - shiftStart.getTime();
+
+  if (diffMs <= 0) return 0;
+
+  return Math.floor(diffMs / (1000 * 60));
+}

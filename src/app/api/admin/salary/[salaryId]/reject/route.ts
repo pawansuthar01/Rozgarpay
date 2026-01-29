@@ -3,10 +3,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "../../../../auth/[...nextauth]/route";
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { salaryId: string } },
-) {
+export async function POST(request: NextRequest, { params }: any) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -14,6 +11,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { salaryId } = await params;
     const { reason } = await request.json();
 
     if (!reason || reason.trim().length === 0) {
@@ -39,7 +37,7 @@ export async function POST(
     // Get salary and verify it belongs to admin's company staff
     const salary = await prisma.salary.findFirst({
       where: {
-        id: params.salaryId,
+        id: salaryId,
         user: {
           companyId: admin.company.id,
           role: "STAFF",
@@ -57,7 +55,7 @@ export async function POST(
 
     // Update salary
     const updatedSalary = await prisma.salary.update({
-      where: { id: params.salaryId },
+      where: { id: salaryId },
       data: {
         status: "REJECTED",
         rejectedBy: session.user.id,
@@ -73,8 +71,8 @@ export async function POST(
         userId: session.user.id,
         action: "REJECTED",
         entity: "Salary",
-        entityId: params.salaryId,
-        salaryId: params.salaryId,
+        entityId: salaryId,
+        salaryId: salaryId,
         meta: { reason },
       },
     });

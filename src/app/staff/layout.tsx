@@ -50,6 +50,12 @@ export default function StaffLayout({
     },
     { name: "Salary", href: "/staff/salary", icon: DollarSign, priority: 3 },
     {
+      name: "My Ledger",
+      href: "/staff/cashbook",
+      icon: DollarSign,
+      priority: 3.5,
+    },
+    {
       name: "Notifications",
       href: "/staff/notifications",
       icon: Bell,
@@ -105,7 +111,7 @@ export default function StaffLayout({
 
       {/* Sidebar - Desktop: always visible, Mobile: slide-in overlay */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 w-72 bg-white shadow-xl transform transition-all duration-300 ease-in-out ${
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-white  transform transition-all duration-300 ease-in-out ${
           isMobile
             ? sidebarOpen
               ? "translate-x-0"
@@ -138,7 +144,7 @@ export default function StaffLayout({
                   href={item.href}
                   className={`group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 ${
                     isActive
-                      ? "bg-blue-600 text-white shadow-lg shadow-blue-600/25"
+                      ? "bg-blue-600 text-white  "
                       : "text-gray-700 hover:bg-blue-50 hover:text-blue-700"
                   }`}
                   onClick={() => isMobile && setSidebarOpen(false)}
@@ -192,6 +198,8 @@ export default function StaffLayout({
                   {pathname === "/staff/dashboard" && "Welcome back!"}
                   {pathname === "/staff/attendance" && "Track your attendance"}
                   {pathname === "/staff/salary" && "View your earnings"}
+                  {pathname === "/staff/cashbook" &&
+                    "View your financial ledger"}
                   {pathname === "/staff/notifications" && "Stay updated"}
                   {pathname === "/staff/profile" && "Manage your profile"}
                 </p>
@@ -232,7 +240,7 @@ export default function StaffLayout({
                   href={item.href}
                   className={`flex flex-col items-center justify-center flex-1 py-2 px-1 text-xs font-medium transition-all duration-300 rounded-xl mx-1 ${
                     isActive
-                      ? "text-blue-600 bg-blue-50 shadow-lg transform scale-105"
+                      ? "text-blue-600 bg-blue-50  transform scale-105"
                       : "text-gray-600 hover:text-gray-900 hover:bg-gray-50 active:bg-gray-100"
                   }`}
                 >

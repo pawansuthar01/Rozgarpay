@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
+import { salaryService } from "@/lib/salaryService";
 import { authOptions } from "../../auth/[...nextauth]/route";
 import { notificationManager } from "@/lib/notificationService";
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function PATCH(request: NextRequest, { params }: any) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -111,6 +109,53 @@ export async function PATCH(
       },
       ["whatsapp", "push"],
     );
+
+    // Auto-recalculate salary for the current month if attendance status affects it
+    try {
+      const attendanceDate = new Date(updatedAttendance.attendanceDate);
+      const currentMonth = attendanceDate.getMonth() + 1;
+      const currentYear = attendanceDate.getFullYear();
+
+      // Check if there's a salary record for this month that needs recalculation
+      const existingSalary = await prisma.salary.findUnique({
+        where: {
+          userId_month_year: {
+            userId: updatedAttendance.userId,
+            month: currentMonth,
+            year: currentYear,
+          },
+        },
+      });
+
+      if (
+        existingSalary &&
+        existingSalary.status !== "PAID" &&
+        !existingSalary.lockedAt
+      ) {
+        console.log(
+          `Auto-recalculating salary for user ${updatedAttendance.userId} - ${currentMonth}/${currentYear} due to status change to ${status}`,
+        );
+
+        const recalcResult = await salaryService.recalculateSalary(
+          existingSalary.id,
+        );
+
+        if (!recalcResult.success) {
+          console.error(
+            "Failed to auto-recalculate salary:",
+            recalcResult.error,
+          );
+          // Don't fail the attendance update if salary recalculation fails
+        } else {
+          console.log(
+            `Successfully auto-recalculated salary for user ${updatedAttendance.userId} after status change`,
+          );
+        }
+      }
+    } catch (salaryError) {
+      console.error("Error during auto salary recalculation:", salaryError);
+      // Don't fail the attendance update if salary recalculation fails
+    }
 
     return NextResponse.json({ attendance: updatedAttendance });
   } catch (error) {

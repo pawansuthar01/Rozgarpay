@@ -9,7 +9,8 @@ import SalaryStatsCards from "@/components/admin/salary/SalaryStatsCards";
 import SalaryChart from "@/components/admin/salary/SalaryChart";
 import SalaryFilters from "@/components/admin/salary/SalaryFilters";
 import SalaryTable from "@/components/admin/salary/SalaryTable";
-import { SalaryRecord, SalaryStats } from "@/types/salary";
+import { SalaryStats } from "@/types/salary";
+import { SalaryRecord } from "@/hooks";
 
 export default function ManagerSalaryPage() {
   const { data: session } = useSession();
@@ -123,7 +124,12 @@ export default function ManagerSalaryPage() {
 
   const handleMarkAsPaid = async (
     salaryId: string,
-    paymentData: { date: string; method: string; reference?: string },
+    paymentData: {
+      date: string;
+      method: string;
+      reference?: string;
+      sendNotification?: boolean;
+    },
   ) => {
     try {
       const res = await fetch(`/api/manager/salary/${salaryId}/mark-paid`, {
@@ -131,7 +137,12 @@ export default function ManagerSalaryPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(paymentData),
+        body: JSON.stringify({
+          date: paymentData.date,
+          method: paymentData.method,
+          reference: paymentData.reference,
+          sendNotification: paymentData.sendNotification ?? true,
+        }),
       });
 
       if (res.ok) {
@@ -171,6 +182,8 @@ export default function ManagerSalaryPage() {
 
       <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
         <SalaryFilters
+          search=""
+          setSearch={() => console.log("wait...")}
           month={month}
           setMonth={setMonth}
           year={year}

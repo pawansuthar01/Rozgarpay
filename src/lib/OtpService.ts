@@ -88,9 +88,9 @@ export class OTPService {
     } catch (error) {
       console.error("Error fetching OTP settings:", error);
       return {
-        delivery_method: "both", // Send via both SMS and Email/WhatsApp
+        delivery_method: "email", // Send via both SMS and Email/WhatsApp
         email_enabled: true,
-        whatsapp_enabled: true, // Enable WhatsApp OTP
+        whatsapp_enabled: false, // Enable WhatsApp OTP
         otp_length: 4,
         expiry_minutes: 10,
         max_attempts: 5,
@@ -113,12 +113,25 @@ export class OTPService {
   static async sendOTP(
     phoneNumber: string,
     email: string | null,
-    purpose: "LOGIN" | "REGISTER" | "RESET_PASSWORD" = "LOGIN"
+    purpose: "LOGIN" | "REGISTER" | "RESET_PASSWORD" = "LOGIN",
   ): Promise<{ success: boolean; message: string; channels: string[] }> {
     try {
       const settings = await this.getAdminOTPSettings();
 
-      // Check cooldown period
+      const userExit = await prisma.user.findUnique({
+        where: { phone: phoneNumber },
+        select: { email: true },
+      });
+
+      if (!userExit && ["LOGIN", "RESET_PASSWORD"].includes(purpose)) {
+        return {
+          success: false,
+          message: "user does not exit please register first...",
+          channels: [],
+        };
+      }
+      email = userExit?.email ?? null;
+      // heck cooldown period
       const recentOTP = await prisma.otp.findFirst({
         where: {
           phone: phoneNumber,
@@ -136,14 +149,14 @@ export class OTPService {
           (recentOTP.createdAt.getTime() +
             settings.cooldown_minutes * 60 * 1000 -
             Date.now()) /
-            1000
+            1000,
         );
 
         if (remainingSeconds > 0) {
           return {
             success: false,
             message: `Please wait ${convertSeconds(
-              remainingSeconds
+              remainingSeconds,
             )} before requesting another OTP`,
             channels: [],
           };
@@ -170,7 +183,7 @@ export class OTPService {
 
       const otp = this.generateOTP(settings.otp_length);
       const expiresAt = new Date(
-        Date.now() + settings.expiry_minutes * 60 * 1000
+        Date.now() + settings.expiry_minutes * 60 * 1000,
       );
 
       // Create OTP record with delivery tracking
@@ -190,7 +203,7 @@ export class OTPService {
       const channels: string[] = [];
 
       // Send based on delivery method and enabled channels with retry logic
-
+      console.log(email);
       if (
         (settings.delivery_method === "email" ||
           settings.delivery_method === "both") &&
@@ -203,10 +216,10 @@ export class OTPService {
               email,
               template.email.subject,
               template.email.text,
-              template.email.html
+              template.email.html,
             ),
           settings.max_attempts,
-          "Email"
+          "Email",
         );
         deliveryResults.push(emailResult);
         if (emailResult.success) channels.push("Email");
@@ -221,7 +234,7 @@ export class OTPService {
         const whatsappResult = await this.sendWithRetry(
           () => this.sendWhatsApp(phoneNumber, template.whatsapp, purpose),
           settings.retry_attempts,
-          "WhatsApp"
+          "WhatsApp",
         );
         deliveryResults.push(whatsappResult);
         if (whatsappResult.success) channels.push("WhatsApp");
@@ -236,7 +249,7 @@ export class OTPService {
             successfulDeliveries.length > 0 ? "DELIVERED" : "FAILED",
           deliveryAttempts: deliveryResults.reduce(
             (sum, r) => sum + (r.retryCount || 0) + 1,
-            0
+            0,
           ),
           deliveryChannels: channels,
           deliveryResults: deliveryResults as any,
@@ -259,10 +272,10 @@ export class OTPService {
               result.channel.toLowerCase() === "sms"
                 ? "MSG91"
                 : result.channel.toLowerCase() === "email"
-                ? "RESEND"
-                : result.channel.toLowerCase() === "whatsapp"
-                ? "MSG91"
-                : undefined,
+                  ? "RESEND"
+                  : result.channel.toLowerCase() === "whatsapp"
+                    ? "MSG91"
+                    : undefined,
             messageId: result.messageId || undefined,
             metadata: {
               purpose,
@@ -278,7 +291,7 @@ export class OTPService {
       console.log(
         `[OTP] OTP send completed. Success: ${
           channels.length > 0
-        }, Channels: ${channels.join(", ")}`
+        }, Channels: ${channels.join(", ")}`,
       );
       return {
         success: channels.length > 0,
@@ -301,7 +314,7 @@ export class OTPService {
   private static async sendWithRetry(
     sendFunction: () => Promise<string | void>,
     maxRetries: number,
-    channel: string
+    channel: string,
   ): Promise<OTPDeliveryResult> {
     let lastError: string = "";
     let retryCount = 0;
@@ -325,7 +338,7 @@ export class OTPService {
           console.log(
             `Attempt ${
               attempt + 1
-            } failed for ${channel}, retrying in ${delay}ms...`
+            } failed for ${channel}, retrying in ${delay}ms...`,
           );
           await new Promise((resolve) => setTimeout(resolve, delay));
         }
@@ -341,12 +354,15 @@ export class OTPService {
   }
 
   private static async sendEmail(
-    email: string,
+    email: string | null,
     subject: string,
     text: string,
-    html: string
+    html: string,
   ): Promise<string | void> {
     try {
+      if (!email) {
+        return "email_NOT_FOUND";
+      }
       // Check if Resend credentials are available
       const apiKey = process.env.RESEND_API_KEY;
 
@@ -355,7 +371,7 @@ export class OTPService {
         console.log(`[MOCK EMAIL] To: ${email}`);
         console.log(`[MOCK EMAIL] Text: ${text}`);
         console.log(
-          `[MOCK EMAIL] Please configure RESEND_API_KEY in your .env file`
+          `[MOCK EMAIL] Please configure RESEND_API_KEY in your .env file`,
         );
         console.log(`[MOCK EMAIL] Get API key from https://resend.com`);
         return "mock_email_sent";
@@ -386,7 +402,7 @@ export class OTPService {
   private static async sendWhatsApp(
     phoneNumber: string,
     message: string,
-    purpose: string
+    purpose: string,
   ): Promise<string | void> {
     try {
       const authKey = process.env.MSG91_WHATSAPP_AUTH_KEY;
@@ -401,7 +417,7 @@ export class OTPService {
         console.log(`[MOCK WhatsApp] Missing WhatsApp ENV keys`);
         console.log(`[MOCK WhatsApp] Message to ${phoneNumber}: ${message}`);
         console.log(
-          `[MOCK WhatsApp] Configure MSG91 WhatsApp credentials for production`
+          `[MOCK WhatsApp] Configure MSG91 WhatsApp credentials for production`,
         );
         return "mock_whatsapp_sent";
       }
@@ -451,15 +467,14 @@ export class OTPService {
             accept: "application/json",
           },
           body: JSON.stringify(payload),
-        }
+        },
       );
 
       const result = await response.json();
-      console.log("WA Response:", result);
 
       if (!response.ok || result.error) {
         throw new Error(
-          result.error || result.message || "WhatsApp send failed"
+          result.error || result.message || "WhatsApp send failed",
         );
       }
 
@@ -526,7 +541,7 @@ export class OTPService {
 
   // Monitoring and metrics
   static async getOTPMetrics(
-    timeRange: "hour" | "day" | "week" = "day"
+    timeRange: "hour" | "day" | "week" = "day",
   ): Promise<{
     totalSent: number;
     totalDelivered: number;
