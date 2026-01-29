@@ -143,5 +143,17 @@ export const authOptions: NextAuthOptions = {
   },
 };
 
-const handler = NextAuth(authOptions);
-export { handler as GET, handler as POST };
+// Lazily create the NextAuth handler inside each request to avoid
+// calling `NextAuth()` during module evaluation (which causes
+// side-effects when other server modules import `authOptions`).
+export async function GET(request: Request) {
+  const handler = NextAuth(authOptions);
+  // NextAuth handler expects to be called with the Request object.
+  // It returns a Response-compatible result that Next can use.
+  return handler(request as any);
+}
+
+export async function POST(request: Request) {
+  const handler = NextAuth(authOptions);
+  return handler(request as any);
+}
