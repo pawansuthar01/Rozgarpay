@@ -2,8 +2,10 @@
 import ClientLayout from "@/components/layout/ClientLayout";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { CheckCircle, Clock, Shield, TrendingUp, Users } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 function HomePage() {
+  const router = useRouter();
   return (
     <ClientLayout>
       <div className="min-h-screen bg-white">
@@ -21,10 +23,16 @@ function HomePage() {
                 businesses.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <button className="inline-flex items-center justify-center rounded-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 px-6 py-3 text-base">
+                <button
+                  onClick={() => router.push("/login")}
+                  className="inline-flex items-center justify-center rounded-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 px-6 py-3 text-base"
+                >
                   Start
                 </button>
-                <button className="inline-flex items-center justify-center rounded-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:ring-blue-500 px-6 py-3 text-base">
+                <button
+                  onClick={() => router.push("/contact")}
+                  className="inline-flex items-center justify-center rounded-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:ring-blue-500 px-6 py-3 text-base"
+                >
                   Contact
                 </button>
               </div>
@@ -305,10 +313,16 @@ function HomePage() {
               their operations.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <button className="inline-flex items-center justify-center rounded-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 bg-blue-200 cursor-pointer hover:bg-blue-300 border hover:blue-green-200 text-white border-blue-300 px-6 py-3 text-base">
+              <button
+                onClick={() => router.push("/login")}
+                className="inline-flex items-center justify-center rounded-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 bg-blue-300 cursor-pointer hover:bg-blue-400 border hover:blue-green-200 text-white border-blue-300 px-6 py-3 text-base"
+              >
                 Get Start Now
               </button>
-              <button className="inline-flex items-center justify-center rounded-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 bg-blue-200 cursor-pointer hover:bg-blue-300 border hover:blue-green-200 text-white border-blue-300 px-6 py-3 text-base">
+              <button
+                onClick={() => router.push("/contact")}
+                className="inline-flex items-center justify-center rounded-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 bg-blue-300 cursor-pointer hover:bg-blue-400 border hover:blue-green-200 text-white border-blue-300 px-6 py-3 text-base"
+              >
                 Contact
               </button>
             </div>

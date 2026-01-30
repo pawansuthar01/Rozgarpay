@@ -1,0 +1,28 @@
+{
+  "name": "Rozgarpay - Payroll & Staff Management Platform",
+  "short_name": "Rozgarpay",
+  "description": "Simplify your payroll management with Rozgarpay. Track attendance, manage salaries, generate reports, and ensure compliance with our comprehensive staff management platform.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#000000",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["business", "productivity", "finance"],
+  "icons": [
+    {
+      "src": "/logo_Qresto.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/main_2.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

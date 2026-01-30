@@ -95,6 +95,7 @@ export async function POST(
           phone,
           ["email", "whatsapp"],
           {
+            type: "invitation_company",
             role: "admin",
             companyName: company.name,
             invitationUrl: joinLink,

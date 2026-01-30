@@ -8,7 +8,6 @@ export type NotificationType =
   | "system_alert"
   | "admin_manual"
   | "staff_manual"
-  | "invitation"
   | "invitation_company"
   | "invitation_staff";
 
@@ -162,26 +161,10 @@ export const NOTIFICATION_TEMPLATES: Record<
     variables: ["title", "message", "storeName", "sentBy"],
     actions: [], // Will be set dynamically
   },
-  invitation: {
-    id: "invitation",
-    type: "invitation",
-    title: "You're Invited to Join TownKart",
-    message:
-      "You've been invited to join RozgarPay as a {{role}}. Click here to complete your registration.",
-    priority: "high",
-    channels: ["in_app", "email", "whatsapp"], // Support all channels for invitations
-    variables: ["role", "invitationUrl", "expiresAt", "message"],
-    actions: [
-      {
-        label: "Accept Invitation",
-        action: "navigate",
-        params: { route: "{{invitationUrl}}" },
-      },
-    ],
-  },
+
   invitation_company: {
     id: "invitation",
-    type: "invitation",
+    type: "invitation_company",
     title: "You're Invited to Join TownKart",
     message:
       "You've been invited to join RozgarPay as a {{role}}. Click here to complete your registration.",
@@ -198,7 +181,7 @@ export const NOTIFICATION_TEMPLATES: Record<
   },
   invitation_staff: {
     id: "invitation",
-    type: "invitation",
+    type: "invitation_staff",
     title: "You're Invited to Join TownKart",
     message:
       "You've been invited to join RozgarPay as a {{role}}. Click here to complete your registration.",
@@ -330,8 +313,10 @@ export class NotificationManager {
     phone: string | null,
     channels: ("email" | "whatsapp" | "sms")[],
     invitationData: {
+      type: NotificationType;
       role: string;
       companyName: string;
+      staffName?: string;
       invitationUrl: string;
       expiresAt: string;
       message?: string;
@@ -410,7 +395,7 @@ This invitation expires on ${invitationData.expiresAt}.`;
         const whatsappNotification = {
           id: `invitation_external_${Date.now()}`,
           userId: "system",
-          type: "invitation" as const,
+          type: invitationData.type as NotificationType,
           title: `You're Invited to Join ${invitationData.companyName}`,
           message: `You've been invited to join ${invitationData.companyName} as a ${roleDisplay.toLowerCase()}. Click here to complete your registration.`,
           priority: "high" as const,
@@ -449,7 +434,7 @@ This invitation expires on ${invitationData.expiresAt}.`;
           role: invitationData.role,
           invitationUrl: invitationData.invitationUrl,
           processingTime: Date.now() - startTime,
-          template: this.getWhatsAppTemplateName("invitation"),
+          template: this.getWhatsAppTemplateName(invitationData.type),
         },
       });
     }
@@ -996,14 +981,10 @@ This invitation expires on ${invitationData.expiresAt}.`;
   // Get WhatsApp template name based on notification type
   private getWhatsAppTemplateName(notificationType: NotificationType): string {
     const templateMap: Record<NotificationType, string> = {
-      invitation:
-        process.env.MSG91_WHATSAPP_TEMPLATE_INVITATION_V2_NAME ||
-        "townkart_invitation_v2",
-
       invitation_company:
         process.env.MSG91_WHATSAPP_TEMPLATE_COMPANY_JOIN_NAME || "company_join",
       invitation_staff:
-        process.env.MSG91_WHATSAPP_TEMPLATE_STAFF_JOIN_NAME || "staff_join",
+        process.env.MSG91_WHATSAPP_TEMPLATE_STAFF_JOIN_NAME || "staff_join_v2",
       customer_support:
         process.env.MSG91_WHATSAPP_TEMPLATE_GENERAL_NAME || "townkart_general",
       promotional:
@@ -1080,23 +1061,6 @@ This invitation expires on ${invitationData.expiresAt}.`;
 
       // Template components based on notification type
       switch (notification.type) {
-        case "invitation":
-          components = {
-            body_1: {
-              type: "text",
-              value: notification.data?.role || "team member",
-            },
-            body_2: {
-              type: "text",
-              value: notification.data?.expiresAt || "24 hours",
-            },
-            button_1: {
-              subtype: "url",
-              type: "text",
-              value: notification.data?.invitationUrl || "#",
-            },
-          };
-          break;
         case "invitation_company":
           components = {
             body_1: {
@@ -1120,9 +1084,10 @@ This invitation expires on ${invitationData.expiresAt}.`;
               type: "text",
               value: notification.data?.companyName || "N/A",
             },
-            body_3: {
+            button_1: {
+              subtype: "url",
               type: "text",
-              value: notification.data?.invitationUrl || "#",
+              value: notification.data.invitationUrl,
             },
           };
           break;
@@ -1268,7 +1233,6 @@ export function getNotificationIcon(type: NotificationType): string {
     system_alert: "⚠️",
     admin_manual: "📢",
     staff_manual: "🏪",
-    invitation: "📨",
     invitation_company: "📨",
     invitation_staff: "📨",
   };

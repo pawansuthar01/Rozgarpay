@@ -176,6 +176,7 @@ export async function POST(request: NextRequest) {
       adminPhone,
       ["email", "whatsapp"],
       {
+        type: "invitation_company",
         role: "admin",
         companyName: name,
         invitationUrl: joinLink,

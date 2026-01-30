@@ -55,8 +55,10 @@ export async function POST(request: NextRequest) {
           "", // phone not needed for email
           ["email"],
           {
+            type: metadata.type,
             role: metadata.role,
             companyName: metadata.companyName,
+            staffName: metadata.staffName,
             invitationUrl: metadata.invitationUrl, // placeholder
             expiresAt: new Date(
               Date.now() + 7 * 24 * 60 * 60 * 1000,
@@ -70,8 +72,10 @@ export async function POST(request: NextRequest) {
           recipient,
           ["whatsapp"],
           {
+            type: metadata.type,
             role: metadata.role,
             companyName: metadata.companyName,
+            staffName: metadata.staffName,
             invitationUrl: metadata.invitationUrl, // placeholder
             expiresAt: new Date(
               Date.now() + 7 * 24 * 60 * 60 * 1000,

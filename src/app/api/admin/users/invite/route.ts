@@ -100,8 +100,11 @@ export async function POST(request: NextRequest) {
       phone,
       ["email", "whatsapp"],
       {
-        role: "admin",
+        type: "invitation_staff",
+        role: "staff",
+
         companyName: admin.company.name,
+        staffName: name,
         invitationUrl: inviteLink,
         expiresAt: invitation.expiresAt.toISOString(),
         message,
