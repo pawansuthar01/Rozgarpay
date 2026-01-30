@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { OTPService } from "@/lib/OtpService";
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+
 export async function POST(request: NextRequest) {
   try {
     const clientIP =

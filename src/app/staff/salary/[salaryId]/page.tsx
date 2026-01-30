@@ -291,7 +291,7 @@ export default function SalarySlipPage() {
       </div>
 
       {/* Payslip */}
-      <div className="max-w-4xl mx-auto bg-white shadow-lg rounded-lg overflow-hidden">
+      <div className="max-w-4xl mx-auto bg-white  rounded-lg overflow-hidden">
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-6">
           <div className="flex justify-between items-start">

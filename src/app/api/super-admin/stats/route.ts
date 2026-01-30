@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
-export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { PrismaClientInitializationError } from "@prisma/client/runtime/library";
 

@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
-export async function GET(request: Request, { params }: any) {
+export async function GET(
+  request: Request,
+  { params }: { params: { staffId: string } },
+) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -53,13 +54,13 @@ export async function GET(request: Request, { params }: any) {
 
     const totalDays = monthlyAttendance.length;
     const presentDays = monthlyAttendance.filter(
-      (a) => a.status === "APPROVED",
+      (a: any) => a.status === "APPROVED",
     ).length;
     const absentDays = monthlyAttendance.filter(
-      (a) => a.status === "REJECTED",
+      (a: any) => a.status === "REJECTED",
     ).length;
     const pendingDays = monthlyAttendance.filter(
-      (a) => a.status === "PENDING",
+      (a: any) => a.status === "PENDING",
     ).length;
     const attendanceRate = totalDays > 0 ? presentDays / totalDays : 0;
 

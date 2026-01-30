@@ -37,7 +37,7 @@ export default function AttendanceMoreOptionsModal({
       setReason("");
     }
   }, [attendance, isOpen]);
-  console.log(attendance);
+
   const handleSave = async () => {
     if (!attendance) return;
 

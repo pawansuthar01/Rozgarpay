@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+
 import PDFDocument from "pdfkit";
 
-export async function GET(request: NextRequest, { params }: any) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { salaryId: string } },
+) {
   try {
     const session = await getServerSession(authOptions);
 

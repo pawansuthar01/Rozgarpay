@@ -3,11 +3,13 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { salaryService } from "@/lib/salaryService";
 import { authOptions } from "@/lib/auth";
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+
 import { notificationManager } from "@/lib/notificationService";
 
-export async function PATCH(request: NextRequest, { params }: any) {
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { id: string } },
+) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -21,7 +23,7 @@ export async function PATCH(request: NextRequest, { params }: any) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
     }
 
-    const attendanceId = (await params).id;
+    const attendanceId = params.id;
     const companyId = session.user.companyId;
 
     if (!companyId) {

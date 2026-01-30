@@ -25,15 +25,6 @@ import {
 } from "@/hooks/useCompanySettings";
 import ImageUpload from "@/components/ImageUpload";
 
-interface Company {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  address: string;
-  logo?: string | null;
-}
-
 interface AttendanceSettings {
   shiftStartTime: string;
   shiftEndTime: string;

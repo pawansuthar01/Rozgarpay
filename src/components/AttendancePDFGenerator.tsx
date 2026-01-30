@@ -211,6 +211,7 @@ export default function AttendancePDFGenerator({
       };
     }
     generateAttendancePDF({ data, month, year, companyName });
+    return;
   };
 
   return (

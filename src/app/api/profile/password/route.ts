@@ -3,8 +3,6 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { authOptions } from "@/lib/auth";
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 export async function PATCH(request: NextRequest) {
   try {

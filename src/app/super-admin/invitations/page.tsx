@@ -18,17 +18,6 @@ import {
   Trash2,
 } from "lucide-react";
 
-interface Invitation {
-  id: string;
-  email: string;
-  phone: string;
-  role: string;
-  isUsed: boolean;
-  expiresAt: string;
-  createdAt: string;
-  status: "pending" | "completed" | "expired";
-}
-
 export default function AdminInvitationsPage() {
   const { showMessage, showConfirm } = useModal();
   const [currentPage, setCurrentPage] = useState(1);

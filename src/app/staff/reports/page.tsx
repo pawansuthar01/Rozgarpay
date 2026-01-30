@@ -448,7 +448,7 @@ export default function StaffReportsPage() {
                   href={salaryReport.pdfUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 flex items-center space-x-2 font-medium shadow-lg hover:shadow-xl"
+                  className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 flex items-center space-x-2 font-medium  hover:shadow-xl"
                 >
                   <FileText className="h-5 w-5" />
                   <span>View Salary PDF</span>

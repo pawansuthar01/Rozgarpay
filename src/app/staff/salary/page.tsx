@@ -12,8 +12,6 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  Lock,
-  Share2,
   BookDown,
   ArrowDownZaIcon,
   ArrowUp,

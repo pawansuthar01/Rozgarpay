@@ -3,10 +3,11 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { salaryService } from "@/lib/salaryService";
 import { authOptions } from "@/lib/auth";
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
-export async function POST(request: NextRequest, { params }: any) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { salaryId: string } },
+) {
   try {
     const session = await getServerSession(authOptions);
     const { salaryId } = params;

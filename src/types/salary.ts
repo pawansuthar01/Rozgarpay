@@ -1,22 +1,4 @@
-export interface SalaryRecord {
-  id: string;
-  userId: string;
-  user: {
-    firstName: string | null;
-    lastName: string | null;
-    email: string;
-  };
-  month: number;
-  year: number;
-  pdfUrl?: string;
-  totalDays: number;
-  approvedDays: number;
-  grossAmount: number;
-  netAmount: number;
-  status: string;
-  createdAt: string;
-  paidAt?: string;
-}
+import { SalaryRecord } from "@/hooks";
 
 export interface SalaryStats {
   totalRecords: number;

@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
-export async function GET(request: Request, { params }: any) {
+export async function GET(
+  request: Request,
+  { params }: { params: { staffId: string } },
+) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -59,7 +60,7 @@ export async function GET(request: Request, { params }: any) {
       take: limit,
     });
 
-    const records = attendanceRecords.map((record) => ({
+    const records = attendanceRecords.map((record: any) => ({
       id: record.id,
       date: record.attendanceDate.toISOString(),
       punchIn: record?.punchIn?.toISOString(),

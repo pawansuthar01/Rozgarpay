@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
-export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -93,12 +91,15 @@ export async function GET(request: NextRequest) {
 
     const stats = {
       totalRecords: total,
-      pending: statsResult.find((s) => s.status === "PENDING")?._count || 0,
-      approved: statsResult.find((s) => s.status === "APPROVED")?._count || 0,
-      paid: statsResult.find((s) => s.status === "PAID")?._count || 0,
-      rejected: statsResult.find((s) => s.status === "REJECTED")?._count || 0,
+      pending:
+        statsResult.find((s: any) => s.status === "PENDING")?._count || 0,
+      approved:
+        statsResult.find((s: any) => s.status === "APPROVED")?._count || 0,
+      paid: statsResult.find((s: any) => s.status === "PAID")?._count || 0,
+      rejected:
+        statsResult.find((s: any) => s.status === "REJECTED")?._count || 0,
       totalAmount: statsResult.reduce(
-        (sum, s) => sum + (s._sum.netAmount || 0),
+        (sum: any, s: any) => sum + (s._sum.netAmount || 0),
         0,
       ),
     };
@@ -127,7 +128,7 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const monthlyTotals = monthlyResult.map((m) => ({
+    const monthlyTotals = monthlyResult.map((m: any) => ({
       month: new Date(selectedYear, m.month - 1).toLocaleString("default", {
         month: "short",
       }),

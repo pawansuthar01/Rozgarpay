@@ -53,6 +53,7 @@ export default function LoginPage() {
       const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
       return () => clearTimeout(timer);
     }
+    return;
   }, [countdown]);
 
   const handleSendOtp = async () => {

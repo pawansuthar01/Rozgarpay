@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
-export async function POST(request: NextRequest, { params }: any) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { id: string } },
+) {
   try {
     const session = await getServerSession(authOptions);
     const { id } = params;

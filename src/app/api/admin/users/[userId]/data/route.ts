@@ -1,8 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-export async function GET(request: NextRequest, { params }: any) {
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { userId: string } },
+) {
   try {
     const { userId } = params;
     if (!userId) {

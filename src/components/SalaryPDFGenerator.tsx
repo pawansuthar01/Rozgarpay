@@ -252,6 +252,7 @@ export default function SalaryPDFGenerator({
       };
     }
     generateSalaryPDF({ data, companyName });
+    return;
   };
 
   return (

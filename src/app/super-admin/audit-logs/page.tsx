@@ -141,16 +141,16 @@ export default function AuditLogsPage() {
         const today = new Date(
           now.getFullYear(),
           now.getMonth(),
-          now.getDate()
+          now.getDate(),
         );
         const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
 
         const todayLogs = allLogs.filter(
-          (log: AuditLog) => new Date(log.createdAt) >= today
+          (log: AuditLog) => new Date(log.createdAt) >= today,
         ).length;
 
         const thisWeekLogs = allLogs.filter(
-          (log: AuditLog) => new Date(log.createdAt) >= weekAgo
+          (log: AuditLog) => new Date(log.createdAt) >= weekAgo,
         ).length;
 
         setStats({
@@ -328,8 +328,8 @@ export default function AuditLogsPage() {
                   stats.companyEntities >= stats.attendanceEntities
                     ? "Companies"
                     : stats.userEntities >= stats.attendanceEntities
-                    ? "Users"
-                    : "Attendance"}
+                      ? "Users"
+                      : "Attendance"}
                 </p>
                 <p className="text-xs text-gray-500">Highest activity</p>
               </div>
@@ -363,7 +363,7 @@ export default function AuditLogsPage() {
                         className="bg-green-600 h-2 rounded-full"
                         style={{
                           width: `${getActionPercentage(
-                            stats.createdActions
+                            stats.createdActions,
                           )}%`,
                         }}
                       ></div>
@@ -389,7 +389,7 @@ export default function AuditLogsPage() {
                         className="bg-blue-600 h-2 rounded-full"
                         style={{
                           width: `${getActionPercentage(
-                            stats.updatedActions
+                            stats.updatedActions,
                           )}%`,
                         }}
                       ></div>
@@ -415,7 +415,7 @@ export default function AuditLogsPage() {
                         className="bg-green-600 h-2 rounded-full"
                         style={{
                           width: `${getActionPercentage(
-                            stats.approvedActions
+                            stats.approvedActions,
                           )}%`,
                         }}
                       ></div>
@@ -441,7 +441,7 @@ export default function AuditLogsPage() {
                         className="bg-red-600 h-2 rounded-full"
                         style={{
                           width: `${getActionPercentage(
-                            stats.rejectedActions
+                            stats.rejectedActions,
                           )}%`,
                         }}
                       ></div>
@@ -467,7 +467,7 @@ export default function AuditLogsPage() {
                         className="bg-red-600 h-2 rounded-full"
                         style={{
                           width: `${getActionPercentage(
-                            stats.deletedActions
+                            stats.deletedActions,
                           )}%`,
                         }}
                       ></div>
@@ -502,7 +502,7 @@ export default function AuditLogsPage() {
                         className="bg-blue-600 h-2 rounded-full"
                         style={{
                           width: `${getEntityPercentage(
-                            stats.companyEntities
+                            stats.companyEntities,
                           )}%`,
                         }}
                       ></div>
@@ -552,7 +552,7 @@ export default function AuditLogsPage() {
                         className="bg-green-600 h-2 rounded-full"
                         style={{
                           width: `${getEntityPercentage(
-                            stats.attendanceEntities
+                            stats.attendanceEntities,
                           )}%`,
                         }}
                       ></div>
@@ -702,7 +702,7 @@ export default function AuditLogsPage() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span
                           className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getActionColor(
-                            log.action
+                            log.action,
                           )}`}
                         >
                           {getActionIcon(log.action)}
@@ -712,7 +712,7 @@ export default function AuditLogsPage() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span
                           className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getEntityColor(
-                            log.entity
+                            log.entity,
                           )}`}
                         >
                           {getEntityIcon(log.entity)}
