@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useSendLoginOtp } from "@/hooks";
 import { signOut, useSession } from "next-auth/react";
+import { validateEmail } from "@/lib/utils";
 
 interface Invitation {
   id: string;
@@ -46,6 +47,7 @@ export default function JoinPage() {
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
+    email: "",
     password: "",
     confirmPassword: "",
     phoneOtp: "",
@@ -141,11 +143,16 @@ export default function JoinPage() {
     setSuccessMessage("");
 
     try {
+      if (type == "email" && !validateEmail(formData.email)) {
+        setError("Please enter valid email...");
+        return;
+      }
       const result = await fetch(`/api/join/${token}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type,
+          email: type === "email" ? formData.email : undefined,
         }),
       });
 
@@ -199,11 +206,12 @@ export default function JoinPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           phoneNumber: invitation.phone,
+          email: formData.email ?? invitation.email,
           otp: otpValue,
+          type: type,
         }),
       });
       const res = await result.json();
-      console.log(res);
       if (res.success) {
         setOtpVerified((prev) => ({ ...prev, [type]: true }));
         setSuccessMessage(
@@ -241,10 +249,18 @@ export default function JoinPage() {
       setError("Please verify your phone OTP before submitting");
       return;
     }
+    // Check if email verification is required
+    const emailRequired = Boolean(
+      (!invitation.email && !invitation.email.trim()) ||
+      (formData.email && formData.email.trim()),
+    );
+    if (emailRequired && !otpVerified.email) {
+      setError("Please verify your email OTP before submitting");
+      return;
+    }
 
     setSubmitting(true);
     setError("");
-    console.log(invitation);
 
     try {
       const res = await fetch("/api/join/complete", {
@@ -254,6 +270,7 @@ export default function JoinPage() {
           invitation,
           firstName: formData.firstName,
           lastName: formData.lastName,
+          email: formData.email || invitation.email,
           password: formData.password,
         }),
       });
@@ -275,6 +292,13 @@ export default function JoinPage() {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
+
+  // Check if email verification is required (boolean)
+  const emailRequired = Boolean(
+    (invitation?.email && invitation.email.trim()) ||
+    (formData.email && formData.email.trim()),
+  );
+  const showEmailInput = !invitation?.email || !invitation.email.trim();
 
   if (loading) {
     return (
@@ -362,17 +386,44 @@ export default function JoinPage() {
                 </p>
               </div>
 
-              {/* Pre-filled Email and Phone */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
-                </label>
-                <div className="flex items-center">
-                  <Mail className="h-4 w-4 text-gray-400 mr-2" />
-                  <span className="text-gray-900">{invitation?.email}</span>
+              {/* Pre-filled Email (if available) */}
+              {invitation?.email && invitation.email.trim() && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Email
+                  </label>
+                  <div className="flex items-center">
+                    <Mail className="h-4 w-4 text-gray-400 mr-2" />
+                    <span className="text-gray-900">{invitation?.email}</span>
+                  </div>
                 </div>
-              </div>
+              )}
 
+              {/* Email Input (if not provided in invitation) */}
+              {showEmailInput && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Email {emailRequired ? "* (Required)" : "(Optional)"}
+                  </label>
+                  <div className="relative">
+                    <Mail className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+                    <input
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      required={emailRequired}
+                      className="w-full pl-10 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter your email"
+                    />
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Email is required to complete registration
+                  </p>
+                </div>
+              )}
+
+              {/* Pre-filled Phone */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Phone
@@ -514,50 +565,53 @@ export default function JoinPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email OTP (Optional)
-                </label>
-                <div className="flex space-x-2">
-                  <input
-                    type="text"
-                    name="emailOtp"
-                    value={formData.emailOtp}
-                    onChange={handleInputChange}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Enter 6-digit OTP"
-                    maxLength={6}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => sendOTP("email")}
-                    disabled={sendingOTP.email || otpCooldown.email > 0}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {otpCooldown.email > 0
-                      ? `Wait ${otpCooldown.email}s`
-                      : sendingOTP.email
-                        ? "Sending..."
-                        : "Send"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => verify("email")}
-                    disabled={
-                      verifyingOTP.email ||
-                      !formData.emailOtp ||
-                      formData.emailOtp.length !== 4
-                    }
-                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {verifyingOTP.email
-                      ? "Verifying..."
-                      : otpVerified.email
-                        ? "✓ Verified"
-                        : "Verify"}
-                  </button>
+              {/* Email OTP - Show only if email is provided or entered */}
+              {emailRequired && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Email OTP
+                  </label>
+                  <div className="flex space-x-2">
+                    <input
+                      type="text"
+                      name="emailOtp"
+                      value={formData.emailOtp}
+                      onChange={handleInputChange}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter 6-digit OTP"
+                      maxLength={6}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => sendOTP("email")}
+                      disabled={sendingOTP.email || otpCooldown.email > 0}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {otpCooldown.email > 0
+                        ? `Wait ${otpCooldown.email}s`
+                        : sendingOTP.email
+                          ? "Sending..."
+                          : "Send"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => verify("email")}
+                      disabled={
+                        verifyingOTP.email ||
+                        !formData.emailOtp ||
+                        formData.emailOtp.length !== 4
+                      }
+                      className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {verifyingOTP.email
+                        ? "Verifying..."
+                        : otpVerified.email
+                          ? "✓ Verified"
+                          : "Verify"}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <button
                 type="submit"

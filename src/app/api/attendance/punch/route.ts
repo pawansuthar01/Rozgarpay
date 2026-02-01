@@ -13,12 +13,13 @@ import {
   getAttendanceDate,
   LocationData,
 } from "@/lib/attendanceUtils";
+import { notificationManager } from "@/lib/notifications/manager";
 
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
 
-    if (!session || session.user.role !== "STAFF") {
+    if (!session || !session.user.companyId || session.user.role !== "STAFF") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -28,6 +29,8 @@ export async function POST(request: NextRequest) {
     if (!companyId) {
       return NextResponse.json({ error: "Company not found" }, { status: 400 });
     }
+
+    /* ================= SALARY SETUP CHECK ================= */
 
     const body = await request.json();
 
@@ -74,13 +77,15 @@ export async function POST(request: NextRequest) {
       const hoursOpen = (Date.now() - openAttendance.punchIn!.getTime()) / 36e5;
 
       if (hoursOpen > 20) {
+        // Fixed BUG-005: Set punchOut to current time instead of punchIn time
         await prisma.attendance.update({
           where: { id: openAttendance.id },
           data: {
-            punchOut: openAttendance.punchIn,
+            punchOut: new Date(),
             workingHours: 0,
             status: "REJECTED",
-            approvalReason: "System auto-closed stale attendance",
+            approvalReason:
+              "System auto-closed stale attendance (no punch-out for >20 hours)",
           },
         });
 
@@ -146,6 +151,7 @@ export async function POST(request: NextRequest) {
           punchOutLocation: location
             ? JSON.stringify(location)
             : Prisma.JsonNull,
+
           workingHours,
           overtimeHours,
         },
@@ -177,7 +183,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error:
-              "You already have an active attendance session. Please punch out first.",
+              "You already have an active attendance session. Please check it.",
           },
           { status: 400 },
         );
@@ -218,13 +224,12 @@ export async function POST(request: NextRequest) {
       //     );
       //   }
       // }
-
       attendance = await prisma.attendance.create({
         data: {
           userId,
           companyId,
           attendanceDate,
-          LateMinute: punchInCheck.lateMin,
+          LateMinute: punchInCheck.lateMin ?? 0,
           punchIn: now,
           punchInLocation: location
             ? JSON.stringify(location)
@@ -248,7 +253,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, attendance });
   } catch (error) {
-    console.error("Attendance error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

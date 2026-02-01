@@ -1,6 +1,8 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import Loading from "@/components/ui/Loading";
+
 import { useState } from "react";
 import { Download, Share2 } from "lucide-react";
 import { useSalarySlipDownload } from "@/hooks";

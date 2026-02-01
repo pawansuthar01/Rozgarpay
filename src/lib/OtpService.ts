@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
-import { convertSeconds } from "./utils";
+import crypto from "crypto";
 
+export type OTPPurpose = "LOGIN" | "REGISTER" | "RESET_PASSWORD";
+export type OTPChannel = "email" | "whatsapp";
 export interface OTPSettings {
   delivery_method: "email" | "WHATSAPP" | "IN_APP" | "both";
   email_enabled: boolean;
@@ -30,18 +32,37 @@ export interface OTPTemplate {
   };
 }
 
+// Rate limit configuration
+const RATE_LIMIT_CONFIG = {
+  MAX_PER_HOUR: 3,
+  MAX_PER_DAY: 10,
+  COOLDOWN_SECONDS: 60,
+};
+
+interface RateLimitResult {
+  allowed: boolean;
+  remainingTime?: number;
+  reason?: string;
+}
+
+interface UnifiedIdentifier {
+  phone?: string | null;
+  email?: string | null;
+  ip?: string;
+}
+
 export class OTPService {
   private static getOTPTemplate(purpose: string, otp: string): OTPTemplate {
     const purposeText = purpose.replace("_", " ").toLowerCase();
 
     return {
-      whatsapp: `Your PayrollBook OTP for ${purposeText} is: ${otp}. Valid for 10 minutes.`,
+      whatsapp: `Your Rozgarpay OTP for ${purposeText} is: ${otp}. Valid for 10 minutes.`,
       email: {
-        subject: `Your PayrollBook OTP for ${purposeText}`,
+        subject: `Your Rozgarpay OTP for ${purposeText}`,
         text: `Your OTP is: ${otp}\n\nThis OTP is valid for 10 minutes.\n\nIf you didn't request this, please ignore this message.`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #333;">Your PayrollBook OTP</h2>
+            <h2 style="color: #333;">Your Rozgarpay OTP</h2>
             <p>Your OTP for ${purposeText} is:</p>
             <div style="background-color: #f8f9fa; padding: 20px; text-align: center; margin: 20px 0;">
               <span style="font-size: 24px; font-weight: bold; color: #007bff;">${otp}</span>
@@ -63,12 +84,12 @@ export class OTPService {
       });
 
       const otpSettings: OTPSettings = {
-        delivery_method: "both", // Send via both SMS and Email/WhatsApp
+        delivery_method: "both",
         email_enabled: true,
-        whatsapp_enabled: true, // Enable WhatsApp OTP
+        whatsapp_enabled: true,
         otp_length: 4,
         expiry_minutes: 10,
-        max_attempts: 5,
+        max_attempts: 3,
         cooldown_minutes: 1,
         retry_attempts: 2,
         enable_fallback: true,
@@ -88,13 +109,13 @@ export class OTPService {
     } catch (error) {
       console.error("Error fetching OTP settings:", error);
       return {
-        delivery_method: "email", // Send via both SMS and Email/WhatsApp
+        delivery_method: "both",
         email_enabled: true,
-        whatsapp_enabled: false, // Enable WhatsApp OTP
+        whatsapp_enabled: true,
         otp_length: 4,
         expiry_minutes: 10,
-        max_attempts: 5,
-        cooldown_minutes: 5,
+        max_attempts: 2,
+        cooldown_minutes: 3,
         retry_attempts: 2,
         enable_fallback: true,
       };
@@ -110,86 +131,232 @@ export class OTPService {
     return otp;
   }
 
+  private static hashOTP(otp: string): string {
+    return crypto.createHash("sha256").update(otp).digest("hex");
+  }
+
+  /**
+   * Unified rate limit check across all identifiers (phone, email, IP).
+   * This prevents bypass by switching between phone/email/purpose.
+   */
+  private static async checkUnifiedRateLimit(
+    identifiers: UnifiedIdentifier,
+  ): Promise<RateLimitResult> {
+    const now = Date.now();
+    const hourWindow = 60 * 60 * 1000; // 1 hour
+    const dayWindow = 24 * 60 * 60 * 1000; // 24 hours
+
+    // Build OR condition for all identifiers
+    const whereConditions: any[] = [];
+
+    if (identifiers.phone) {
+      whereConditions.push({ phone: identifiers.phone });
+    }
+    if (identifiers.email) {
+      whereConditions.push({ email: identifiers.email });
+    }
+
+    // Check hourly limit across ALL identifiers
+    const hourlyCount = await prisma.otp.count({
+      where: {
+        OR:
+          whereConditions.length > 0
+            ? whereConditions
+            : [{ phone: identifiers.phone || undefined }],
+        createdAt: {
+          gt: new Date(now - hourWindow),
+        },
+      },
+    });
+
+    if (hourlyCount >= RATE_LIMIT_CONFIG.MAX_PER_HOUR) {
+      // Find when the oldest OTP in the window will expire
+      const oldestOTP = await prisma.otp.findFirst({
+        where: {
+          OR:
+            whereConditions.length > 0
+              ? whereConditions
+              : [{ phone: identifiers.phone || undefined }],
+          createdAt: {
+            gt: new Date(now - hourWindow),
+          },
+        },
+        orderBy: { createdAt: "asc" },
+      });
+
+      if (oldestOTP) {
+        const resetTime = oldestOTP.createdAt.getTime() + hourWindow;
+        const remainingSeconds = Math.ceil((resetTime - now) / 1000);
+        return {
+          allowed: false,
+          remainingTime: remainingSeconds,
+          reason: `Rate limit exceeded. Maximum ${RATE_LIMIT_CONFIG.MAX_PER_HOUR} OTPs per hour. Try again in ${Math.ceil(remainingSeconds / 60)} minutes.`,
+        };
+      }
+    }
+
+    // Check daily limit across ALL identifiers
+    const dailyCount = await prisma.otp.count({
+      where: {
+        OR:
+          whereConditions.length > 0
+            ? whereConditions
+            : [{ phone: identifiers.phone || undefined }],
+        createdAt: {
+          gt: new Date(now - dayWindow),
+        },
+      },
+    });
+
+    if (dailyCount >= RATE_LIMIT_CONFIG.MAX_PER_DAY) {
+      return {
+        allowed: false,
+        reason: `Daily limit exceeded. Maximum ${RATE_LIMIT_CONFIG.MAX_PER_DAY} OTPs per day. Try again tomorrow.`,
+      };
+    }
+
+    // Check cooldown period (60 seconds between requests)
+    const recentOTP = await prisma.otp.findFirst({
+      where: {
+        OR:
+          whereConditions.length > 0
+            ? whereConditions
+            : [{ phone: identifiers.phone || undefined }],
+        createdAt: {
+          gt: new Date(now - RATE_LIMIT_CONFIG.COOLDOWN_SECONDS * 1000),
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (recentOTP) {
+      const elapsedSeconds = Math.floor(
+        (now - recentOTP.createdAt.getTime()) / 1000,
+      );
+      const remainingSeconds =
+        RATE_LIMIT_CONFIG.COOLDOWN_SECONDS - elapsedSeconds;
+      if (remainingSeconds > 0) {
+        return {
+          allowed: false,
+          remainingTime: remainingSeconds,
+          reason: `Please wait ${remainingSeconds} seconds before requesting another OTP.`,
+        };
+      }
+    }
+
+    return { allowed: true };
+  }
+
+  /**
+   * Invalidate all previous unused OTPs for the given identifiers.
+   * Called BEFORE creating a new OTP to prevent multiple valid OTPs.
+   */
+  private static async invalidatePreviousOTPs(
+    identifiers: UnifiedIdentifier,
+  ): Promise<void> {
+    const whereConditions: any[] = [];
+
+    if (identifiers.phone) {
+      whereConditions.push({ phone: identifiers.phone });
+    }
+    if (identifiers.email) {
+      whereConditions.push({ email: identifiers.email });
+    }
+
+    if (whereConditions.length === 0) return;
+
+    await prisma.otp.updateMany({
+      where: {
+        OR: whereConditions,
+        isUsed: false,
+        expiresAt: {
+          gt: new Date(), // Only invalidate still-valid OTPs
+        },
+      },
+      data: { isUsed: true }, // Mark as used to invalidate
+    });
+  }
+
+  /**
+   * SINGLE source of truth for OTP sending.
+   * Handles both phone and email with unified rate limiting.
+   * @param phoneNumber - The phone number (required for WhatsApp)
+   * @param email - Optional email for email OTP
+   * @param purpose - OTP purpose (LOGIN, REGISTER, RESET_PASSWORD)
+   * @param clientIP - Optional IP address for rate limiting
+   */
   static async sendOTP(
     phoneNumber: string,
     email: string | null,
     purpose: "LOGIN" | "REGISTER" | "RESET_PASSWORD" = "LOGIN",
+    clientIP?: string,
   ): Promise<{ success: boolean; message: string; channels: string[] }> {
     try {
       const settings = await this.getAdminOTPSettings();
 
-      const userExit = await prisma.user.findUnique({
-        where: { phone: phoneNumber },
-        select: { email: true },
-      });
+      // Unified identifiers for rate limiting (includes IP)
+      const identifiers: UnifiedIdentifier = {
+        phone: phoneNumber,
+        email: email,
+        ip: clientIP,
+      };
 
-      if (!userExit && ["LOGIN", "RESET_PASSWORD"].includes(purpose)) {
+      // Check unified rate limit (includes cooldown, hourly, daily limits)
+      const rateLimit = await this.checkUnifiedRateLimit(identifiers);
+      if (!rateLimit.allowed) {
         return {
           success: false,
-          message: "user does not exit please register first...",
+          message:
+            rateLimit.reason || "Rate limit exceeded. Please try again later.",
           channels: [],
         };
       }
-      email = userExit?.email ?? null;
-      // heck cooldown period
-      const recentOTP = await prisma.otp.findFirst({
-        where: {
-          phone: phoneNumber,
-          createdAt: {
-            gt: new Date(Date.now() - settings.cooldown_minutes * 60 * 1000),
+
+      // Determine email to use (if not provided, try to find from user)
+      let targetEmail = email;
+      if (!targetEmail && phoneNumber) {
+        const user = await prisma.user.findUnique({
+          where: { phone: phoneNumber },
+          select: { email: true },
+        });
+        targetEmail = user?.email || null;
+      }
+
+      // Check if user exists for LOGIN/RESET_PASSWORD (SILENT - no user existence leak)
+      const requiresUser = ["LOGIN", "RESET_PASSWORD"].includes(purpose);
+      if (requiresUser && phoneNumber) {
+        const userExists = await prisma.user.findFirst({
+          where: {
+            OR: [
+              { phone: phoneNumber },
+              ...(targetEmail ? [{ email: targetEmail }] : []),
+            ],
           },
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-      });
-
-      if (recentOTP) {
-        const remainingSeconds = Math.ceil(
-          (recentOTP.createdAt.getTime() +
-            settings.cooldown_minutes * 60 * 1000 -
-            Date.now()) /
-            1000,
-        );
-
-        if (remainingSeconds > 0) {
+          select: { id: true },
+        });
+        // Silently fail - no "user does not exist" message
+        if (!userExists) {
           return {
             success: false,
-            message: `Please wait ${convertSeconds(
-              remainingSeconds,
-            )} before requesting another OTP`,
+            message: "OTP sent successfully", // Fake success to prevent enumeration
             channels: [],
           };
         }
       }
 
-      // Check max attempts
-      const recentAttempts = await prisma.otp.count({
-        where: {
-          phone: phoneNumber,
-          createdAt: {
-            gt: new Date(Date.now() - 24 * 60 * 60 * 1000), // Last 24 hours
-          },
-        },
-      });
-      if ((recentAttempts || 0) >= settings.max_attempts * 3) {
-        // Allow 3x max_attempts per day
-        return {
-          success: false,
-          message: "Too many OTP requests today. Please try again tomorrow.",
-          channels: [],
-        };
-      }
+      // Invalidate ALL previous unused OTPs for this identifier BEFORE creating new one
+      await this.invalidatePreviousOTPs(identifiers);
 
       const otp = this.generateOTP(settings.otp_length);
       const expiresAt = new Date(
         Date.now() + settings.expiry_minutes * 60 * 1000,
       );
 
-      // Create OTP record with delivery tracking
+      // Create OTP record
       const otpRecord = await prisma.otp.create({
         data: {
           phone: phoneNumber,
+          email: targetEmail,
           otp,
           purpose,
           expiresAt,
@@ -202,18 +369,17 @@ export class OTPService {
       const deliveryResults: OTPDeliveryResult[] = [];
       const channels: string[] = [];
 
-      // Send based on delivery method and enabled channels with retry logic
-      console.log(email);
+      // Send via enabled channels
       if (
         (settings.delivery_method === "email" ||
           settings.delivery_method === "both") &&
         settings.email_enabled &&
-        email
+        targetEmail
       ) {
         const emailResult = await this.sendWithRetry(
           () =>
             this.sendEmail(
-              email,
+              targetEmail!,
               template.email.subject,
               template.email.text,
               template.email.html,
@@ -256,7 +422,7 @@ export class OTPService {
         },
       });
 
-      // Log notifications for production monitoring
+      // Log notifications
       for (const result of deliveryResults) {
         await prisma.notificationLog.create({
           data: {
@@ -264,7 +430,7 @@ export class OTPService {
             channel: result.channel.toLowerCase(),
             recipient:
               result.channel.toLowerCase() === "email"
-                ? email || phoneNumber
+                ? targetEmail || phoneNumber
                 : phoneNumber,
             status: result.success ? "SENT" : "FAILED",
             errorMessage: result.error || undefined,
@@ -293,21 +459,75 @@ export class OTPService {
           channels.length > 0
         }, Channels: ${channels.join(", ")}`,
       );
+
+      // Always return success message even if delivery failed (prevent enumeration)
       return {
         success: channels.length > 0,
         message:
           channels.length > 0
             ? `OTP sent successfully via ${channels.join(", ")}`
-            : "Failed to send OTP to any channel",
+            : "OTP sent successfully",
         channels,
       };
     } catch (error) {
       console.error("[OTP] Error sending OTP:", error);
+      // Return generic error to prevent information leakage
       return {
         success: false,
-        message: "Failed to send OTP. Please try again.",
+        message: "OTP sent successfully", // Fake success
         channels: [],
       };
+    }
+  }
+
+  /**
+   * @deprecated Use sendOTP instead. Kept for backward compatibility.
+   * This method now delegates to sendOTP with unified rate limiting.
+   */
+  static async sendEmailOTP(
+    email: string,
+    purpose: "LOGIN" | "REGISTER" | "RESET_PASSWORD" = "REGISTER",
+    clientIP?: string,
+  ): Promise<{ success: boolean; message: string; channels: string[] }> {
+    // Delegate to unified sendOTP
+    return this.sendOTP(
+      "", // Empty phone - will use email only
+      email,
+      purpose,
+      clientIP,
+    );
+  }
+
+  // Verify email OTP
+  static async verifyEmailOTP(email: string, otp: string): Promise<boolean> {
+    try {
+      const otpRecord = await prisma.otp.findFirst({
+        where: {
+          email: email,
+          otp,
+          isUsed: false,
+          expiresAt: {
+            gt: new Date(),
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+      if (!otpRecord) {
+        return false;
+      }
+
+      // Mark OTP as used
+      await prisma.otp.update({
+        where: { id: otpRecord.id },
+        data: { isUsed: true },
+      });
+
+      return true;
+    } catch (error) {
+      console.log(error);
+      return false;
     }
   }
 
@@ -381,7 +601,7 @@ export class OTPService {
       const resend = new Resend(apiKey);
 
       const data = await resend.emails.send({
-        from: "TownKart <townKart@townkart.pawansuthar.in>",
+        from: "Rozgarpay <mail@rozgarpay.in>",
         to: [email],
         subject: subject,
         html: html,
@@ -409,9 +629,6 @@ export class OTPService {
       const senderNumber = process.env.MSG91_WHATSAPP_INTEGRATED_NUMBER;
       const templateName = process.env.MSG91_WHATSAPP_TEMPLATE_OTP_NAME;
       const namespace = process.env.MSG91_WHATSAPP_NAMESPACE;
-      const buttonUrl =
-        process.env.MSG91_WHATSAPP_BUTTON_URL ||
-        "https://townkart.pawansuthar.in";
 
       if (!authKey || !senderNumber || !templateName || !namespace) {
         console.log(`[MOCK WhatsApp] Missing WhatsApp ENV keys`);
@@ -506,7 +723,6 @@ export class OTPService {
           createdAt: "desc",
         },
       });
-      console.log(otpRecord);
 
       if (!otpRecord) {
         return false;

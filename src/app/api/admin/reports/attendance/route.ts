@@ -146,7 +146,6 @@ export async function GET(request: NextRequest) {
           firstName: session.user.firstName ?? null,
           lastName: session.user.lastName ?? null,
           phone: session.user.phone ?? null,
-          email: session.user.email ?? null,
         },
         dateRange: {
           startDate,

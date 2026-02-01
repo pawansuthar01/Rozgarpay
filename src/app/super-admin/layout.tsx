@@ -18,6 +18,7 @@ import {
   Shield,
   Settings,
   UserCircle,
+  Send,
 } from "lucide-react";
 
 export default function SuperAdminLayout({
@@ -53,6 +54,11 @@ export default function SuperAdminLayout({
       icon: Bell,
     },
     {
+      name: "Send Notification",
+      href: "/super-admin/notifications/send",
+      icon: Send,
+    },
+    {
       name: "Audit Logs",
       href: "/super-admin/audit-logs",
       icon: Shield,
@@ -85,15 +91,15 @@ export default function SuperAdminLayout({
 
       {/* Sidebar */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform ${
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg overflow-y-auto transform ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         } transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0`}
       >
         <div className="flex items-center justify-center h-16 px-4 bg-white border-b border-gray-200">
           <h1 className="text-xl font-bold text-gray-900">Super Admin</h1>
         </div>
-        <nav className="mt-8">
-          <div className="px-4 space-y-2">
+        <nav className="mt-8 ">
+          <div className="px-4 space-y-2  ">
             {navigation.map((item) => {
               const Icon = item.icon;
               return (
@@ -114,7 +120,7 @@ export default function SuperAdminLayout({
             })}
           </div>
         </nav>
-        <div className="absolute bottom-0 w-full p-4">
+        <div className=" w-full p-4">
           <button
             onClick={() => signOut()}
             className="w-full flex items-center justify-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"

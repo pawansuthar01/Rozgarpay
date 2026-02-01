@@ -12,8 +12,10 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "10");
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1") || 1);
+    // Fixed BUG-007: Add pagination limit validation (clamp between 1-100)
+    let limit = parseInt(searchParams.get("limit") || "10") || 10;
+    limit = Math.max(1, Math.min(limit, 100));
     const status = searchParams.get("status");
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");

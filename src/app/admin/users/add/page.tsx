@@ -1,6 +1,8 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import Loading from "@/components/ui/Loading";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -13,6 +15,8 @@ import {
   ArrowLeft,
   CheckCircle,
   AlertCircle,
+  Copy,
+  Link as LinkIcon,
 } from "lucide-react";
 import { useCreateInvitation } from "@/hooks/useInvitations";
 
@@ -31,8 +35,10 @@ export default function CreateUserPage() {
   const router = useRouter();
   const [success, setSuccess] = useState(false);
   const [inviteLink, setInviteLink] = useState("");
+  const [copied, setCopied] = useState(false);
 
   const createInvitation = useCreateInvitation();
+  const [hasEmail, setHasEmail] = useState(false);
 
   const [formData, setFormData] = useState<FormData>({
     name: "",
@@ -51,6 +57,17 @@ export default function CreateUserPage() {
       [name]:
         type === "checkbox" ? (e.target as HTMLInputElement).checked : value,
     }));
+
+    // Track if email field has value
+    if (name === "email") {
+      setHasEmail(value.trim().length > 0);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    await navigator.clipboard.writeText(inviteLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -64,7 +81,7 @@ export default function CreateUserPage() {
   };
 
   if (!session || session.user.role !== "ADMIN") {
-    return <div>Access Denied</div>;
+    return <Loading />;
   }
 
   if (success) {
@@ -74,11 +91,12 @@ export default function CreateUserPage() {
           <div className="text-center">
             <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
             <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
-              Invitation Sent!
+              {hasEmail ? "Invitation Sent!" : "Invitation Created!"}
             </h2>
             <p className="mt-2 text-sm text-gray-600">
-              The invitation has been sent successfully. The user can now join
-              using the link below.
+              {hasEmail
+                ? "The invitation has been sent to the user's email. They can now join using the link below."
+                : "The invitation link has been created. Copy and share it with the user manually."}
             </p>
           </div>
 
@@ -96,11 +114,48 @@ export default function CreateUserPage() {
                     className="flex-1 min-w-0 block w-full px-3 py-2 border border-gray-300 rounded-l-md text-sm bg-gray-50"
                   />
                   <button
-                    onClick={() => navigator.clipboard.writeText(inviteLink)}
-                    className="inline-flex items-center px-3 py-2 border border-l-0 border-gray-300 bg-gray-50 rounded-r-md text-sm font-medium text-gray-700 hover:bg-gray-100"
+                    onClick={handleCopyLink}
+                    className={`inline-flex items-center px-3 py-2 border border-l-0 border-gray-300 bg-gray-50 rounded-r-md text-sm font-medium hover:bg-gray-100 transition-colors ${
+                      copied ? "text-green-600 bg-green-50" : "text-gray-700"
+                    }`}
                   >
-                    Copy
+                    {copied ? (
+                      <CheckCircle className="h-4 w-4" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
                   </button>
+                </div>
+                {!hasEmail && (
+                  <p className="mt-2 text-sm text-amber-600 flex items-center">
+                    <AlertCircle className="h-4 w-4 mr-1" />
+                    No email was provided. Please copy this link and share it
+                    with the user.
+                  </p>
+                )}
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex">
+                  <LinkIcon className="h-5 w-5 text-blue-400" />
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-blue-800">
+                      How to share the link
+                    </h3>
+                    <div className="mt-2 text-sm text-blue-700">
+                      <ul className="list-disc list-inside space-y-1">
+                        <li>Click the copy button to copy the link</li>
+                        <li>
+                          Share it via WhatsApp, SMS, or any messaging app
+                        </li>
+                        <li>The link will expire in 7 days</li>
+                        <li>
+                          If you close this page, go to Invitations page and
+                          click copy button for pending invitations
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -114,6 +169,8 @@ export default function CreateUserPage() {
                 <button
                   onClick={() => {
                     setSuccess(false);
+                    setInviteLink("");
+                    setCopied(false);
                     setFormData({
                       name: "",
                       email: "",
@@ -200,7 +257,7 @@ export default function CreateUserPage() {
                 htmlFor="email"
                 className="block text-sm font-medium text-gray-700"
               >
-                Email Address *
+                Email Address <span className="text-gray-400">(optional)</span>
               </label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -210,13 +267,16 @@ export default function CreateUserPage() {
                   type="email"
                   name="email"
                   id="email"
-                  required
                   value={formData.email}
                   onChange={handleInputChange}
                   className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  placeholder="Enter email address"
+                  placeholder="Enter email address (optional)"
                 />
               </div>
+              <p className="mt-1 text-sm text-gray-500">
+                Leave empty if you don't have an email. You can share the
+                invitation link manually.
+              </p>
             </div>
 
             <div>
@@ -323,11 +383,14 @@ export default function CreateUserPage() {
               <p>
                 1. Fill out the form with user details and select their role
                 <br />
-                2. We'll send an invitation link to their email
+                2. If email is provided, an invitation link will be sent
+                automatically
                 <br />
-                3. They click the link and complete registration
+                3. If no email, copy the link and share it manually
                 <br />
-                4. They'll see role-based onboarding after successful
+                4. The user clicks the link and completes registration
+                <br />
+                5. They'll see role-based onboarding after successful
                 registration
               </p>
             </div>

@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest, { params }: any) {
   try {
-    const { phoneNumber, otp } = await request.json(); // "phone" or "email"
+    const { phoneNumber, email, otp, type } = await request.json(); // "phone" or "email"
 
     if (!phoneNumber || !otp) {
       return NextResponse.json(
@@ -14,7 +14,16 @@ export async function POST(request: NextRequest, { params }: any) {
     }
 
     // Send OTP
-    const isVerified = await OTPService.verifyOTP(phoneNumber, otp);
+    if (type == "email" && !email && !otp) {
+      return NextResponse.json(
+        { error: "Missing email or OTP" },
+        { status: 404 },
+      );
+    }
+    const isVerified =
+      type != "email"
+        ? await OTPService.verifyOTP(phoneNumber, otp)
+        : await OTPService.verifyEmailOTP(email, otp);
 
     if (isVerified) {
       return NextResponse.json({

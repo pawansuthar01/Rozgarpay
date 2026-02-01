@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { salaryService } from "@/lib/salaryService";
 import { authOptions } from "@/lib/auth";
+import { getApprovedWorkingHours } from "@/lib/attendanceUtils";
 
 export async function GET(
   request: NextRequest,
@@ -106,6 +107,7 @@ export async function PUT(request: NextRequest, { params }: any) {
 
     if (
       !session ||
+      !session.user.companyId ||
       (session.user.role !== "ADMIN" && session.user.role !== "MANAGER")
     ) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -115,10 +117,11 @@ export async function PUT(request: NextRequest, { params }: any) {
     const body = await request.json();
     const { status } = body;
 
-    if (
-      !status ||
-      !["APPROVED", "REJECTED", "ABSENT", "LEAVE"].includes(status)
-    ) {
+    // Define valid status types
+    const validStatuses = ["APPROVED", "REJECTED", "ABSENT", "LEAVE"] as const;
+    type ValidStatus = (typeof validStatuses)[number];
+
+    if (!status || !validStatuses.includes(status as ValidStatus)) {
       return NextResponse.json(
         {
           error: "Invalid status. Must be APPROVED, REJECTED, ABSENT, or LEAVE",
@@ -127,13 +130,16 @@ export async function PUT(request: NextRequest, { params }: any) {
       );
     }
 
+    // Cast to ValidStatus type after validation
+    const validStatus = status as ValidStatus;
+
     // Get admin's company
     const admin = await prisma.user.findUnique({
       where: { id: session.user.id },
       include: { company: true },
     });
 
-    if (!admin?.company) {
+    if (!admin?.company || !admin.companyId) {
       return NextResponse.json(
         { error: "Admin company not found" },
         { status: 400 },
@@ -141,45 +147,44 @@ export async function PUT(request: NextRequest, { params }: any) {
     }
 
     const attendance = await prisma.attendance.findUnique({
-      where: { id: attendanceId },
+      where: { id: attendanceId, companyId: admin.companyId },
     });
 
-    if (!attendance || attendance.companyId !== admin.company.id) {
+    if (!attendance) {
       return NextResponse.json(
         { error: "Attendance not found" },
         { status: 404 },
       );
     }
+    if (attendance.status === validStatus) {
+      return NextResponse.json(
+        { error: "Attendance already in this status" },
+        { status: 400 },
+      );
+    }
 
     // Prevent rejecting approved attendance
-    if (attendance.status === "APPROVED" && status === "REJECTED") {
+    if (attendance.status === "APPROVED" && validStatus === "REJECTED") {
       return NextResponse.json(
         { error: "Cannot reject approved attendance" },
         { status: 400 },
       );
     }
-
     // Calculate working hours based on status
-    let workingHours: number | undefined;
-    if (status === "APPROVED") {
-      // Calculate from shift start to end
-      if (admin.company.shiftStartTime && admin.company.shiftEndTime) {
-        const start = new Date(`1970-01-01T${admin.company.shiftStartTime}:00`);
-        const end = new Date(`1970-01-01T${admin.company.shiftEndTime}:00`);
-        const diffMs = end.getTime() - start.getTime();
-        workingHours = Math.max(0, diffMs / (1000 * 60 * 60)); // hours
-      }
-    } else if (status === "ABSENT" || status === "LEAVE") {
-      workingHours = 0;
-    }
-
+    let workingHours =
+      validStatus === "ABSENT" || validStatus === "LEAVE"
+        ? 0
+        : validStatus === "APPROVED"
+          ? getApprovedWorkingHours(attendance, admin.company)
+          : (attendance.workingHours ?? 0);
+    console.log(workingHours);
     // Update attendance status
     const updatedAttendance = await prisma.attendance.update({
       where: { id: attendanceId },
       data: {
-        status: status as any,
-        approvedBy: status === "APPROVED" ? session.user.id : undefined,
-        approvedAt: status === "APPROVED" ? new Date() : undefined,
+        status: validStatus,
+        approvedBy: validStatus === "APPROVED" ? session.user.id : undefined,
+        approvedAt: validStatus === "APPROVED" ? new Date() : undefined,
         workingHours:
           workingHours !== undefined
             ? Math.round(workingHours * 100) / 100
@@ -206,59 +211,50 @@ export async function PUT(request: NextRequest, { params }: any) {
         meta: {
           statusUpdate: {
             from: attendance.status,
-            to: status,
+            to: validStatus,
           },
         },
       },
     });
-
-    // Auto-recalculate salary for the current month if attendance affects it
     try {
       const attendanceDate = new Date(updatedAttendance.attendanceDate);
-      const currentMonth = attendanceDate.getMonth() + 1;
-      const currentYear = attendanceDate.getFullYear();
+      const month = attendanceDate.getMonth() + 1;
+      const year = attendanceDate.getFullYear();
 
-      // Check if there's a salary record for this month that needs recalculation
+      // Check if salary record exists
       const existingSalary = await prisma.salary.findUnique({
         where: {
           userId_month_year: {
             userId: updatedAttendance.userId,
-            month: currentMonth,
-            year: currentYear,
+            month,
+            year,
           },
         },
       });
 
       if (
         existingSalary &&
-        existingSalary.status !== "PAID" &&
+        existingSalary.status === "PENDING" &&
         !existingSalary.lockedAt
       ) {
-        console.log(
-          `Auto-recalculating salary for user ${updatedAttendance.userId} - ${currentMonth}/${currentYear}`,
-        );
-
-        const recalcResult = await salaryService.recalculateSalary(
-          existingSalary.id,
-        );
-
-        if (!recalcResult.success) {
-          console.error(
-            "Failed to auto-recalculate salary:",
-            recalcResult.error,
-          );
-          // Don't fail the attendance update if salary recalculation fails
-        } else {
-          console.log(
-            `Successfully auto-recalculated salary for user ${updatedAttendance.userId}`,
-          );
+        // Recalculate existing salary
+        await salaryService.recalculateSalary(existingSalary.id);
+      } else if (!existingSalary) {
+        // Create new salary record for this month
+        // Use the already fetched admin data instead of redefining
+        if (admin?.companyId) {
+          await salaryService.generateSalary({
+            userId: updatedAttendance.userId,
+            companyId: admin.companyId,
+            month,
+            year,
+          });
         }
       }
-    } catch (salaryError) {
-      console.error("Error during auto salary recalculation:", salaryError);
-      // Don't fail the attendance update if salary recalculation fails
+    } catch (err) {
+      console.error("Auto salary recalculation failed:", err);
+      // ❗ salary fail hone par attendance update fail nahi hona chahiye
     }
-
     return NextResponse.json({ attendance: updatedAttendance });
   } catch (error) {
     console.error("Attendance status update error:", error);

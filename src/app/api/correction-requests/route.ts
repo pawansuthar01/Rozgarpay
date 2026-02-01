@@ -333,7 +333,7 @@ export async function PUT(request: NextRequest) {
         companyId: correctionRequest.companyId,
         title: `Request ${status.toLowerCase()}`,
         message: notificationMessage,
-        channel: "INAPP",
+        channel: "IN_APP",
       },
     });
 

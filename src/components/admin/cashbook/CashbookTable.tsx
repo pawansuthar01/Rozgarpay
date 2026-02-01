@@ -22,6 +22,7 @@ interface CashbookTableProps {
   userRole: string;
   deletingEntryId?: string | null;
   reversingEntryId?: string | null;
+  showConfirm?: (title: string, message: string, onConfirm: () => void) => void;
 }
 
 export default function CashbookTable({
@@ -37,6 +38,7 @@ export default function CashbookTable({
   userRole,
   deletingEntryId = null,
   reversingEntryId = null,
+  showConfirm,
 }: CashbookTableProps) {
   const formatCurrency = (amount: number) => `₹${amount.toLocaleString()}`;
 
@@ -70,9 +72,24 @@ export default function CashbookTable({
   };
 
   const handleReverse = (entry: CashbookEntry) => {
-    const reason = prompt("Enter reason for reversal:");
-    if (reason && onReverse) {
-      onReverse(entry.id, reason);
+    if (showConfirm && onReverse) {
+      showConfirm(
+        "Reverse Transaction",
+        `Are you sure you want to reverse this transaction of ₹${entry.amount.toLocaleString()} (${entry.direction})? This will create an opposite entry to cancel it out.`,
+        () => {
+          // First show a prompt for reason
+          const reason = prompt("Enter reason for reversal:");
+          if (reason) {
+            onReverse(entry.id, reason);
+          }
+        },
+      );
+    } else {
+      // Fallback to prompt if showConfirm not available
+      const reason = prompt("Enter reason for reversal:");
+      if (reason && onReverse) {
+        onReverse(entry.id, reason);
+      }
     }
   };
 

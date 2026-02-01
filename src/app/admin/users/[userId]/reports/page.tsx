@@ -1,6 +1,8 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import Loading from "@/components/ui/Loading";
+
 import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -33,9 +35,7 @@ import { useUser } from "@/hooks";
 import { User } from "next-auth";
 
 export default function UserReportsPage() {
-  const { data: session, status } = useSession();
   const params = useParams();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const userId = params.userId as string;
   const [user, setUser] = useState<User | null>(null);
@@ -66,7 +66,6 @@ export default function UserReportsPage() {
     isLoading: salaryLoading,
     error: salaryError,
   } = useUserSalaryReport(userId, selectedMonth);
-
   const handleMonthChange = (direction: "prev" | "next") => {
     const [year, month] = selectedMonth.split("-").map(Number);
     let newYear = year;
@@ -741,6 +740,87 @@ export default function UserReportsPage() {
                       No deductions or recoveries recorded for this month
                     </div>
                   )}
+              </div>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="p-4 md:p-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                    <Receipt className="h-5 w-5 mr-2 text-blue-600" />
+                    Salary Breakdown
+                  </h3>
+                  <span className="text-sm text-gray-500">
+                    {getMonthName(selectedMonth)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-4 md:p-6">
+                {salaryLoading ? (
+                  <div className="space-y-4">
+                    {[1, 2, 3].map((i) => (
+                      <Skeleton key={i} height={48} className="rounded-lg" />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Breakdown Items */}
+                    {salaryReport?.breakdowns &&
+                    salaryReport.breakdowns.length > 0 ? (
+                      <div className="divide-y divide-gray-100">
+                        {salaryReport.breakdowns.map((item, index) => (
+                          <div
+                            key={index}
+                            className="py-3 flex justify-between items-center hover:bg-gray-50 px-2 rounded-lg transition-colors"
+                          >
+                            <div className="flex items-center space-x-3">
+                              <div
+                                className={`w-2 h-2 rounded-full ${
+                                  item.type === "EARNING"
+                                    ? "bg-green-500"
+                                    : item.type === "DEDUCTION"
+                                      ? "bg-red-500"
+                                      : item.type === "BONUS"
+                                        ? "bg-yellow-500"
+                                        : "bg-blue-500"
+                                }`}
+                              ></div>
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">
+                                  {item.description}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  {item.type}
+                                </p>
+                              </div>
+                            </div>
+                            <p
+                              className={`text-sm font-semibold ${
+                                item.type === "BASE_SALARY" ||
+                                item.type === "EARNING" ||
+                                item.type === "BONUS"
+                                  ? "text-green-600"
+                                  : "text-red-600"
+                              }`}
+                            >
+                              {item.type === "BASE_SALARY" ||
+                              item.type === "EARNING" ||
+                              item.type === "BONUS"
+                                ? "+"
+                                : "-"}
+                              ₹{formatCurrency(item.amount)}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        <Receipt className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                        <p>No salary breakdown available</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>

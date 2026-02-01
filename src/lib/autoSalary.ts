@@ -2,15 +2,11 @@ import { prisma } from "./prisma";
 import { salaryService } from "./salaryService";
 
 export async function runAutoSalaryGeneration() {
-  console.log("🔄 Starting auto salary generation for all companies...");
-
   // Get current month for daily/hourly salary generation
   const now = new Date();
   const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const month = currentMonth.getMonth() + 1; // JS months are 0-based
   const year = currentMonth.getFullYear();
-
-  console.log(`📅 Generating salaries for ${month}/${year}`);
 
   // Get all active companies
   const companies = await prisma.company.findMany({
@@ -35,7 +31,7 @@ export async function runAutoSalaryGeneration() {
           year,
         );
 
-        if (result.success) {
+        if (result.success && !result.skipped) {
           console.log(
             `✅ ${company.name}: ${result.processed} salaries generated`,
           );
@@ -69,10 +65,6 @@ export async function runAutoSalaryGeneration() {
     });
   }
 
-  console.log(
-    `🎯 Auto salary generation completed: ${totalProcessed} processed, ${totalErrors} errors`,
-  );
-
   return { totalProcessed, totalErrors };
 }
 async function sendSalaryNotification(
@@ -98,7 +90,7 @@ async function sendSalaryNotification(
       companyId,
       title: "Salary Report Generated",
       message: `Salary report for ${month}/${year} has been generated for ${count} staff members.`,
-      channel: "INAPP" as const,
+      channel: "IN_APP" as const,
       status: "PENDING" as const,
       meta: { month, year, count },
     }));
@@ -106,9 +98,7 @@ async function sendSalaryNotification(
     await prisma.notification.createMany({
       data: notifications,
     });
-
-    console.log(`📬 Sent salary notifications to ${recipients.length} users`);
-  } catch (error) {
-    console.error("❌ Failed to send salary notifications:", error);
+  } catch (error: any) {
+    throw new Error(error);
   }
 }

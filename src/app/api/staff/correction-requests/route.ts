@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
           companyId,
           title: "New Correction Request",
           message: `Correction request submitted for ${date.toDateString()}`,
-          channel: "INAPP",
+          channel: "WHATSAPP",
           meta: {
             correctionRequestId: correctionRequest.id,
           },

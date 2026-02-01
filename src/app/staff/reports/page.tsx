@@ -1,6 +1,8 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import Loading from "@/components/ui/Loading";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Skeleton from "react-loading-skeleton";
@@ -144,7 +146,7 @@ export default function StaffReportsPage() {
   };
 
   if (!session || session.user.role !== "STAFF") {
-    return <div>Access Denied</div>;
+    return <Loading />;
   }
 
   return (

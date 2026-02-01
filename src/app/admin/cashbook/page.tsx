@@ -1,6 +1,8 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import Loading from "@/components/ui/Loading";
+
 import { useState, useEffect } from "react";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
@@ -120,21 +122,17 @@ export default function AdminCashbookPage() {
   };
 
   const handleReverseEntry = async (entryId: string, reason: string) => {
-    showConfirm(
-      "Confirm Reverse",
-      "Are you sure you want to reverse this transaction? This will create an opposite entry.",
-      async () => {
-        setReversingEntryId(entryId);
-        try {
-          await reverseEntryMutation.mutateAsync(entryId);
-        } catch (error) {
-          console.error("Reverse entry error:", error);
-          showMessage("error", "Error", "Failed to reverse entry");
-        } finally {
-          setReversingEntryId(null);
-        }
-      },
-    );
+    // The confirmation is already shown by CashbookTable
+    // Just perform the reversal action
+    setReversingEntryId(entryId);
+    try {
+      await reverseEntryMutation.mutateAsync({ entryId, reason });
+    } catch (error) {
+      console.error("Reverse entry error:", error);
+      showMessage("error", "Error", "Failed to reverse entry");
+    } finally {
+      setReversingEntryId(null);
+    }
   };
 
   const handleDeleteEntry = async (entryId: string) => {
@@ -172,7 +170,7 @@ export default function AdminCashbookPage() {
   };
 
   if (!session || !["ADMIN", "MANAGER", "STAFF"].includes(session.user.role)) {
-    return <div>Access Denied</div>;
+    return <Loading />;
   }
 
   const canCreate = ["ADMIN", "MANAGER"].includes(session.user.role);
@@ -316,6 +314,7 @@ export default function AdminCashbookPage() {
                 userRole={session.user.role}
                 deletingEntryId={deletingEntryId}
                 reversingEntryId={reversingEntryId}
+                showConfirm={showConfirm}
               />
             </div>
           </div>

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { salaryService } from "@/lib/salaryService";
 import { authOptions } from "@/lib/auth";
+import { hmToHours } from "@/lib/attendanceUtils";
 
 export async function PUT(
   request: NextRequest,
@@ -34,13 +35,28 @@ export async function PUT(
       shiftDurationHours: number;
     };
 
+    const finalWorkingHours = hmToHours(workingHours);
+    if (finalWorkingHours < 0 || finalWorkingHours > 24) {
+      return NextResponse.json(
+        { error: "Invalid working hours" },
+        { status: 400 },
+      );
+    }
+
+    if (LateMinute < 0 || LateMinute > 1440) {
+      return NextResponse.json(
+        { error: "Invalid late minutes" },
+        { status: 400 },
+      );
+    }
+
     // Get admin's company
     const admin = await prisma.user.findUnique({
       where: { id: session.user.id },
       include: { company: true },
     });
 
-    if (!admin?.company) {
+    if (!admin?.company || !admin.companyId) {
       return NextResponse.json(
         { error: "Admin company not found" },
         { status: 400 },
@@ -48,10 +64,10 @@ export async function PUT(
     }
 
     const attendance = await prisma.attendance.findUnique({
-      where: { id: attendanceId },
+      where: { id: attendanceId, companyId: admin.companyId },
     });
 
-    if (!attendance || attendance.companyId !== admin.company.id) {
+    if (!attendance) {
       return NextResponse.json(
         { error: "Attendance not found" },
         { status: 404 },
@@ -103,35 +119,6 @@ export async function PUT(
         },
       },
     });
-
-    // Auto-recalculate salary for the current month if attendance affects it
-    try {
-      const attendanceDate = new Date(updatedAttendance.attendanceDate);
-      const currentMonth = attendanceDate.getMonth() + 1;
-      const currentYear = attendanceDate.getFullYear();
-
-      // Check if there's a salary record for this month that needs recalculation
-      const existingSalary = await prisma.salary.findUnique({
-        where: {
-          userId_month_year: {
-            userId: updatedAttendance.userId,
-            month: currentMonth,
-            year: currentYear,
-          },
-        },
-      });
-
-      if (
-        existingSalary &&
-        existingSalary.status !== "PAID" &&
-        !existingSalary.lockedAt
-      ) {
-        await salaryService.recalculateSalary(existingSalary.id);
-      }
-    } catch (salaryError) {
-      console.error("Error during auto salary recalculation:", salaryError);
-      // Don't fail the attendance update if salary recalculation fails
-    }
 
     return NextResponse.json({ attendance: updatedAttendance });
   } catch (error) {

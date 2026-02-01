@@ -1,6 +1,8 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import Loading from "@/components/ui/Loading";
+
 import { useState } from "react";
 import Link from "next/link";
 import {
@@ -93,7 +95,7 @@ export default function AdminReportsPage() {
   };
 
   if (!session || session.user.role !== "ADMIN") {
-    return <div>Access Denied</div>;
+    return <Loading />;
   }
 
   const reportTypes = [

@@ -283,3 +283,79 @@ export const copyToClipboard = async (text: string): Promise<boolean> => {
     return false;
   }
 };
+/**
+ * Sanitizes and validates action URL path
+ * - Removes protocol + domain if pasted
+ * - Ensures it starts with "/"
+ * - Prevents query abuse
+ */
+export function sanitizeActionPath(input: string): {
+  value: string;
+  isValid: boolean;
+  error?: string;
+} {
+  if (!input) {
+    return { value: "", isValid: false };
+  }
+
+  let value = input.trim();
+
+  // ❌ If full URL pasted → extract pathname
+  try {
+    if (value.startsWith("http://") || value.startsWith("https://")) {
+      const url = new URL(value);
+      value = url.pathname;
+    }
+  } catch {
+    return {
+      value: "",
+      isValid: false,
+      error: "Invalid URL format",
+    };
+  }
+
+  // ✅ Ensure leading slash
+  if (!value.startsWith("/")) {
+    value = "/" + value;
+  }
+
+  // ❌ Block spaces
+  if (/\s/.test(value)) {
+    return {
+      value,
+      isValid: false,
+      error: "Path must not contain spaces",
+    };
+  }
+
+  // ❌ Block protocol leftovers
+  if (value.includes("://")) {
+    return {
+      value: "",
+      isValid: false,
+      error: "Only end path is allowed",
+    };
+  }
+
+  // ❌ Block domain-like input
+  if (value.includes(".")) {
+    return {
+      value: "",
+      isValid: false,
+      error: "Domain names are not allowed",
+    };
+  }
+
+  return {
+    value,
+    isValid: true,
+  };
+}
+export function sanitizeMsg91Text(message?: string): string {
+  if (!message) return "";
+
+  return message
+    .replace(/\n+/g, " ") // remove new lines
+    .replace(/\s+/g, " ") // normalize spaces
+    .trim();
+}

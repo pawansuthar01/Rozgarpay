@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import Skeleton from "react-loading-skeleton";
@@ -34,6 +35,7 @@ import {
   useUpdateAttendanceStatus,
 } from "@/hooks";
 import { useModal } from "@/components/ModalProvider";
+import Loading from "@/components/ui/Loading";
 
 export default function AdminAttendanceDetailPage() {
   const { data: session } = useSession();
@@ -99,7 +101,7 @@ export default function AdminAttendanceDetailPage() {
   };
 
   if (!session || session.user.role !== "ADMIN") {
-    return <div>Access Denied</div>;
+    return <Loading />;
   }
 
   return (

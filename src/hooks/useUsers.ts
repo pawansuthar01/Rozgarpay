@@ -4,7 +4,6 @@ import { User } from "next-auth";
 export function useUsers(
   page: number,
   limit: number,
-  role: string,
   status: string,
   search: string,
 ) {
@@ -15,12 +14,11 @@ export function useUsers(
     isLoading: loading,
     error,
   } = useQuery({
-    queryKey: ["users", page, limit, role, status, search],
+    queryKey: ["users", page, limit, status, search],
     queryFn: async () => {
       const params = new URLSearchParams({
         page: page.toString(),
         limit: limit.toString(),
-        role,
         status,
         search,
       });

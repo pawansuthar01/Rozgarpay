@@ -219,37 +219,37 @@ export class SalaryService {
         });
       });
 
-      // Generate and upload PDF after salary creation
-      try {
-        const { generateSalaryPDFBuffer } = await import("@/lib/pdfGenerator");
-        const { uploadPDF } = await import("@/lib/cloudinary");
-        const pdfData = await this.generateSalaryPDFData(salary.id);
-        const pdfBuffer = generateSalaryPDFBuffer({
-          data: pdfData,
-          companyName: company.name,
-        });
+      // // Generate and upload PDF after salary creation
+      // try {
+      //   const { generateSalaryPDFBuffer } = await import("@/lib/pdfGenerator");
+      //   const { uploadPDF } = await import("@/lib/cloudinary");
+      //   const pdfData = await this.generateSalaryPDFData(salary.id);
+      //   const pdfBuffer = generateSalaryPDFBuffer({
+      //     data: pdfData,
+      //     companyName: company.name,
+      //   });
 
-        // Validate PDF buffer
-        if (!pdfBuffer || pdfBuffer.length === 0) {
-          throw new Error("Generated PDF buffer is empty or invalid");
-        }
+      //   // Validate PDF buffer
+      //   if (!pdfBuffer || pdfBuffer.length === 0) {
+      //     throw new Error("Generated PDF buffer is empty or invalid");
+      //   }
 
-        console.log(`Generated PDF buffer size: ${pdfBuffer.length} bytes`);
+      //   console.log(`Generated PDF buffer size: ${pdfBuffer.length} bytes`);
 
-        const filename = `${user.firstName}_${user.lastName}_salary_${month}_${year}`;
-        const pdfUrl = await uploadPDF(pdfBuffer, "salary-pdfs", filename);
+      //   const filename = `${user.firstName}_${user.lastName}_salary_${month}_${year}`;
+      //   const pdfUrl = await uploadPDF(pdfBuffer, "salary-pdfs", filename);
 
-        // Update salary with PDF URL
-        await prisma.salary.update({
-          where: { id: salary.id },
-          data: { pdfUrl },
-        });
+      //   // Update salary with PDF URL
+      //   await prisma.salary.update({
+      //     where: { id: salary.id },
+      //     data: { pdfUrl },
+      //   });
 
-        salary.pdfUrl = pdfUrl;
-      } catch (pdfError) {
-        console.error("Failed to generate/upload PDF:", pdfError);
-        // Don't fail the salary generation if PDF fails
-      }
+      //   salary.pdfUrl = pdfUrl;
+      // } catch (pdfError) {
+      //   console.error("Failed to generate/upload PDF:", pdfError);
+      //   // Don't fail the salary generation if PDF fails
+      // }
 
       return {
         success: true,
@@ -678,7 +678,8 @@ export class SalaryService {
       if (salary.lockedAt) {
         return { success: false, error: "Salary is locked" };
       }
-      const remainingBalance = salaryService.calculateSalaryBalance(
+      // Use 'this' to call instance method correctly (fixed BUG-002)
+      const remainingBalance = this.calculateSalaryBalance(
         salary,
         salary.ledger,
       );
@@ -769,68 +770,68 @@ export class SalaryService {
       });
     }
 
-    // Generate new PDF for recalculated salary
-    if (result.success && result.salary) {
-      try {
-        const pdfData = await this.generateSalaryPDFData(salaryId);
-        const company = await prisma.company.findUnique({
-          where: { id: salary.companyId },
-          select: { name: true },
-        });
-        const user = await prisma.user.findUnique({
-          where: { id: salary.userId },
-          select: { firstName: true, lastName: true },
-        });
-        const { generateSalaryPDFBuffer } = await import("@/lib/pdfGenerator");
-        const { uploadPDF } = await import("@/lib/cloudinary");
-        const { deletePDF } = await import("@/lib/cloudinary");
-        const pdfBuffer = generateSalaryPDFBuffer({
-          data: pdfData,
-          companyName: company?.name || "Company",
-        });
+    // // Generate new PDF for recalculated salary
+    // if (result.success && result.salary) {
+    //   try {
+    //     const pdfData = await this.generateSalaryPDFData(salaryId);
+    //     const company = await prisma.company.findUnique({
+    //       where: { id: salary.companyId },
+    //       select: { name: true },
+    //     });
+    //     const user = await prisma.user.findUnique({
+    //       where: { id: salary.userId },
+    //       select: { firstName: true, lastName: true },
+    //     });
+    //     const { generateSalaryPDFBuffer } = await import("@/lib/pdfGenerator");
+    //     const { uploadPDF } = await import("@/lib/cloudinary");
+    //     const { deletePDF } = await import("@/lib/cloudinary");
+    //     const pdfBuffer = generateSalaryPDFBuffer({
+    //       data: pdfData,
+    //       companyName: company?.name || "Company",
+    //     });
 
-        // Validate PDF buffer
-        if (!pdfBuffer || pdfBuffer.length === 0) {
-          throw new Error("Generated PDF buffer is empty or invalid");
-        }
+    //     // Validate PDF buffer
+    //     if (!pdfBuffer || pdfBuffer.length === 0) {
+    //       throw new Error("Generated PDF buffer is empty or invalid");
+    //     }
 
-        console.log(
-          `Generated PDF buffer size for recalculation: ${pdfBuffer.length} bytes`,
-        );
+    //     console.log(
+    //       `Generated PDF buffer size for recalculation: ${pdfBuffer.length} bytes`,
+    //     );
 
-        // Delete old PDF if it exists
-        if (result.salary.pdfUrl) {
-          try {
-            // Extract public ID from Cloudinary URL
-            const urlParts = result.salary.pdfUrl.split("/");
-            const filenameWithExtension = urlParts[urlParts.length - 1];
-            const publicId = `salary-pdfs/${filenameWithExtension.replace(".pdf", "")}`;
-            await deletePDF(publicId);
-          } catch (deleteError) {
-            console.error("Failed to delete old PDF:", deleteError);
-            // Continue with upload even if delete fails
-          }
-        }
+    //     // Delete old PDF if it exists
+    //     if (result.salary.pdfUrl) {
+    //       try {
+    //         // Extract public ID from Cloudinary URL
+    //         const urlParts = result.salary.pdfUrl.split("/");
+    //         const filenameWithExtension = urlParts[urlParts.length - 1];
+    //         const publicId = `salary-pdfs/${filenameWithExtension.replace(".pdf", "")}`;
+    //         await deletePDF(publicId);
+    //       } catch (deleteError) {
+    //         console.error("Failed to delete old PDF:", deleteError);
+    //         // Continue with upload even if delete fails
+    //       }
+    //     }
 
-        // Upload new PDF with consistent filename (no version suffix)
-        const filename = `${user?.firstName}_${user?.lastName}_salary_${salary.month}_${salary.year}`;
-        const pdfUrl = await uploadPDF(pdfBuffer, "salary-pdfs", filename);
+    //     // Upload new PDF with consistent filename (no version suffix)
+    //     const filename = `${user?.firstName}_${user?.lastName}_salary_${salary.month}_${salary.year}`;
+    //     const pdfUrl = await uploadPDF(pdfBuffer, "salary-pdfs", filename);
 
-        // Update salary with new PDF URL
-        await prisma.salary.update({
-          where: { id: salaryId },
-          data: { pdfUrl },
-        });
+    //     // Update salary with new PDF URL
+    //     await prisma.salary.update({
+    //       where: { id: salaryId },
+    //       data: { pdfUrl },
+    //     });
 
-        result.salary.pdfUrl = pdfUrl;
-      } catch (pdfError) {
-        console.error(
-          "Failed to generate/upload PDF for recalculation:",
-          pdfError,
-        );
-        // Don't fail the recalculation if PDF fails
-      }
-    }
+    //     result.salary.pdfUrl = pdfUrl;
+    //   } catch (pdfError) {
+    //     console.error(
+    //       "Failed to generate/upload PDF for recalculation:",
+    //       pdfError,
+    //     );
+    //     // Don't fail the recalculation if PDF fails
+    //   }
+    // }
 
     return result;
   }
@@ -963,6 +964,7 @@ export class SalaryService {
     year: number,
   ): Promise<{
     success: boolean;
+    skipped: boolean;
     processed: number;
     errors: string[];
   }> {
@@ -972,17 +974,31 @@ export class SalaryService {
         status: "ACTIVE",
         role: { in: ["STAFF", "MANAGER"] },
       },
-      select: { id: true },
+      select: {
+        id: true,
+        salaries: {
+          where: {
+            month,
+            year,
+            status: { not: "PAID" },
+            lockedAt: null,
+          },
+          select: { id: true },
+        },
+      },
     });
 
     let processed = 0;
     const errors: string[] = [];
-
+    let skipped: boolean = false;
     // Process users in batches of 10 for better performance
     const batchSize = 10;
     for (let i = 0; i < users.length; i += batchSize) {
       const batch = users.slice(i, i + batchSize);
       const batchPromises = batch.map(async (user) => {
+        if (user.salaries.length === 0) {
+          return { success: true, skipped: true };
+        }
         try {
           const result = await this.generateSalary({
             userId: user.id,
@@ -1009,6 +1025,10 @@ export class SalaryService {
 
       const batchResults = await Promise.all(batchPromises);
       batchResults.forEach((result) => {
+        if (result.skipped) {
+          skipped = true;
+          return;
+        }
         if (result.success) {
           processed++;
         } else if (result.error) {
@@ -1021,6 +1041,7 @@ export class SalaryService {
       success: errors.length === 0,
       processed,
       errors,
+      skipped,
     };
   }
 }

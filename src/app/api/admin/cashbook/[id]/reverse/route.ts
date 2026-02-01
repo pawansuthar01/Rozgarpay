@@ -49,50 +49,82 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Create reversal entry (opposite direction)
-    const reversalEntry = await prisma.cashbookEntry.create({
-      data: {
-        companyId: originalEntry.companyId,
-        userId: originalEntry.userId,
-        transactionType: "ADJUSTMENT",
-        direction: originalEntry.direction === "CREDIT" ? "DEBIT" : "CREDIT",
-        amount: originalEntry.amount,
-        paymentMode: originalEntry.paymentMode,
-        reference: `REVERSAL-${originalEntry.id}`,
-        description: `Reversal: ${originalEntry.description}`,
-        notes: `Reversal reason: ${reason}${notes ? ` - ${notes}` : ""}`,
-        transactionDate: new Date(),
-        createdBy: session.user.id,
-        reversalOf: originalEntry.id,
-      },
-    });
-
-    // Mark original entry as reversed
-    await prisma.cashbookEntry.update({
-      where: { id: originalEntry.id },
-      data: { isReversed: true },
-    });
-
-    // Create audit log
-    await prisma.auditLog.create({
-      data: {
-        userId: session.user.id,
-        action: "UPDATED",
-        entity: "CashbookEntry",
-        entityId: originalEntry.id,
-        meta: {
-          action: "REVERSED",
-          reversalId: reversalEntry.id,
-          reason,
-          notes,
+    // Check if there's a linked SalaryLedger entry (reference = salaryId)
+    let linkedLedger = null;
+    if (originalEntry.reference && originalEntry.userId) {
+      linkedLedger = await prisma.salaryLedger.findFirst({
+        where: {
+          salaryId: originalEntry.reference,
+          userId: originalEntry.userId,
         },
-      },
+      });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      // Create reversal entry (opposite direction)
+      const reversalEntry = await tx.cashbookEntry.create({
+        data: {
+          companyId: originalEntry.companyId,
+          userId: originalEntry.userId,
+          transactionType: "ADJUSTMENT",
+          direction: originalEntry.direction === "CREDIT" ? "DEBIT" : "CREDIT",
+          amount: originalEntry.amount,
+          paymentMode: originalEntry.paymentMode,
+          reference: `REVERSAL-${originalEntry.id}`,
+          description: `Reversal: ${originalEntry.description}`,
+          notes: `Reversal reason: ${reason}${notes ? ` - ${notes}` : ""}`,
+          transactionDate: new Date(),
+          createdBy: session.user.id,
+          reversalOf: originalEntry.id,
+        },
+      });
+
+      // Mark original entry as reversed
+      await tx.cashbookEntry.update({
+        where: { id: originalEntry.id },
+        data: { isReversed: true },
+      });
+
+      // If there's a linked ledger, create a reversal ledger entry
+      if (linkedLedger) {
+        const reversalAmount = -linkedLedger.amount; // Opposite sign
+        await tx.salaryLedger.create({
+          data: {
+            salaryId: linkedLedger.salaryId,
+            userId: linkedLedger.userId,
+            companyId: linkedLedger.companyId,
+            type: linkedLedger.type,
+            amount: reversalAmount,
+            reason: `Reversal: ${linkedLedger.reason}`,
+            createdBy: session.user.id,
+          },
+        });
+      }
+
+      // Create audit log
+      await tx.auditLog.create({
+        data: {
+          userId: session.user.id,
+          action: "UPDATED",
+          entity: "CashbookEntry",
+          entityId: originalEntry.id,
+          meta: {
+            action: "REVERSED",
+            reversalId: reversalEntry.id,
+            linkedLedgerId: linkedLedger?.id || null,
+            reason,
+            notes,
+          },
+        },
+      });
+
+      return {
+        originalEntry: { ...originalEntry, isReversed: true },
+        reversalEntry,
+      };
     });
 
-    return NextResponse.json({
-      originalEntry: { ...originalEntry, isReversed: true },
-      reversalEntry,
-    });
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Cashbook reverse error:", error);
     return NextResponse.json(

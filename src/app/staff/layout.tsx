@@ -49,12 +49,7 @@ export default function StaffLayout({
       priority: 2,
     },
     { name: "Salary", href: "/staff/salary", icon: DollarSign, priority: 3 },
-    {
-      name: "My Ledger",
-      href: "/staff/cashbook",
-      icon: DollarSign,
-      priority: 3.5,
-    },
+
     {
       name: "Notifications",
       href: "/staff/notifications",
@@ -218,7 +213,7 @@ export default function StaffLayout({
           }`}
         >
           <div
-            className={`max-w-7xl mx-auto ${
+            className={`max-w-7xl lg:mb-0 mb-10  mx-auto ${
               pathname === "/staff/dashboard" ? "" : "space-y-6"
             }`}
           >

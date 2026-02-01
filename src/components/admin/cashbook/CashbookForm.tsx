@@ -288,6 +288,7 @@ export default function CashbookForm({
                     Reference (Optional)
                   </label>
                   <input
+                    disabled={isEditing}
                     type="text"
                     value={formData.reference || ""}
                     onChange={(e) => handleChange("reference", e.target.value)}

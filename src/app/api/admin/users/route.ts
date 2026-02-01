@@ -14,7 +14,6 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
-    const role = searchParams.get("role");
     const status = searchParams.get("status");
     const search = searchParams.get("search");
 
@@ -31,14 +30,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Build where clause
+    // Build where clause - Fixed BUG-008: Move role filter to initial where clause
     const where: any = {
       companyId: admin.company.id,
+      role: "STAFF", // Moved from after search condition
     };
-
-    if (role) {
-      where.role = role;
-    }
 
     if (status) {
       where.status = status;
@@ -52,7 +48,6 @@ export async function GET(request: NextRequest) {
         { phone: { contains: search, mode: "insensitive" } },
       ];
     }
-
     // Get total count
     const total = await prisma.user.count({ where });
     const totalPages = Math.ceil(total / limit);
@@ -64,7 +59,6 @@ export async function GET(request: NextRequest) {
       skip: (page - 1) * limit,
       take: limit,
     });
-
     return NextResponse.json({
       users,
       pagination: {

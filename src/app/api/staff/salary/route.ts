@@ -37,6 +37,9 @@ export async function GET(request: NextRequest) {
       where,
       include: {
         breakdowns: true,
+        ledger: {
+          orderBy: { createdAt: "desc" },
+        },
         approvedByUser: {
           select: {
             firstName: true,

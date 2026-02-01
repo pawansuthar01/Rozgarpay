@@ -1,6 +1,8 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import Loading from "@/components/ui/Loading";
+
 import { useState } from "react";
 import Link from "next/link";
 import {
@@ -20,7 +22,7 @@ export default function ManagerReports() {
   const [exporting, setExporting] = useState<string | null>(null);
 
   if (!session || session.user.role !== "MANAGER") {
-    return <div>Access Denied</div>;
+    return <Loading />;
   }
 
   const handleExport = async (

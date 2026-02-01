@@ -51,6 +51,11 @@ export interface UserSalaryReport {
     description: string;
     date: string;
   }[];
+  breakdowns: Array<{
+    type: string;
+    description: string;
+    amount: number;
+  }>;
 }
 
 export function useUserAttendanceReport(userId: string, monthYear: string) {

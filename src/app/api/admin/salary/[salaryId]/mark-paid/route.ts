@@ -184,7 +184,7 @@ export async function POST(
           companyId: admin.company.id,
           title: "Salary Payment Received",
           message: `Your salary for ${new Date(0, salary.month - 1).toLocaleString("default", { month: "long" })} ${salary.year} has been marked as paid. Amount: ₹${salary.netAmount.toLocaleString()}`,
-          channel: "INAPP",
+          channel: "IN_APP",
           status: "PENDING",
           meta: {
             salaryId: salaryId,

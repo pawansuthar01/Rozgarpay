@@ -56,7 +56,7 @@ enum SalaryType {
 
 enum NotificationChannel {
   EMAIL
-  INAPP
+  IN_APP
   WHATSAPP
   PUSH
 }
@@ -191,7 +191,7 @@ model User {
   id                   String        @id @default(uuid()) @db.Uuid
   firstName            String?
   lastName             String?
-  email                String        @unique
+  email                String?        @unique
   phone                String        @unique
   password             String
   profileImg           String?       // URL to profile image
@@ -206,10 +206,11 @@ model User {
   salaryType           SalaryType?   @default(MONTHLY) // Default salary type
   workingDays          Int?          @default(26) // Working days per month (26 or 22)
   overtimeRate         Float?        // Overtime rate per hour (optional)
-  pfEsiApplicable      Boolean?      @default(true) // PF/ESI applicable
+  pfEsiApplicable      Boolean?      @default(false) // PF/ESI applicable
   joiningDate          DateTime?     // Employee joining date
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
+salarySetupDone Boolean @default(false)
 
   company           Company?          @relation(fields: [companyId], references: [id])
   attendances       Attendance[]
@@ -259,7 +260,7 @@ model Attendance {
    rejectionReason String?         // Reason for rejection
    createdAt      DateTime         @default(now())
    updatedAt      DateTime         @updatedAt
-
+   salaryBlocked Boolean @default(false)
    user            User    @relation(fields: [userId], references: [id])
    company         Company @relation(fields: [companyId], references: [id])
    approvedByUser  User?   @relation("ApprovedBy", fields: [approvedBy], references: [id])
@@ -429,7 +430,8 @@ model CashbookEntry {
 
 model Otp {
   id        String     @id @default(uuid()) @db.Uuid
-  phone     String
+  phone     String?
+  email     String?
   otp       String
   purpose   OtpPurpose
   expiresAt DateTime

@@ -140,6 +140,7 @@ export function useAttendance(params?: {
       const data = (await response.json()) as AttendanceResponse;
 
       // Cache the data in IndexedDB for offline use
+      // Fixed BUG-009: Improved error handling for IndexedDB caching
       if (data.records && data.records.length > 0) {
         try {
           await saveAttendance(
@@ -154,7 +155,13 @@ export function useAttendance(params?: {
             })),
           );
         } catch (error) {
-          console.warn("Failed to cache attendance data:", error);
+          // BUG-009: Log more detailed error information
+          console.warn(
+            "Failed to cache attendance data for offline use:",
+            error instanceof Error ? error.message : "Unknown error",
+            "This may affect offline functionality.",
+          );
+          // Note: IndexedDB errors are non-critical, attendance data will still work online
         }
       }
 

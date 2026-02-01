@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -12,6 +12,9 @@ import {
   CheckCircle,
   Copy,
   ExternalLink,
+  Upload,
+  X,
+  Image as ImageIcon,
 } from "lucide-react";
 
 export default function CreateCompanyPage() {
@@ -22,6 +25,8 @@ export default function CreateCompanyPage() {
     adminPhone: "",
     role: "ADMIN",
   });
+  const [logo, setLogo] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
@@ -30,6 +35,7 @@ export default function CreateCompanyPage() {
     joinLink: string;
     expiresAt: string;
   } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -38,6 +44,7 @@ export default function CreateCompanyPage() {
     setError("");
 
     try {
+      // Create company first
       const res = await fetch("/api/super-admin/companies", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -46,12 +53,30 @@ export default function CreateCompanyPage() {
 
       const data = await res.json();
 
-      if (res.ok) {
-        setSuccess(true);
-        setInvitation(data.invitation);
-      } else {
+      if (!res.ok) {
         setError(data.error || "Error creating company");
+        setLoading(false);
+        return;
       }
+
+      // If logo is selected, upload it and update the company
+      if (logo && data.company?.id) {
+        const logoFormData = new FormData();
+        logoFormData.append("logo", logo);
+        logoFormData.append("companyId", data.company.id);
+
+        const logoRes = await fetch("/api/super-admin/companies/logo", {
+          method: "POST",
+          body: logoFormData,
+        });
+
+        if (!logoRes.ok) {
+          console.error("Failed to upload logo");
+        }
+      }
+
+      setSuccess(true);
+      setInvitation(data.invitation);
     } catch (error) {
       setError("An error occurred while creating the company");
     } finally {
@@ -60,10 +85,42 @@ export default function CreateCompanyPage() {
   };
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith("image/")) {
+        setError("File must be an image");
+        return;
+      }
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setError("File size must be less than 5MB");
+        return;
+      }
+      setLogo(file);
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+      setError("");
+    }
+  };
+
+  const removeLogo = () => {
+    setLogo(null);
+    setLogoPreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   const copyToClipboard = (text: string) => {
@@ -183,6 +240,8 @@ export default function CreateCompanyPage() {
                       adminPhone: "",
                       role: "ADMIN",
                     });
+                    setLogo(null);
+                    setLogoPreview(null);
                   }}
                   className="bg-gray-600 text-white px-6 py-2 rounded-md hover:bg-gray-700 transition-colors"
                 >
@@ -280,6 +339,59 @@ export default function CreateCompanyPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Brief description of the company (optional)"
                 />
+              </div>
+
+              {/* Logo Upload */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Company Logo
+                </label>
+                <div className="mt-1 flex items-center space-x-4">
+                  {logoPreview ? (
+                    <div className="relative">
+                      <img
+                        src={logoPreview}
+                        alt="Company logo preview"
+                        className="h-20 w-20 object-cover rounded-lg border border-gray-300"
+                      />
+                      <button
+                        type="button"
+                        onClick={removeLogo}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="h-20 w-20 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-blue-500 transition-colors"
+                    >
+                      <ImageIcon className="h-8 w-8 text-gray-400" />
+                      <span className="text-xs text-gray-500 mt-1">Logo</span>
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLogoChange}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <Upload className="h-4 w-4 text-gray-500" />
+                      <span>Upload Logo</span>
+                    </button>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Max file size: 5MB. Supported formats: JPG, PNG, GIF, WebP
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
 

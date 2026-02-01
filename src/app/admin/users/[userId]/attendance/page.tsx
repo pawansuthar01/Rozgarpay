@@ -1,6 +1,8 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import Loading from "@/components/ui/Loading";
+
 import type { User as UserType } from "next-auth";
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -128,7 +130,7 @@ export default function UserAttendancePage() {
   };
 
   if (!session || session.user.role !== "ADMIN") {
-    return <div>Access Denied</div>;
+    return <Loading />;
   }
 
   const months = [

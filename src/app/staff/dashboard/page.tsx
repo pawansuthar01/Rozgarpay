@@ -19,14 +19,16 @@ import {
   Square,
   Camera,
   IndianRupee,
+  ClockAlert,
+  Settings,
 } from "lucide-react";
 import PunchModal from "@/components/PunchModal";
 import { useModal } from "@/components/ModalProvider";
+import { useStaffDashboard } from "@/hooks/useStaffDashboard";
 import {
-  useStaffDashboard,
   usePunchAttendance,
-} from "@/hooks/useStaffDashboard";
-import { useTodayAttendance } from "@/hooks/useStaffAttendance";
+  useTodayAttendance,
+} from "@/hooks/useStaffAttendance";
 
 export default function StaffDashboardPage() {
   const { showMessage } = useModal();
@@ -43,65 +45,29 @@ export default function StaffDashboardPage() {
 
   const handlePunchConfirm = async (type: "in" | "out", imageData: string) => {
     setPunchModalOpen(false);
-    punchMutation.mutate(
-      { type, imageData },
-      {
-        onSuccess: () => {
-          showMessage(
-            "success",
-            "Success",
-            "Attendance recorded successfully!",
-          );
+    try {
+      await punchMutation.mutateAsync(
+        { type, imageData },
+        {
+          onSuccess: () => {
+            showMessage(
+              "success",
+              "Success",
+              "Attendance recorded successfully!",
+            );
+          },
+          onError: (error) => {
+            showMessage(
+              "error",
+              "Error",
+              error.message || "Failed to record attendance. Please try again.",
+            );
+          },
         },
-        onError: () => {
-          showMessage(
-            "error",
-            "Error",
-            "Failed to record attendance. Please try again.",
-          );
-        },
-      },
-    );
-    return true;
-  };
-
-  const getAttendanceStatusDisplay = (status: string) => {
-    switch (status) {
-      case "not_punched":
-        return {
-          text: "Not Punched",
-          color: "text-gray-500",
-          bgColor: "bg-gray-50",
-          icon: <Clock3 className="h-5 w-5" />,
-        };
-      case "punched_in":
-        return {
-          text: "Punched In",
-          color: "text-green-600",
-          bgColor: "bg-green-50",
-          icon: <Play className="h-5 w-5" />,
-        };
-      case "punched_out":
-        return {
-          text: "Punched Out",
-          color: "text-blue-600",
-          bgColor: "bg-blue-50",
-          icon: <Square className="h-5 w-5" />,
-        };
-      case "pending":
-        return {
-          text: "Pending Approval",
-          color: "text-yellow-600",
-          bgColor: "bg-yellow-50",
-          icon: <AlertCircle className="h-5 w-5" />,
-        };
-      default:
-        return {
-          text: "Unknown",
-          color: "text-gray-500",
-          bgColor: "bg-gray-50",
-          icon: <Clock className="h-5 w-5" />,
-        };
+      );
+      return true;
+    } catch (error: any) {
+      return false;
     }
   };
 
@@ -156,12 +122,126 @@ export default function StaffDashboardPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen  flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
           <p className="text-gray-600">
             Failed to load dashboard. Please try again.
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Check if salary is configured
+  const salaryConfigured = dashboardData?.salarySetup?.isConfigured ?? true;
+
+  // Render salary pending state
+  if (!salaryConfigured) {
+    return (
+      <div className="min-h-screen">
+        <div className="max-w-sm md:max-w-2xl mx-auto px-4 py-6 space-y-6">
+          {/* Top Header */}
+          <div className="bg-white rounded-2xl p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <Building2 className="h-8 w-8 text-blue-600" />
+                <div>
+                  <p className="text-sm text-gray-600 font-medium">
+                    {dashboardData?.user.companyName || "Company"}
+                  </p>
+                  <p className="text-lg font-bold text-gray-900">
+                    Hello {dashboardData?.user.firstName || "Staff"}!
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-gray-500">
+                  {new Date().toLocaleDateString("en-IN", {
+                    weekday: "long",
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Salary Setup Pending Warning */}
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
+            <div className="flex items-start space-x-4">
+              <div className="flex-shrink-0">
+                <ClockAlert className="h-10 w-10 text-amber-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-amber-800 mb-2">
+                  Salary Setup Pending
+                </h3>
+                <p className="text-sm text-amber-700 mb-4">
+                  Your salary has not been configured yet. Please contact your
+                  administrator to set up your salary details. Once your salary
+                  is configured, you will be able to access all features
+                  including attendance tracking and salary information.
+                </p>
+                <div className="bg-white/50 rounded-xl p-4">
+                  <p className="text-xs text-amber-600 font-medium mb-2">
+                    What's next?
+                  </p>
+                  <ul className="text-xs text-amber-700 space-y-1">
+                    <li>• Contact your admin or HR manager</li>
+                    <li>• Ask them to configure your salary details</li>
+                    <li>• Once configured, refresh this page</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Notifications */}
+          <div className="bg-white rounded-2xl p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">
+                Notifications
+              </h2>
+              <Bell className="h-5 w-5 text-gray-400" />
+            </div>
+
+            <div className="space-y-3">
+              {dashboardData?.notifications &&
+              dashboardData.notifications.length > 0 ? (
+                dashboardData.notifications.slice(0, 3).map((notification) => (
+                  <div
+                    key={notification.id}
+                    className="flex items-start space-x-3 p-3 bg-gray-50 rounded-xl"
+                  >
+                    <div className="flex-shrink-0 mt-0.5">
+                      {getNotificationIcon(notification.type)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900">
+                        {notification.title}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {notification.message}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {new Date(notification.createdAt).toLocaleTimeString(
+                          [],
+                          { hour: "2-digit", minute: "2-digit" },
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-6">
+                  <Bell className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                  <p className="text-gray-500 text-sm">No notifications</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -196,41 +276,40 @@ export default function StaffDashboardPage() {
             </div>
           </div>
         </div>
-
         {/* Today's Attendance - Show only one button */}
-        {todaysAttendance && todaysAttendance.status == "PENDING" && (
-          <div className="bg-white rounded-2xl  p-4">
-            <div className="text-center mb-4">
-              <h2 className="text-lg font-semibold text-gray-900 mb-1">
-                Today's Attendance
-              </h2>
-              <p className="text-sm text-gray-600">
-                {todaysAttendance.punchIn == null
-                  ? "Ready to start your day?"
-                  : "Working session active"}
-              </p>
+        {!todaysAttendance?.punchOut &&
+          !todaysAttendance?.status?.includes("APPROVED") && (
+            <div className="bg-white rounded-2xl  p-4">
+              <div className="text-center mb-4">
+                <h2 className="text-lg font-semibold text-gray-900 mb-1">
+                  Today's Attendance
+                </h2>
+                <p className="text-sm text-gray-600">
+                  {todaysAttendance == null
+                    ? "Ready to start your day?"
+                    : "Working session active"}
+                </p>
+              </div>
+
+              {todaysAttendance == null ? (
+                <button
+                  onClick={() => handlePunch("in")}
+                  className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-4 px-6 rounded-xl font-semibold  hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center space-x-3"
+                >
+                  <CheckCircle className="h-5 w-5" />
+                  <span>Punch In</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => handlePunch("out")}
+                  className="w-full bg-gradient-to-r from-red-500 to-red-600 text-white py-4 px-6 rounded-xl font-semibold  hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center space-x-3"
+                >
+                  <CheckCircle className="h-5 w-5" />
+                  <span>Punch Out</span>
+                </button>
+              )}
             </div>
-
-            {todaysAttendance == null ? (
-              <button
-                onClick={() => handlePunch("in")}
-                className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-4 px-6 rounded-xl font-semibold  hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center space-x-3"
-              >
-                <CheckCircle className="h-5 w-5" />
-                <span>Punch In</span>
-              </button>
-            ) : (
-              <button
-                onClick={() => handlePunch("out")}
-                className="w-full bg-gradient-to-r from-red-500 to-red-600 text-white py-4 px-6 rounded-xl font-semibold  hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center space-x-3"
-              >
-                <CheckCircle className="h-5 w-5" />
-                <span>Punch Out</span>
-              </button>
-            )}
-          </div>
-        )}
-
+          )}
         {/* Dashboard Options */}
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-gray-900 px-2">

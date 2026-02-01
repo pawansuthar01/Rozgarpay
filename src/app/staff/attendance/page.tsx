@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
   ChevronRight,
@@ -11,6 +12,7 @@ import {
   Moon,
   Clock,
   CalendarOff,
+  ClockAlert,
 } from "lucide-react";
 import PunchModal from "@/components/PunchModal";
 import MessageModal from "@/components/MessageModal";
@@ -20,6 +22,7 @@ import {
   useCompanySettings,
   usePunchAttendance,
 } from "@/hooks/useStaffAttendance";
+import { useStaffDashboard } from "@/hooks/useStaffDashboard";
 import { useModal } from "@/components/ModalProvider";
 
 interface AttendanceRecord {
@@ -37,30 +40,23 @@ interface CalendarDay {
 }
 
 export default function StaffAttendancePage() {
+  const router = useRouter();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [modalOpen, setModalOpen] = useState(false);
   const [punchType, setPunchType] = useState<"in" | "out">("in");
-  const [messageModal, setMessageModal] = useState<{
-    isOpen: boolean;
-    type: "success" | "error" | "warning" | "info";
-    title: string;
-    message: string;
-  }>({
-    isOpen: false,
-    type: "info",
-    title: "",
-    message: "",
-  });
 
   const { showMessage } = useModal();
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth() + 1;
 
+  // Check salary setup - redirect if not configured
+  const { data: dashboardData, isLoading: dashboardLoading } =
+    useStaffDashboard();
+
   const { data: attendanceData = [], isLoading: attendanceLoading } =
     useStaffAttendance(year, month);
   const { data: todaysAttendance } = useTodayAttendance();
-  console.log(todaysAttendance);
   const punchMutation = usePunchAttendance();
   const generateCalendarDays = (): CalendarDay[] => {
     const year = currentDate.getFullYear();
@@ -183,6 +179,41 @@ export default function StaffAttendancePage() {
 
   const calendarDays = generateCalendarDays();
 
+  // Show loading or salary pending state
+  if (
+    dashboardLoading ||
+    ((dashboardData && !dashboardData.salarySetup?.isConfigured) ?? true)
+  ) {
+    return (
+      <div className=" min-h-screen">
+        <div className="max-w-sm md:max-w-2xl mx-auto px-4 py-6">
+          {/* Salary Pending State */}
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
+            <div className="flex items-start space-x-4">
+              <div className="flex-shrink-0">
+                <ClockAlert className="h-10 w-10 text-amber-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-amber-800 mb-2">
+                  Salary Setup Required
+                </h3>
+                <p className="text-sm text-amber-700 mb-4">
+                  Please configure your salary details on the dashboard first.
+                </p>
+                <button
+                  onClick={() => router.push("/staff/dashboard")}
+                  className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition-colors"
+                >
+                  Go to Dashboard
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (attendanceLoading) {
     return (
       <div className=" bg-gradient-to-br from-blue-50 via-white to-purple-50">
@@ -197,7 +228,7 @@ export default function StaffAttendancePage() {
   }
 
   return (
-    <div className=" bg-gradient-to-br from-blue-50 via-white to-purple-50">
+    <div className=" ">
       <div className="max-w-sm md:max-w-2xl mx-auto px-2 py-3 space-y-2">
         {/* Header with Punch Buttons */}
         <div className="bg-white rounded-2xl  p-3">
@@ -378,15 +409,6 @@ export default function StaffAttendancePage() {
         onClose={() => setModalOpen(false)}
         onPunch={handlePunchComplete}
         punchType={punchType}
-      />
-
-      {/* Message Modal */}
-      <MessageModal
-        isOpen={messageModal.isOpen}
-        onClose={() => setMessageModal((prev) => ({ ...prev, isOpen: false }))}
-        type={messageModal.type}
-        title={messageModal.title}
-        message={messageModal.message}
       />
     </div>
   );

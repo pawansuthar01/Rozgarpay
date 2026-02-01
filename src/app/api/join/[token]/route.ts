@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { OTPService } from "@/lib/OtpService";
+import { validateEmail, validatePhoneNumber } from "@/lib/utils";
 
 export async function GET(
   request: NextRequest,
@@ -12,10 +13,15 @@ export async function GET(
     const invitation = await prisma.companyInvitation.findUnique({
       where: { token },
       include: {
-        company: true,
+        company: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+          },
+        },
       },
     });
-
     if (!invitation) {
       return NextResponse.json(
         { error: "Invalid invitation" },
@@ -52,7 +58,7 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error(error);
+    console.log(error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -63,7 +69,7 @@ export async function GET(
 export async function POST(request: NextRequest, { params }: any) {
   try {
     const { token } = params;
-    const { type } = await request.json(); // "phone" or "email"
+    const { type, email } = await request.json(); // "phone" or "email"
 
     // Verify invitation exists and is valid
     const invitation = await prisma.companyInvitation.findUnique({
@@ -94,12 +100,52 @@ export async function POST(request: NextRequest, { params }: any) {
       );
     }
 
+    // Determine email to use - from request body if provided, otherwise from invitation
+    const emailToUse = type === "email" ? email || invitation.email : null;
+
+    if (type == "email" && !emailToUse) {
+      return NextResponse.json(
+        { error: "email is requited to send otp..." },
+        { status: 400 },
+      );
+    }
+    if (type == "email" && !validateEmail(emailToUse || "")) {
+      return NextResponse.json(
+        { error: "Enter valid email..." },
+        { status: 400 },
+      );
+    }
+    if (type == "email" && email) {
+      const isExitsEmail = await prisma.user.findUnique({
+        where: { email: email },
+      });
+      const isUsedInInvitation = await prisma.companyInvitation.findFirst({
+        where: { email, id: { not: invitation.id } },
+      });
+      if (isExitsEmail || isUsedInInvitation) {
+        return NextResponse.json(
+          { error: "This email cannot be used. Please try another." },
+          { status: 400 },
+        );
+      }
+    }
+    if (type == "phone" && !invitation.phone) {
+      return NextResponse.json(
+        { error: "phone is requited to send otp..." },
+        { status: 400 },
+      );
+    }
+    if (type == "phone" && !validatePhoneNumber(invitation.phone)) {
+      return NextResponse.json(
+        { error: "Enter valid phone number..." },
+        { status: 400 },
+      );
+    }
     // Send OTP
-    const result = await OTPService.sendOTP(
-      type === "phone" ? invitation.phone : "",
-      type === "email" ? invitation.email : null,
-      "REGISTER",
-    );
+    const result =
+      type == "email"
+        ? await OTPService.sendOTP("", emailToUse, "REGISTER")
+        : await OTPService.sendOTP(invitation.phone, "", "REGISTER");
 
     if (result.success) {
       return NextResponse.json({
@@ -110,7 +156,6 @@ export async function POST(request: NextRequest, { params }: any) {
       return NextResponse.json({ error: result.message }, { status: 400 });
     }
   } catch (error) {
-    console.error("OTP send error:", error);
     return NextResponse.json({ error: "Failed to send OTP" }, { status: 500 });
   }
 }

@@ -1,6 +1,8 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import Loading from "@/components/ui/Loading";
+
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -64,7 +66,7 @@ export default function AddPaymentPage() {
   };
 
   if (!session || session.user.role !== "ADMIN") {
-    return <div>Access Denied</div>;
+    return <Loading />;
   }
 
   return (

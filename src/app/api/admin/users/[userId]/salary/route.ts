@@ -52,6 +52,7 @@ export async function GET(
           },
           take: 100, // Limit ledger entries for performance
         },
+        breakdowns: true,
       },
     });
 
@@ -128,12 +129,14 @@ export async function GET(
       grossAmount: salary.grossAmount,
       netAmount: salary.netAmount,
       totalPaid,
+      totalDeductions,
       totalRecovered,
       balanceAmount,
       payments,
       deductions,
       recoveries,
       pdfUrl: salary.pdfUrl,
+      breakdowns: salary.breakdowns,
     });
   } catch (error) {
     console.error("Admin user salary GET error:", error);

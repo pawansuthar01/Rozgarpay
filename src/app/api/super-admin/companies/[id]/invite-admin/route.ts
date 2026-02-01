@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 
-import { notificationManager } from "@/lib/notificationService";
+import { notificationManager } from "@/lib/notifications/manager";
 
 export async function POST(
   request: NextRequest,
@@ -98,7 +98,7 @@ export async function POST(
             type: "invitation_company",
             role: "admin",
             companyName: company.name,
-            invitationUrl: joinLink,
+            token: token,
             expiresAt: invitation.expiresAt.toISOString(),
             message,
           },

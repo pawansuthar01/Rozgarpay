@@ -1,6 +1,8 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import Loading from "@/components/ui/Loading";
+
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Skeleton from "react-loading-skeleton";
@@ -104,7 +106,7 @@ export default function StaffProfile() {
   };
 
   if (!session || session.user.role !== "MANAGER") {
-    return <div>Access Denied</div>;
+    return <Loading />;
   }
 
   const getStatusIcon = (status: string) => {

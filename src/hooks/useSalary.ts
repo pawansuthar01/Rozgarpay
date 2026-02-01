@@ -42,6 +42,14 @@ export interface SalaryRecord {
     description: string;
     amount: number;
   }>;
+  ledger?: Array<{
+    id: string;
+    type: string;
+    amount: number;
+    reason?: string;
+    description?: string;
+    createdAt: string;
+  }>;
 }
 
 interface SalaryBreakdown {

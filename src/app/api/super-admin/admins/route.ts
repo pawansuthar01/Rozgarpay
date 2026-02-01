@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 
-import { notificationManager } from "@/lib/notificationService";
+import { notificationManager } from "@/lib/notifications/manager";
 
 export async function GET(request: NextRequest) {
   try {
@@ -147,30 +147,34 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Subscribe user to notifications
-    notificationManager.subscribeUser({
-      userId: user.id,
-      userType: "admin",
-      types: ["admin_manual", "system_alert"],
-      channels: ["in_app", "push", "email"],
-      preferences: {
-        soundEnabled: true,
-        vibrationEnabled: true,
-        showPreview: true,
-      },
-    });
+    // Subscribe user to notifications (fire and forget)
+    notificationManager
+      .subscribeUser({
+        userId: user.id,
+        userType: "admin",
+        types: ["admin_manual", "system_alert"],
+        channels: ["in_app", "push", "email"],
+        preferences: {
+          soundEnabled: true,
+          vibrationEnabled: true,
+          showPreview: true,
+        },
+      })
+      .catch(console.error);
 
     // Send notification
-    await notificationManager.sendNotification(
-      user.id,
-      "admin_manual",
-      {
-        title: "Admin Account Created",
-        message: "Your admin account has been created successfully.",
-        sentBy: session.user.email,
-      },
-      ["in_app"],
-    );
+    notificationManager
+      .sendNotification({
+        userId: user.id,
+        type: "admin_manual",
+        data: {
+          title: "Admin Account Created",
+          message: "Your admin account has been created successfully.",
+          sentBy: session.user.email,
+        },
+        channels: ["whatsapp", "email"],
+      })
+      .catch(console.error);
 
     return NextResponse.json({
       user: { id: user.id, email: user.email, role: user.role },

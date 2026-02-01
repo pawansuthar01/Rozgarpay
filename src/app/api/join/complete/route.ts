@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { OTPService } from "@/lib/OtpService";
+import { notificationManager } from "@/lib/notifications/manager";
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,14 +33,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { firstName, lastName, password, invitation } = await request.json();
+    const { firstName, lastName, password, invitation, email } =
+      await request.json();
     // Enhanced input validation
     if (
       !firstName ||
       !lastName ||
       !password ||
       !invitation.phone ||
-      !invitation.email ||
       !invitation.company.id ||
       !invitation.id
     ) {
@@ -48,6 +49,9 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
+
+    // Use email from request body or invitation
+    const userEmail = email || invitation.email || null;
 
     if (
       typeof firstName !== "string" ||
@@ -78,11 +82,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user already exists
+    // Check if user already exists (only if email or phone provided)
+    const existingWhere: any = { phone: invitation.phone };
+    if (userEmail) {
+      existingWhere.OR = [{ email: userEmail }, { phone: invitation.phone }];
+    }
+
     const existingUser = await prisma.user.findFirst({
-      where: {
-        OR: [{ email: invitation.email }, { phone: invitation.phone }],
-      },
+      where: existingWhere,
     });
 
     if (existingUser) {
@@ -100,7 +107,7 @@ export async function POST(request: NextRequest) {
       data: {
         firstName,
         lastName,
-        email: invitation.email,
+        email: userEmail,
         phone: invitation.phone,
         password: hashedPassword,
         role: invitation.role,
@@ -130,7 +137,7 @@ export async function POST(request: NextRequest) {
             invitationId: invitation.id,
             phone: invitation.phone,
             isVerified: true,
-            email: invitation.email,
+            email: userEmail,
 
             clientIP,
           },
@@ -143,44 +150,19 @@ export async function POST(request: NextRequest) {
       );
       // Don't fail the request if audit log fails
     }
-
-    // Send notification to admin and managers about new staff registration
-    try {
-      const adminsAndManagers = await prisma.user.findMany({
-        where: {
-          companyId: invitation.company.id,
-          role: { in: ["ADMIN", "MANAGER"] },
-          status: "ACTIVE",
-        },
-        select: { id: true },
-      });
-
-      const notificationPromises = adminsAndManagers.map((adminOrManager) =>
-        prisma.notification.create({
-          data: {
-            userId: adminOrManager.id,
-            companyId: invitation.company.id,
-            title: "New Staff Registration",
+    if (invitation.role === "STAFF") {
+      try {
+        notificationManager.sendAdminNotification(
+          invitation.company.id,
+          "salary_setup_pending",
+          {
+            subject: "New Staff Registration",
+            companyName: invitation.company.name,
             message: `${user.firstName} ${user.lastName} has successfully accepted the invitation and set up their account. They are now ready for salary management.`,
-            channel: "INAPP",
-            status: "SENT",
-            meta: {
-              staffId: user.id,
-              staffName: `${user.firstName} ${user.lastName}`,
-              staffEmail: user.email,
-              invitationId: invitation.id,
-            },
+            staffName: `${user.firstName} ${user.lastName}`,
           },
-        }),
-      );
-
-      await Promise.all(notificationPromises);
-    } catch (notificationError) {
-      console.error(
-        "Failed to create notifications for staff registration:",
-        notificationError,
-      );
-      // Don't fail the request if notifications fail
+        );
+      } catch (_) {}
     }
 
     return NextResponse.json({

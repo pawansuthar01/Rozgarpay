@@ -1,6 +1,8 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import Loading from "@/components/ui/Loading";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Skeleton from "react-loading-skeleton";
@@ -57,7 +59,7 @@ export default function ManagerTeam() {
   };
 
   if (!session || session.user.role !== "MANAGER") {
-    return <div>Access Denied</div>;
+    return <Loading />;
   }
 
   const getStatusIcon = (status: string) => {

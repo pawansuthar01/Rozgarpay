@@ -178,7 +178,7 @@ export function calculateHours(
   // Overtime starts after regular shift duration
   return {
     workingHours: worked,
-    overtimeHours: Math.max(0, worked - shiftDuration),
+    overtimeHours: Math.max(0, worked - shiftDuration - overtimeThreshold),
   };
 }
 // Simplified - just return today's date
@@ -209,4 +209,35 @@ export function calculateLateMinutes(
   if (diffMs <= 0) return 0;
 
   return Math.floor(diffMs / (1000 * 60));
+}
+
+export function getApprovedWorkingHours(attendance: any, company: any): number {
+  // Case 1: Already calculated (normal punch in/out)
+  if (attendance.workingHours && attendance.workingHours > 0) {
+    return attendance.workingHours;
+  }
+  // Case 2: Manual approval without punches → full shift hours
+  if (company.shiftStartTime && company.shiftEndTime) {
+    const [sh, sm] = company.shiftStartTime.split(":").map(Number);
+    const [eh, em] = company.shiftEndTime.split(":").map(Number);
+
+    let start = sh * 60 + sm;
+    let end = eh * 60 + em;
+
+    // Night shift support
+    if (end <= start) end += 1440;
+
+    return Math.round(((end - start) / 60) * 100) / 100;
+  }
+
+  // Fallback safety
+  return 0;
+}
+export function hmToHours(value: string | number): number {
+  if (typeof value === "number") return value;
+
+  if (!value.includes(":")) return Number(value) || 0;
+
+  const [h, m = "0"] = value.split(":");
+  return Math.round((Number(h) + Number(m) / 60) * 100) / 100;
 }

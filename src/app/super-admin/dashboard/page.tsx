@@ -1,6 +1,8 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import Loading from "@/components/ui/Loading";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
@@ -66,7 +68,7 @@ export default function SuperAdminDashboard() {
   }, []);
 
   if (!session || session.user.role !== "SUPER_ADMIN") {
-    return <div>Access Denied</div>;
+    return <Loading />;
   }
 
   const companyStatusData = [

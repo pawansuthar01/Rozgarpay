@@ -3,8 +3,8 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import crypto from "crypto";
 import { authOptions } from "@/lib/auth";
-
-import { notificationManager } from "@/lib/notificationService";
+import { notificationManager } from "@/lib/notifications/manager";
+import { validatePhoneNumber } from "@/lib/utils";
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,20 +16,43 @@ export async function POST(request: NextRequest) {
 
     const { name, email, phone, role, sendWelcome } = await request.json();
 
-    // Validation
-    if (!name || !email || !role) {
+    // Validation - name and role are required, email is optional
+    if (!name || !role) {
       return NextResponse.json(
-        { error: "Name, email, and role are required" },
+        { error: "Name and role are required" },
         { status: 400 },
       );
     }
 
-    // Check if user already exists
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        OR: [{ email }, phone ? { phone } : {}],
-      },
-    });
+    // Email is optional but if provided, validate format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (email && !emailRegex.test(email)) {
+      return NextResponse.json(
+        { error: "Please enter a valid email address or leave it empty" },
+        { status: 400 },
+      );
+    }
+    if (!validatePhoneNumber(phone)) {
+      return NextResponse.json(
+        {
+          error:
+            "Please enter a valid phone number or number most starting with +91",
+        },
+        { status: 400 },
+      );
+    }
+
+    // Check if user already exists (only if email or phone provided)
+    let existingUser = null;
+    if (email || phone) {
+      const whereClause: any = {};
+      if (email) whereClause.email = email;
+      if (phone) whereClause.phone = phone;
+
+      existingUser = await prisma.user.findFirst({
+        where: whereClause,
+      });
+    }
 
     if (existingUser) {
       return NextResponse.json(
@@ -38,22 +61,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if invitation already exists and is not used
-    const existingInvitation = await prisma.companyInvitation.findFirst({
-      where: {
-        email,
-        isUsed: false,
-        expiresAt: {
-          gt: new Date(),
-        },
+    // Check if invitation already exists and is not used (only if email provided)
+    const existingInvitationWhere: any = {
+      isUsed: false,
+      expiresAt: {
+        gt: new Date(),
       },
-    });
+    };
 
-    if (existingInvitation) {
-      return NextResponse.json(
-        { error: "An active invitation already exists for this email" },
-        { status: 400 },
+    if (email) {
+      existingInvitationWhere.OR = [{ email }, phone ? { phone } : null].filter(
+        Boolean,
       );
+    } else if (phone) {
+      existingInvitationWhere.phone = phone;
+    }
+
+    if (email || phone) {
+      const existingInvitation = await prisma.companyInvitation.findFirst({
+        where: existingInvitationWhere,
+      });
+
+      if (existingInvitation) {
+        return NextResponse.json(
+          {
+            error:
+              "An active invitation already exists for this email or phone",
+          },
+          { status: 400 },
+        );
+      }
     }
 
     // Get admin's company
@@ -95,21 +132,24 @@ export async function POST(request: NextRequest) {
       admin.company.name
     } as a ${role}. Please use the following link to complete your registration: ${inviteLink}. This link will expire on ${invitation.expiresAt.toDateString()}.`;
 
-    await notificationManager.sendExternalInvitation(
-      email,
-      phone,
-      ["email", "whatsapp"],
-      {
-        type: "invitation_staff",
-        role: "staff",
+    // Send notification only if email or phone is provided
+    if (email || phone) {
+      await notificationManager.sendExternalInvitation(
+        email,
+        phone,
+        email ? ["email", "whatsapp"] : ["whatsapp"],
+        {
+          type: "company_staff_join",
+          role: "staff",
 
-        companyName: admin.company.name,
-        staffName: name,
-        invitationUrl: inviteLink,
-        expiresAt: invitation.expiresAt.toISOString(),
-        message,
-      },
-    );
+          companyName: admin.company.name,
+          staffName: name,
+          token: token,
+          expiresAt: invitation.expiresAt.toISOString(),
+          message,
+        },
+      );
+    }
 
     // Create audit log
     try {

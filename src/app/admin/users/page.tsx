@@ -1,6 +1,8 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import Loading from "@/components/ui/Loading";
+
 import { useState, useCallback } from "react";
 import Link from "next/link";
 import Skeleton from "react-loading-skeleton";
@@ -29,29 +31,14 @@ interface User {
   lastName: string | null;
   email: string;
   phone: string;
-  role: "MANAGER" | "ACCOUNTANT" | "STAFF" | "ADMIN";
   status: "ACTIVE" | "SUSPENDED" | "DEACTIVATED";
   createdAt: string;
-}
-
-interface UsersStats {
-  totalUsers: number;
-  activeUsers: number;
-  suspendedUsers: number;
-  deactivatedUsers: number;
-  roleDistribution: {
-    ADMIN: number;
-    MANAGER: number;
-    ACCOUNTANT: number;
-    STAFF: number;
-  };
 }
 
 export default function AdminUsersPage() {
   const { data: session } = useSession();
   // Filters
   const router = useRouter();
-  const [roleFilter, setRoleFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -63,7 +50,6 @@ export default function AdminUsersPage() {
   const { users, loading, error, totalPages, updateStatus } = useUsers(
     currentPage,
     itemsPerPage,
-    roleFilter,
     statusFilter,
     searchTerm,
   );
@@ -92,7 +78,7 @@ export default function AdminUsersPage() {
   };
 
   if (!session || session.user.role !== "ADMIN") {
-    return <div>Access Denied</div>;
+    return <Loading />;
   }
 
   return (
@@ -124,17 +110,7 @@ export default function AdminUsersPage() {
                 className="pl-10 pr-4 py-2 border border-gray-300 rounded-md text-sm w-full sm:w-64"
               />
             </div>
-            <select
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-            >
-              <option value="">All Roles</option>
-              <option value="ADMIN">Admin</option>
-              <option value="MANAGER">Manager</option>
-              <option value="ACCOUNTANT">Accountant</option>
-              <option value="STAFF">Staff</option>
-            </select>
+
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -168,9 +144,7 @@ export default function AdminUsersPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   User
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Role
-                </th>
+
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
@@ -240,21 +214,7 @@ export default function AdminUsersPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            user.role === "ADMIN"
-                              ? "bg-purple-100 text-purple-800"
-                              : user.role === "MANAGER"
-                                ? "bg-green-100 text-green-800"
-                                : user.role === "ACCOUNTANT"
-                                  ? "bg-blue-100 text-blue-800"
-                                  : "bg-yellow-100 text-yellow-800"
-                          }`}
-                        >
-                          {user.role}
-                        </span>
-                      </td>
+
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span
                           className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${

@@ -13,7 +13,7 @@ export default function AttendanceStatsCards({
   loading,
 }: AttendanceStatsCardsProps) {
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-6">
+    <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 md:gap-6">
       <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 md:p-6 rounded-xl shadow-sm border border-blue-200 hover:shadow-md transition-shadow">
         <div className="flex items-center justify-between">
           <div>

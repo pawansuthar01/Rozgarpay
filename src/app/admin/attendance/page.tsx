@@ -12,6 +12,7 @@ import AttendanceFilters from "@/components/admin/attendance/AttendanceFilters";
 import AttendanceTable from "@/components/admin/attendance/AttendanceTable";
 import { useDebounce } from "@/lib/hooks";
 import { useAttendance, useUpdateAttendance, useUpdateStatus } from "@/hooks";
+import Loading from "@/components/ui/Loading";
 
 export default function AdminAttendancePage() {
   const { data: session } = useSession();
@@ -90,7 +91,7 @@ export default function AdminAttendancePage() {
   };
 
   if (!session || session.user.role !== "ADMIN") {
-    return <div>Access Denied</div>;
+    return <Loading />;
   }
 
   return (

@@ -1,6 +1,8 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import Loading from "@/components/ui/Loading";
+
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -129,7 +131,7 @@ export default function UserProfilePage() {
   };
 
   if (!session || session.user.role !== "ADMIN") {
-    return <div>Access Denied</div>;
+    return <Loading />;
   }
 
   return (
@@ -268,7 +270,7 @@ export default function UserProfilePage() {
                         (currentMonthData?.totalPaid || 0) -
                           (currentMonthData?.totalRecovered || 0),
                       )
-                    : formatCurrency(currentMonthData?.netAmount || 0)}
+                    : 0}
                 </p>
               )}
             </div>

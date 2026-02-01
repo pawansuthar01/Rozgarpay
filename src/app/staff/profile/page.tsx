@@ -15,6 +15,7 @@ import {
   LogOut,
   Edit,
 } from "lucide-react";
+import Loading from "@/components/ui/Loading";
 
 interface ProfileData {
   firstName: string | null;
@@ -125,7 +126,7 @@ export default function StaffProfile() {
   };
 
   if (!session || session.user.role !== "STAFF") {
-    return <div>Access Denied</div>;
+    return <Loading />;
   }
 
   return (

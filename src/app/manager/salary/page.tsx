@@ -1,6 +1,8 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import Loading from "@/components/ui/Loading";
+
 import { useEffect, useState } from "react";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
@@ -157,7 +159,7 @@ export default function ManagerSalaryPage() {
   };
 
   if (!session || session.user.role !== "MANAGER") {
-    return <div>Access Denied</div>;
+    return <Loading />;
   }
 
   return (

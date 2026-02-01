@@ -3,7 +3,12 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 
-import { notificationManager } from "@/lib/notificationService";
+import { notificationManager } from "@/lib/notifications/manager";
+import {
+  uploadToCloudinary,
+  deleteFromCloudinary,
+  extractPublicId,
+} from "@/lib/cloudinary";
 
 export async function POST(request: NextRequest) {
   try {
@@ -113,7 +118,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Single company creation with invitation
-    const { name, description, adminEmail, adminPhone, role } = body;
+    const { name, description, adminEmail, adminPhone, role, logo } = body;
 
     if (!name || typeof name !== "string" || name.trim().length === 0) {
       return NextResponse.json(
@@ -135,8 +140,13 @@ export async function POST(request: NextRequest) {
         OR: [{ email: adminEmail }, { phone: adminPhone }],
       },
     });
+    const invitationExits = await prisma.companyInvitation.findFirst({
+      where: {
+        OR: [{ email: adminEmail }, { phone: adminPhone }],
+      },
+    });
 
-    if (existingUser) {
+    if (existingUser || invitationExits) {
       return NextResponse.json(
         { error: "Admin email or phone already exists" },
         { status: 400 },
@@ -147,6 +157,7 @@ export async function POST(request: NextRequest) {
       data: {
         name: name.trim(),
         description: description?.trim(),
+        logo: logo || null,
       },
     });
 
@@ -176,10 +187,10 @@ export async function POST(request: NextRequest) {
       adminPhone,
       ["email", "whatsapp"],
       {
-        type: "invitation_company",
+        type: "company_join_link",
         role: "admin",
         companyName: name,
-        invitationUrl: joinLink,
+        token: token,
         expiresAt: invitation.expiresAt.toISOString(),
         message,
       },

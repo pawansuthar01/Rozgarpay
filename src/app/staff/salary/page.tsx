@@ -1,7 +1,10 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useState } from "react";
+import Loading from "@/components/ui/Loading";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import {
@@ -22,8 +25,8 @@ import {
   Receipt,
   AlertCircle,
   Check,
+  ClockAlert,
 } from "lucide-react";
-import Link from "next/link";
 import { formatDate, formatTime, formatCurrency } from "@/lib/utils";
 import {
   useStaffSalaries,
@@ -56,36 +59,6 @@ interface SalaryOverview {
     owe: number;
     net: number;
   };
-}
-
-interface Salary {
-  id: string;
-  month: number;
-  year: number;
-  totalWorkingDays: number;
-  totalWorkingHours: number;
-  overtimeHours: number;
-  lateMinutes: number;
-  halfDays: number;
-  absentDays: number;
-  baseAmount: number;
-  overtimeAmount: number;
-  penaltyAmount: number;
-  deductions: number;
-  grossAmount: number;
-  netAmount: number;
-  status: string;
-  paidAt?: string;
-  pdfUrl?: string;
-  approvedByUser?: {
-    firstName: string;
-    lastName: string;
-  };
-  breakdowns: Array<{
-    type: string;
-    description: string;
-    amount: number;
-  }>;
 }
 
 export default function StaffSalaryOverviewPage() {
@@ -164,7 +137,7 @@ export default function StaffSalaryOverviewPage() {
   };
 
   if (!session || session.user.role !== "STAFF") {
-    return <div>Access Denied</div>;
+    return <Loading />;
   }
 
   return (
@@ -227,8 +200,7 @@ export default function StaffSalaryOverviewPage() {
         {/* Overview Tab */}
         {activeTab === "overview" && (
           <div className="space-y-6">
-            {/* Current Month Summary - Only show if positive balance */}
-            {(overview?.currentMonth?.net || 0) > 0 && (
+            {overview?.currentMonth && (
               <div className="bg-white/90 backdrop-blur-sm rounded-xl p-6 border border-gray-200/50 ">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                   Current Month Summary
@@ -508,6 +480,16 @@ export default function StaffSalaryOverviewPage() {
                         "ABSENCE_DEDUCTION",
                       ].includes(b.type),
                     );
+                    // Get ledger deductions and recoveries with dates
+                    const ledgerDeductions =
+                      salary.ledger?.filter((l) => l.type === "DEDUCTION") ||
+                      [];
+                    const ledgerRecoveries =
+                      salary.ledger?.filter((l) => l.type === "RECOVERY") || [];
+                    const ledgerPayments =
+                      salary.ledger?.filter(
+                        (l) => l.type === "PAYMENT" || l.type === "EARNING",
+                      ) || [];
                     const payments = salary.paidAt
                       ? [{ amount: salary.netAmount, date: salary.paidAt }]
                       : [];
@@ -628,11 +610,14 @@ export default function StaffSalaryOverviewPage() {
 
                             {/* Deductions */}
                             <div className="mb-4">
-                              <h4 className="font-semibold mb-2">Deductions</h4>
+                              <h4 className="font-semibold mb-2">
+                                Deductions & Recoveries
+                              </h4>
                               <div className="space-y-2">
+                                {/* Salary breakdown deductions */}
                                 {deductions.map((breakdown, index) => (
                                   <div
-                                    key={index}
+                                    key={`breakdown-${index}`}
                                     className="flex justify-between"
                                   >
                                     <span className="text-gray-700">
@@ -646,6 +631,65 @@ export default function StaffSalaryOverviewPage() {
                                     </span>
                                   </div>
                                 ))}
+                                {/* Ledger deductions with dates */}
+                                {ledgerDeductions.map((deduction) => (
+                                  <div
+                                    key={deduction.id}
+                                    className="flex justify-between"
+                                  >
+                                    <div className="flex flex-col">
+                                      <span className="text-gray-700">
+                                        {deduction.reason ||
+                                          deduction.description ||
+                                          "Deduction"}
+                                      </span>
+                                      <span className="text-xs text-gray-500">
+                                        {new Date(
+                                          deduction.createdAt,
+                                        ).toLocaleDateString()}
+                                      </span>
+                                    </div>
+                                    <span className="font-medium text-red-600">
+                                      -₹
+                                      {formatCurrency(
+                                        Math.abs(deduction.amount),
+                                      )}
+                                    </span>
+                                  </div>
+                                ))}
+                                {/* Ledger recoveries with dates */}
+                                {ledgerRecoveries.map((recovery) => (
+                                  <div
+                                    key={recovery.id}
+                                    className="flex justify-between"
+                                  >
+                                    <div className="flex flex-col">
+                                      <span className="text-gray-700">
+                                        {recovery.reason ||
+                                          recovery.description ||
+                                          "Recovery"}
+                                      </span>
+                                      <span className="text-xs text-gray-500">
+                                        {new Date(
+                                          recovery.createdAt,
+                                        ).toLocaleDateString()}
+                                      </span>
+                                    </div>
+                                    <span className="font-medium text-red-600">
+                                      -₹
+                                      {formatCurrency(
+                                        Math.abs(recovery.amount),
+                                      )}
+                                    </span>
+                                  </div>
+                                ))}
+                                {deductions.length === 0 &&
+                                  ledgerDeductions.length === 0 &&
+                                  ledgerRecoveries.length === 0 && (
+                                    <p className="text-gray-500">
+                                      No deductions or recoveries
+                                    </p>
+                                  )}
                               </div>
                             </div>
 
@@ -653,7 +697,31 @@ export default function StaffSalaryOverviewPage() {
                             <div className="mb-4">
                               <h4 className="font-semibold mb-2">Payments</h4>
                               <div className="space-y-2">
-                                {payments.length > 0 ? (
+                                {/* Ledger payments with dates */}
+                                {ledgerPayments.length > 0 ? (
+                                  ledgerPayments.map((payment) => (
+                                    <div
+                                      key={payment.id}
+                                      className="flex justify-between"
+                                    >
+                                      <div className="flex flex-col">
+                                        <span className="text-gray-700">
+                                          {payment.reason ||
+                                            payment.description ||
+                                            "Payment"}
+                                        </span>
+                                        <span className="text-xs text-gray-500">
+                                          {new Date(
+                                            payment.createdAt,
+                                          ).toLocaleDateString()}
+                                        </span>
+                                      </div>
+                                      <span className="font-medium text-green-600">
+                                        +₹{formatCurrency(payment.amount)}
+                                      </span>
+                                    </div>
+                                  ))
+                                ) : payments.length > 0 ? (
                                   payments.map((payment, index) => (
                                     <div
                                       key={index}

@@ -2,6 +2,8 @@
 
 import Image from "next/image";
 import { useSession } from "next-auth/react";
+import Loading from "@/components/ui/Loading";
+
 import { User } from "lucide-react";
 
 export default function NavbarProfile() {

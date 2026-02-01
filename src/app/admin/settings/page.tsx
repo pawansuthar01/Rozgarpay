@@ -2,6 +2,7 @@
 
 import { useSession, signOut } from "next-auth/react";
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import {
@@ -24,6 +25,8 @@ import {
   useUpdateCompanySettings,
 } from "@/hooks/useCompanySettings";
 import ImageUpload from "@/components/ImageUpload";
+import { formatDate, formatDateTime, formatTime } from "@/lib/utils";
+import Loading from "@/components/ui/Loading";
 
 interface AttendanceSettings {
   shiftStartTime: string;
@@ -38,6 +41,7 @@ interface AttendanceSettings {
   overtimeThresholdHours: number;
   nightPunchInWindowHours: number;
   enableLatePenalty: boolean;
+
   latePenaltyPerMinute: number;
   enableAbsentPenalty: boolean;
   absentPenaltyPerDay: number;
@@ -47,43 +51,26 @@ export default function AdminSettingsPage() {
   const { data: session } = useSession();
   const { data: companyData, isLoading, error } = useCompanySettings();
   const updateSettingsMutation = useUpdateCompanySettings();
+  const queryClient = useQueryClient();
 
   const company = companyData?.company;
-  const attendanceSettings: AttendanceSettings = company
-    ? {
-        shiftStartTime: company.shiftStartTime || "09:00",
-        shiftEndTime: company.shiftEndTime || "18:00",
-        gracePeriodMinutes: company.gracePeriodMinutes || 30,
-        minWorkingHours: company.minWorkingHours || 4.0,
-        maxDailyHours: company.maxDailyHours || 16.0,
-        autoPunchOutBufferMinutes: company.autoPunchOutBufferMinutes || 30,
-        locationLat: company.locationLat || undefined,
-        locationLng: company.locationLng || undefined,
-        locationRadius: company.locationRadius || 100.0,
-        overtimeThresholdHours: company.overtimeThresholdHours || 2.0,
-        nightPunchInWindowHours: company.nightPunchInWindowHours || 2.0,
-        enableLatePenalty: company.enableLatePenalty || false,
-        latePenaltyPerMinute: company.latePenaltyPerMinute || 0,
-        enableAbsentPenalty: company.enableAbsentPenalty || false,
-        absentPenaltyPerDay: company.absentPenaltyPerDay || 0,
-      }
-    : {
-        shiftStartTime: "09:00",
-        shiftEndTime: "18:00",
-        gracePeriodMinutes: 30,
-        minWorkingHours: 4.0,
-        maxDailyHours: 16.0,
-        autoPunchOutBufferMinutes: 30,
-        locationLat: undefined,
-        locationLng: undefined,
-        locationRadius: 100.0,
-        overtimeThresholdHours: 2.0,
-        nightPunchInWindowHours: 2.0,
-        enableLatePenalty: false,
-        latePenaltyPerMinute: 0,
-        enableAbsentPenalty: false,
-        absentPenaltyPerDay: 0,
-      };
+  const attendanceSettings: AttendanceSettings = {
+    shiftStartTime: company?.shiftStartTime || "--:--",
+    shiftEndTime: company?.shiftEndTime || "--:--",
+    gracePeriodMinutes: company?.gracePeriodMinutes || 0,
+    minWorkingHours: company?.minWorkingHours || 0.0,
+    maxDailyHours: company?.maxDailyHours || 0.0,
+    autoPunchOutBufferMinutes: company?.autoPunchOutBufferMinutes || 0,
+    locationLat: company?.locationLat || undefined,
+    locationLng: company?.locationLng || undefined,
+    locationRadius: company?.locationRadius || 0.0,
+    overtimeThresholdHours: company?.overtimeThresholdHours || 0.0,
+    nightPunchInWindowHours: company?.nightPunchInWindowHours || 0.0,
+    enableLatePenalty: company?.enableLatePenalty || false,
+    latePenaltyPerMinute: company?.latePenaltyPerMinute || 0,
+    enableAbsentPenalty: company?.enableAbsentPenalty || false,
+    absentPenaltyPerDay: company?.absentPenaltyPerDay || 0,
+  };
 
   const [editing, setEditing] = useState<string | null>(null);
   const [tempAttendanceSettings, setTempAttendanceSettings] =
@@ -145,8 +132,8 @@ export default function AdminSettingsPage() {
       throw new Error(error.error || "Failed to upload company logo");
     }
 
-    // Refresh company data
-    window.location.reload();
+    // Fixed BUG-006: Invalidate queries instead of full page reload
+    queryClient.invalidateQueries({ queryKey: ["companySettings"] });
   };
 
   const handleLogoDelete = async () => {
@@ -159,12 +146,12 @@ export default function AdminSettingsPage() {
       throw new Error(error.error || "Failed to delete company logo");
     }
 
-    // Refresh company data
-    window.location.reload();
+    // Fixed BUG-006: Invalidate queries instead of full page reload
+    queryClient.invalidateQueries({ queryKey: ["companySettings"] });
   };
 
   if (!session || session.user.role !== "ADMIN") {
-    return <div>Access Denied</div>;
+    return <Loading />;
   }
 
   return (
@@ -282,7 +269,7 @@ export default function AdminSettingsPage() {
                   </label>
                   <input
                     type="time"
-                    value={tempAttendanceSettings.shiftStartTime}
+                    value={tempAttendanceSettings.shiftStartTime || ""}
                     onChange={(e) =>
                       setTempAttendanceSettings({
                         ...tempAttendanceSettings,
@@ -298,7 +285,7 @@ export default function AdminSettingsPage() {
                   </label>
                   <input
                     type="time"
-                    value={tempAttendanceSettings.shiftEndTime}
+                    value={tempAttendanceSettings.shiftEndTime || ""}
                     onChange={(e) =>
                       setTempAttendanceSettings({
                         ...tempAttendanceSettings,
@@ -319,13 +306,15 @@ export default function AdminSettingsPage() {
                     type="number"
                     min="0"
                     max="120"
-                    value={tempAttendanceSettings.gracePeriodMinutes}
-                    onChange={(e) =>
+                    value={tempAttendanceSettings.gracePeriodMinutes ?? ""}
+                    onChange={(e) => {
+                      const value = e.target.value;
                       setTempAttendanceSettings({
                         ...tempAttendanceSettings,
-                        gracePeriodMinutes: parseInt(e.target.value) || 0,
-                      })
-                    }
+                        gracePeriodMinutes:
+                          value === "" ? 0 : parseInt(value) || 0,
+                      });
+                    }}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   />
                   <p className="text-sm text-gray-500 mt-2">
@@ -341,14 +330,15 @@ export default function AdminSettingsPage() {
                     step="0.5"
                     min="1"
                     max="4"
-                    value={tempAttendanceSettings.nightPunchInWindowHours}
-                    onChange={(e) =>
+                    value={tempAttendanceSettings.nightPunchInWindowHours ?? ""}
+                    onChange={(e) => {
+                      const value = e.target.value;
                       setTempAttendanceSettings({
                         ...tempAttendanceSettings,
                         nightPunchInWindowHours:
-                          parseFloat(e.target.value) || 2.0,
-                      })
-                    }
+                          value === "" ? 0.0 : parseFloat(value) || 0.0,
+                      });
+                    }}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   />
                   <p className="text-sm text-gray-500 mt-2">
@@ -435,15 +425,17 @@ export default function AdminSettingsPage() {
                   <input
                     type="number"
                     step="0.5"
-                    min="1"
+                    min="0"
                     max="12"
-                    value={tempAttendanceSettings.minWorkingHours}
-                    onChange={(e) =>
+                    value={tempAttendanceSettings.minWorkingHours ?? ""}
+                    onChange={(e) => {
+                      const value = e.target.value;
                       setTempAttendanceSettings({
                         ...tempAttendanceSettings,
-                        minWorkingHours: parseFloat(e.target.value) || 4.0,
-                      })
-                    }
+                        minWorkingHours:
+                          value === "" ? 0.0 : parseFloat(value) || 0.0,
+                      });
+                    }}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                   />
                   <p className="text-sm text-gray-500 mt-1">
@@ -457,15 +449,17 @@ export default function AdminSettingsPage() {
                   <input
                     type="number"
                     step="0.5"
-                    min="8"
+                    min="0"
                     max="24"
-                    value={tempAttendanceSettings.maxDailyHours}
-                    onChange={(e) =>
+                    value={tempAttendanceSettings.maxDailyHours ?? ""}
+                    onChange={(e) => {
+                      const value = e.target.value;
                       setTempAttendanceSettings({
                         ...tempAttendanceSettings,
-                        maxDailyHours: parseFloat(e.target.value) || 16.0,
-                      })
-                    }
+                        maxDailyHours:
+                          value === "" ? 0.0 : parseFloat(value) || 0.0,
+                      });
+                    }}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                   />
                   <p className="text-sm text-gray-500 mt-1">
@@ -480,14 +474,17 @@ export default function AdminSettingsPage() {
                     type="number"
                     min="0"
                     max="120"
-                    value={tempAttendanceSettings.autoPunchOutBufferMinutes}
-                    onChange={(e) =>
+                    value={
+                      tempAttendanceSettings.autoPunchOutBufferMinutes ?? ""
+                    }
+                    onChange={(e) => {
+                      const value = e.target.value;
                       setTempAttendanceSettings({
                         ...tempAttendanceSettings,
                         autoPunchOutBufferMinutes:
-                          parseInt(e.target.value) || 30,
-                      })
-                    }
+                          value === "" ? 0 : parseInt(value) || 30,
+                      });
+                    }}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                   />
                   <p className="text-sm text-gray-500 mt-1">
@@ -578,15 +575,15 @@ export default function AdminSettingsPage() {
                   <input
                     type="number"
                     step="0.000001"
-                    value={tempAttendanceSettings.locationLat || ""}
-                    onChange={(e) =>
+                    value={tempAttendanceSettings.locationLat ?? ""}
+                    onChange={(e) => {
+                      const value = e.target.value;
                       setTempAttendanceSettings({
                         ...tempAttendanceSettings,
-                        locationLat: e.target.value
-                          ? parseFloat(e.target.value)
-                          : undefined,
-                      })
-                    }
+                        locationLat:
+                          value === "" ? undefined : parseFloat(value),
+                      });
+                    }}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-red-500 focus:border-transparent"
                     placeholder="e.g., 28.6139"
                   />
@@ -598,15 +595,15 @@ export default function AdminSettingsPage() {
                   <input
                     type="number"
                     step="0.000001"
-                    value={tempAttendanceSettings.locationLng || ""}
-                    onChange={(e) =>
+                    value={tempAttendanceSettings.locationLng ?? ""}
+                    onChange={(e) => {
+                      const value = e.target.value;
                       setTempAttendanceSettings({
                         ...tempAttendanceSettings,
-                        locationLng: e.target.value
-                          ? parseFloat(e.target.value)
-                          : undefined,
-                      })
-                    }
+                        locationLng:
+                          value === "" ? undefined : parseFloat(value),
+                      });
+                    }}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-red-500 focus:border-transparent"
                     placeholder="e.g., 77.2090"
                   />
@@ -621,13 +618,15 @@ export default function AdminSettingsPage() {
                   type="number"
                   min="10"
                   max="1000"
-                  value={tempAttendanceSettings.locationRadius}
-                  onChange={(e) =>
+                  value={tempAttendanceSettings.locationRadius ?? ""}
+                  onChange={(e) => {
+                    const value = e.target.value;
                     setTempAttendanceSettings({
                       ...tempAttendanceSettings,
-                      locationRadius: parseFloat(e.target.value) || 100.0,
-                    })
-                  }
+                      locationRadius:
+                        value === "" ? 0.0 : parseFloat(value) || 100.0,
+                    });
+                  }}
                   className="w-full md:w-1/2 px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-red-500 focus:border-transparent"
                 />
                 <p className="text-sm text-gray-500 mt-2">
@@ -713,13 +712,15 @@ export default function AdminSettingsPage() {
                   step="0.5"
                   min="0"
                   max="8"
-                  value={tempAttendanceSettings.overtimeThresholdHours}
-                  onChange={(e) =>
+                  value={tempAttendanceSettings.overtimeThresholdHours ?? ""}
+                  onChange={(e) => {
+                    const value = e.target.value;
                     setTempAttendanceSettings({
                       ...tempAttendanceSettings,
-                      overtimeThresholdHours: parseFloat(e.target.value) || 2.0,
-                    })
-                  }
+                      overtimeThresholdHours:
+                        value === "" ? 2.0 : parseFloat(value) || 2.0,
+                    });
+                  }}
                   className="w-full md:w-1/2 px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 />
                 <p className="text-sm text-gray-500 mt-2">
@@ -812,13 +813,15 @@ export default function AdminSettingsPage() {
                     step="0.01"
                     min="0"
                     max="10"
-                    value={tempAttendanceSettings.latePenaltyPerMinute}
-                    onChange={(e) =>
+                    value={tempAttendanceSettings.latePenaltyPerMinute ?? ""}
+                    onChange={(e) => {
+                      const value = e.target.value;
                       setTempAttendanceSettings({
                         ...tempAttendanceSettings,
-                        latePenaltyPerMinute: parseFloat(e.target.value) || 0,
-                      })
-                    }
+                        latePenaltyPerMinute:
+                          value === "" ? 0 : parseFloat(value) || 0,
+                      });
+                    }}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-red-500 focus:border-transparent"
                     disabled={!tempAttendanceSettings.enableLatePenalty}
                   />
@@ -859,13 +862,15 @@ export default function AdminSettingsPage() {
                     step="0.01"
                     min="0"
                     max="1000"
-                    value={tempAttendanceSettings.absentPenaltyPerDay}
-                    onChange={(e) =>
+                    value={tempAttendanceSettings.absentPenaltyPerDay ?? ""}
+                    onChange={(e) => {
+                      const value = e.target.value;
                       setTempAttendanceSettings({
                         ...tempAttendanceSettings,
-                        absentPenaltyPerDay: parseFloat(e.target.value) || 0,
-                      })
-                    }
+                        absentPenaltyPerDay:
+                          value === "" ? 0 : parseFloat(value) || 0,
+                      });
+                    }}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-red-500 focus:border-transparent"
                     disabled={!tempAttendanceSettings.enableAbsentPenalty}
                   />

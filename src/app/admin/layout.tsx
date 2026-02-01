@@ -230,7 +230,7 @@ export default function AdminLayout({
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto bg-gray-50">
+        <main className="flex-1 lg:mb-0 mb-10 overflow-y-auto bg-gray-50">
           <div className="p-6 lg:p-8">{children}</div>
         </main>
       </div>

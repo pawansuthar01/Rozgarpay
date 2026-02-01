@@ -3,8 +3,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { salaryService } from "@/lib/salaryService";
 import { authOptions } from "@/lib/auth";
-
-import { notificationManager } from "@/lib/notificationService";
+import { notificationManager } from "@/lib/notifications/manager";
 
 export async function PATCH(
   request: NextRequest,
@@ -104,15 +103,17 @@ export async function PATCH(
     }
 
     // ✅ Send notification to STAFF
-    await notificationManager.sendNotification(
-      attendance.userId,
-      "staff_manual",
-      {
-        title: "Attendance Update",
-        message: `Your attendance has been ${status.toLowerCase()}.`,
-      },
-      ["whatsapp", "push"],
-    );
+    if (attendance.punchOut == null) {
+      notificationManager.sendNotification({
+        userId: attendance.userId,
+        type: "staff_manual",
+        data: {
+          title: "Attendance Update",
+          message: `Your attendance has been ${status.toLowerCase()}.`,
+        },
+        channels: ["whatsapp", "push"],
+      });
+    }
 
     // Auto-recalculate salary for the current month if attendance status affects it
     try {

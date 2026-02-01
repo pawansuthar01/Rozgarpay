@@ -15,6 +15,7 @@ import {
 import ImageUpload from "@/components/ImageUpload";
 import { useModal } from "@/components/ModalProvider";
 import { User as UserType } from "next-auth";
+import Loading from "@/components/ui/Loading";
 
 export default function AdminProfilePage() {
   const { data: session, update, status } = useSession();
@@ -103,7 +104,7 @@ export default function AdminProfilePage() {
   };
 
   if (!session || session.user.role !== "ADMIN") {
-    return <div>Access Denied</div>;
+    return <Loading />;
   }
 
   return (

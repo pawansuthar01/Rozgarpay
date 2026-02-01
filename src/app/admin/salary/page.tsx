@@ -1,6 +1,8 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import Loading from "@/components/ui/Loading";
+
 import { useState } from "react";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
@@ -178,7 +180,7 @@ export default function AdminSalaryPage() {
   };
 
   if (!session || session.user.role !== "ADMIN") {
-    return <div>Access Denied</div>;
+    return <Loading />;
   }
 
   return (
@@ -260,7 +262,6 @@ export default function AdminSalaryPage() {
               onReject={handleReject}
               onMarkAsPaid={handleMarkAsPaid}
               onRecalculate={handleRecalculate}
-              showActions={true}
               loadingIds={{
                 approve: approveLoading,
                 reject: rejectLoading,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { notificationManager } from "@/lib/notifications/manager";
 
 export async function GET(request: NextRequest) {
   try {
@@ -123,8 +124,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate and update salary configurations
-    const updatePromises = staffUpdates.map(async (update: any) => {
+    for (const update of staffUpdates) {
       const {
         userId,
         baseSalary,
@@ -138,25 +138,36 @@ export async function POST(request: NextRequest) {
       } = update;
 
       if (!userId) {
-        throw new Error("userId is required for each update");
+        throw new Error("userId is required");
       }
 
-      // Verify the user belongs to the admin's company
-      const user = await prisma.user.findFirst({
+      /* ========= FETCH USER (BEFORE) ========= */
+      const userBefore = await prisma.user.findFirst({
         where: {
           id: userId,
           companyId,
           role: { in: ["STAFF", "MANAGER"] },
         },
+        select: {
+          salarySetupDone: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          company: { select: { name: true } },
+        },
       });
 
-      if (!user) {
-        throw new Error(`User ${userId} not found or not authorized`);
+      if (!userBefore) {
+        throw new Error(`User ${userId} not found or unauthorized`);
       }
 
-      return prisma.user.update({
+      const isFirstTimeSetup = userBefore.salarySetupDone !== true;
+
+      /* ========= UPDATE USER ========= */
+      await prisma.user.update({
         where: { id: userId },
         data: {
+          salarySetupDone: true,
           baseSalary: baseSalary ? parseFloat(baseSalary) : null,
           hourlyRate: hourlyRate ? parseFloat(hourlyRate) : null,
           dailyRate: dailyRate ? parseFloat(dailyRate) : null,
@@ -165,14 +176,30 @@ export async function POST(request: NextRequest) {
           overtimeRate: overtimeRate ? parseFloat(overtimeRate) : null,
           pfEsiApplicable:
             pfEsiApplicable !== undefined ? Boolean(pfEsiApplicable) : true,
-          joiningDate: joiningDate
-            ? new Date(joiningDate)
-            : user.joiningDate || user.createdAt,
+          joiningDate: joiningDate ? new Date(joiningDate) : undefined,
         },
       });
-    });
 
-    await Promise.all(updatePromises);
+      /* ========= 🔔 SEND NOTIFICATION (NO WAIT) ========= */
+      if (isFirstTimeSetup) {
+        const staffName =
+          `${userBefore.firstName ?? ""} ${userBefore.lastName ?? ""}`.trim();
+
+        // 🔥 fire-and-forget
+        notificationManager.sendNotification({
+          userId,
+          type: "salary_setup_done",
+          data: {
+            staffName,
+            companyName: userBefore.company?.name || "Company",
+            phone: userBefore.phone,
+            effectiveDate: new Date().toDateString(),
+          },
+          channels: ["whatsapp", "in_app"],
+          priority: "medium",
+        });
+      }
+    }
 
     return NextResponse.json({
       message: "Salary configurations updated successfully",

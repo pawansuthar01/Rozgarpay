@@ -45,7 +45,8 @@ export function useCashbook(params?: {
       }
       return response.json() as Promise<CashbookApiResponse>;
     },
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 30, // 30 seconds - shorter stale time for faster updates
+    refetchOnWindowFocus: true, // Refetch when window regains focus
   });
 }
 
@@ -60,7 +61,8 @@ export function useCashbookBalance() {
       }
       return response.json() as Promise<CashbookBalance>;
     },
-    staleTime: 1000 * 60 * 1, // 1 minute
+    staleTime: 1000 * 30, // 30 seconds - shorter stale time for faster updates
+    refetchOnWindowFocus: true, // Refetch when window regains focus
   });
 }
 
@@ -245,25 +247,39 @@ export function useReverseCashbookEntry() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (entryId: string) => {
+    mutationFn: async ({
+      entryId,
+      reason,
+    }: {
+      entryId: string;
+      reason: string;
+    }) => {
       const response = await fetch(`/api/admin/cashbook/${entryId}/reverse`, {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ reason }),
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to reverse cashbook entry");
+        const error = await response.json().catch(() => ({
+          error: "Failed to reverse entry",
+        }));
+        throw new Error(error.error || "Failed to reverse entry");
       }
 
       return response.json();
     },
-    onSuccess: (reversedEntry, entryId) => {
+    onSuccess: (_reversedEntry, variables) => {
       // Update all cashbook queries by marking the entry as reversed
       queryClient.setQueriesData({ queryKey: ["cashbook"] }, (oldData: any) => {
         if (!oldData || !oldData.entries) return oldData;
 
         const updatedEntries = oldData.entries.map((entry: any) =>
-          entry.id === entryId ? { ...entry, isReversed: true } : entry,
+          entry.id === variables.entryId
+            ? { ...entry, isReversed: true }
+            : entry,
         );
 
         // Recalculate stats based on all entries (excluding reversed ones)

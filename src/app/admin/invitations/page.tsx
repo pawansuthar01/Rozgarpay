@@ -1,6 +1,8 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import Loading from "@/components/ui/Loading";
+
 import { useState, useCallback } from "react";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
@@ -16,6 +18,8 @@ import {
   ChevronRight,
   AlertTriangle,
   Trash2,
+  Copy,
+  User,
 } from "lucide-react";
 
 interface Invitation {
@@ -23,6 +27,7 @@ interface Invitation {
   email: string;
   phone: string;
   role: string;
+  token: string;
   isUsed: boolean;
   expiresAt: string;
   createdAt: string;
@@ -110,6 +115,26 @@ export default function AdminInvitationsPage() {
     }
   };
 
+  const getInitials = (email: string, phone: string) => {
+    if (email && email.trim()) {
+      return email.charAt(0).toUpperCase();
+    }
+    if (phone && phone.trim()) {
+      return phone.charAt(0).toUpperCase();
+    }
+    return "?";
+  };
+
+  const getContactDisplay = (email: string, phone: string) => {
+    if (email && email.trim()) {
+      return email;
+    }
+    if (phone && phone.trim()) {
+      return phone;
+    }
+    return "No contact info";
+  };
+
   return (
     <div className="min-h-screen">
       <div className=" mx-auto  min-h-screen">
@@ -126,7 +151,7 @@ export default function AdminInvitationsPage() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search by email..."
+                placeholder="Search by email or phone..."
                 defaultValue={searchTerm}
                 onChange={(e) => debouncedSetSearchTerm(e.target.value)}
                 className="pl-10 pr-4 py-3 border border-gray-300 rounded-lg text-sm w-full"
@@ -182,11 +207,6 @@ export default function AdminInvitationsPage() {
           ) : (
             invitations.map((invitation) => (
               <div
-                onClick={() =>
-                  copyToClipboard(
-                    `https://${process.env.NEXTAUTH_URL}/join/${invitation.token}`,
-                  )
-                }
                 key={invitation.id}
                 className="bg-white border border-gray-200 p-4 rounded-lg shadow-sm"
               >
@@ -194,32 +214,52 @@ export default function AdminInvitationsPage() {
                   <div className="flex items-center space-x-3">
                     <div className="h-10 w-10 bg-gray-300 rounded-full flex items-center justify-center">
                       <span className="text-sm font-medium text-gray-700">
-                        {invitation.email.charAt(0).toUpperCase()}
+                        {getInitials(invitation.email, invitation.phone)}
                       </span>
                     </div>
                     <div>
                       <div className="text-sm font-medium text-gray-900">
-                        {invitation.email}
+                        {getContactDisplay(invitation.email, invitation.phone)}
                       </div>
                       <div className="text-sm text-gray-500">
-                        {invitation.phone}
+                        {invitation.phone && invitation.phone.trim()
+                          ? invitation.phone
+                          : "No phone"}
                       </div>
                     </div>
                   </div>
-                  {invitation.status === "pending" && (
-                    <button
-                      onClick={() => handleDeleteInvitation(invitation.id)}
-                      disabled={deleteInvitationMutation.isPending}
-                      className="p-2 text-red-600 hover:text-red-900 disabled:opacity-50 disabled:cursor-not-allowed"
-                      title="Delete invitation"
-                    >
-                      {deleteInvitationMutation.isPending ? (
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-600"></div>
-                      ) : (
-                        <Trash2 className="h-5 w-5" />
-                      )}
-                    </button>
-                  )}
+                  <div className="flex items-center space-x-2">
+                    {invitation.status === "pending" && (
+                      <button
+                        onClick={() =>
+                          copyToClipboard(
+                            `https://${process.env.NEXTAUTH_URL}/join/${invitation.token}`,
+                          )
+                        }
+                        className="p-2 text-blue-600 hover:text-blue-900"
+                        title="Copy invitation link"
+                      >
+                        <Copy className="h-5 w-5" />
+                      </button>
+                    )}
+                    {invitation.status === "pending" && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteInvitation(invitation.id);
+                        }}
+                        disabled={deleteInvitationMutation.isPending}
+                        className="p-2 text-red-600 hover:text-red-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Delete invitation"
+                      >
+                        {deleteInvitationMutation.isPending ? (
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-600"></div>
+                        ) : (
+                          <Trash2 className="h-5 w-5" />
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="mt-3 flex items-center justify-between">
                   <div className="flex items-center space-x-2">
@@ -247,6 +287,12 @@ export default function AdminInvitationsPage() {
                   | Created:{" "}
                   {new Date(invitation.createdAt).toLocaleDateString()}
                 </div>
+                {!invitation.email && (
+                  <div className="mt-2 text-xs text-amber-600 flex items-center">
+                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    No email
+                  </div>
+                )}
               </div>
             ))
           )}

@@ -16,6 +16,7 @@ import {
   Edit,
 } from "lucide-react";
 import { useModal } from "@/components/ModalProvider";
+import Loading from "@/components/ui/Loading";
 
 interface ProfileData {
   firstName: string | null;
@@ -135,7 +136,7 @@ export default function ManagerProfile() {
   };
 
   if (!session || session.user.role !== "MANAGER") {
-    return <div>Access Denied</div>;
+    return <Loading />;
   }
 
   return (
