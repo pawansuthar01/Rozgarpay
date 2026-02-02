@@ -2,6 +2,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { RGB, toColor } from "./salaryReportGenerator";
 import type { FontStyle, HAlignType, CellDef } from "jspdf-autotable";
+import { getDate } from "./attendanceUtils";
 interface CashbookTransaction {
   id: string;
   transactionDate: string;
@@ -196,7 +197,7 @@ export const generateCashbookPDFBuffer = (data: CashbookReportData): Buffer => {
     );
     doc.setFont("helvetica", "normal");
     doc.text(
-      `Report Date: ${new Date().toLocaleDateString("en-IN", {
+      `Report Date: ${getDate(new Date()).toLocaleDateString("en-IN", {
         day: "2-digit",
         month: "long",
         year: "numeric",
@@ -212,7 +213,7 @@ export const generateCashbookPDFBuffer = (data: CashbookReportData): Buffer => {
       { align: "right" },
     );
     doc.text(
-      `Time: ${new Date().toLocaleTimeString("en-IN")}`,
+      `Time: ${getDate(new Date()).toLocaleTimeString("en-IN")}`,
       pageWidth - 20,
       currentY + 32,
       { align: "right" },
@@ -569,7 +570,7 @@ export const generateCashbookPDFBuffer = (data: CashbookReportData): Buffer => {
       doc.setFont("helvetica", "normal");
 
       doc.text(
-        `Generated: ${new Date().toLocaleString("en-IN", {
+        `Generated: ${getDate(new Date()).toLocaleString("en-IN", {
           day: "2-digit",
           month: "short",
           year: "numeric",

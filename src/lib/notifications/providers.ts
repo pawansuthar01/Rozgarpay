@@ -7,6 +7,7 @@ import { Resend } from "resend";
 import { prisma } from "@/lib/prisma";
 import { NotificationType } from "./types";
 import { sanitizeMsg91Text } from "../utils";
+import { getDate } from "../attendanceUtils";
 
 // ============================================
 // Rate Limiting State
@@ -18,8 +19,8 @@ interface RateLimitState {
 
 // In-memory rate limit state (in production, use Redis)
 const rateLimitState: RateLimitState = {
-  email: { count: 0, resetAt: new Date() },
-  whatsapp: { count: 0, resetAt: new Date() },
+  email: { count: 0, resetAt: getDate(new Date()) },
+  whatsapp: { count: 0, resetAt: getDate(new Date()) },
 };
 
 // Rate limits (per minute)
@@ -37,8 +38,8 @@ interface CircuitState {
 }
 
 const circuitState: CircuitState = {
-  email: { failures: 0, lastFailure: new Date(), isOpen: false },
-  whatsapp: { failures: 0, lastFailure: new Date(), isOpen: false },
+  email: { failures: 0, lastFailure: getDate(new Date()), isOpen: false },
+  whatsapp: { failures: 0, lastFailure: getDate(new Date()), isOpen: false },
 };
 
 const CIRCUIT_THRESHOLD = 5; // Failures before opening circuit
@@ -49,7 +50,7 @@ const CIRCUIT_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 // ============================================
 
 function checkRateLimit(provider: "email" | "whatsapp"): boolean {
-  const now = new Date();
+  const now = getDate(new Date());
   const state = rateLimitState[provider];
   const limit = RATE_LIMITS[provider];
 
@@ -69,7 +70,7 @@ function isCircuitOpen(provider: "email" | "whatsapp"): boolean {
   const state = circuitState[provider];
   if (!state.isOpen) return false;
 
-  const now = new Date();
+  const now = getDate(new Date());
   if (now.getTime() - state.lastFailure.getTime() > CIRCUIT_TIMEOUT) {
     state.isOpen = false;
     state.failures = 0;
@@ -82,7 +83,7 @@ function isCircuitOpen(provider: "email" | "whatsapp"): boolean {
 function recordFailure(provider: "email" | "whatsapp"): void {
   const state = circuitState[provider];
   state.failures++;
-  state.lastFailure = new Date();
+  state.lastFailure = getDate(new Date());
 
   if (state.failures >= CIRCUIT_THRESHOLD) {
     state.isOpen = true;
@@ -115,7 +116,7 @@ async function logNotification(
         errorMessage: error,
         provider: channel === "email" ? "Resend" : "MSG91",
         messageId,
-        sentAt: success ? new Date() : undefined,
+        sentAt: success ? getDate(new Date()) : undefined,
       },
     });
   } catch (err) {
@@ -142,7 +143,7 @@ function generateEmailHtml(title: string, message: string): string {
           <p style="font-size: 16px; line-height: 1.6; margin-bottom: 30px;">${message}</p>
         </div>
         <div style="text-align: center; margin-top: 20px; color: #999; font-size: 12px;">
-          <p>© ${new Date().getFullYear()} Rozgarpay. All rights reserved.</p>
+          <p>© ${getDate(new Date()).getFullYear()} Rozgarpay. All rights reserved.</p>
         </div>
       </body>
     </html>

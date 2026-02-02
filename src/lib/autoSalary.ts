@@ -1,12 +1,17 @@
+import { getDate } from "./attendanceUtils";
 import { prisma } from "./prisma";
 import { salaryService } from "./salaryService";
 
 export async function runAutoSalaryGeneration() {
   // Get current month for daily/hourly salary generation
-  const now = new Date();
-  const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const month = currentMonth.getMonth() + 1; // JS months are 0-based
-  const year = currentMonth.getFullYear();
+  const now = getDate(new Date());
+
+  const monthStart = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+  );
+
+  const month = monthStart.getUTCMonth() + 1;
+  const year = monthStart.getUTCFullYear();
 
   // Get all active companies
   const companies = await prisma.company.findMany({

@@ -8,6 +8,7 @@ import {
   CashbookStats,
   CashbookReportData,
 } from "@/types/cashbook";
+import { getDate } from "@/lib/attendanceUtils";
 
 // Query: Get cashbook entries
 export function useCashbook(params?: {
@@ -375,7 +376,7 @@ export function useGenerateCashbookPDF() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `cashbook-report-${new Date().toISOString().split("T")[0]}.pdf`;
+      a.download = `cashbook-report-${getDate(new Date()).toISOString().split("T")[0]}.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);

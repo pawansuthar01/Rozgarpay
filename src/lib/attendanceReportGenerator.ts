@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { getDate } from "./attendanceUtils";
 
 interface AttendanceReportData {
   company: {
@@ -202,7 +203,7 @@ export const generateAttendancePDFBuffer = (
     doc.setFontSize(8);
     doc.setTextColor(128, 128, 128);
     doc.text(
-      `Generated on ${new Date().toLocaleString()}`,
+      `Generated on ${getDate(new Date()).toLocaleString()}`,
       20,
       pageHeight - 20,
     );
