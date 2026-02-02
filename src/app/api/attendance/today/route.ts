@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { authOptions } from "@/lib/auth";
 
 import { prisma } from "@/lib/prisma";
+import { getAttendanceDate } from "@/lib/attendanceUtils";
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,14 +16,13 @@ export async function GET(request: NextRequest) {
     if (!companyId) {
       return NextResponse.json({ error: "Company not found" }, { status: 400 });
     }
+    const attendanceDate = getAttendanceDate(new Date());
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
     const attendanceRecord = await prisma.attendance.findFirst({
       where: {
         userId,
         companyId,
-        attendanceDate: today,
+        attendanceDate,
       },
     });
     return NextResponse.json({ success: true, attendance: attendanceRecord });
