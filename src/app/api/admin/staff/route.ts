@@ -106,8 +106,12 @@ export async function GET(request: NextRequest) {
           where: {
             userId: member.id,
             attendanceDate: {
-              gte: new Date(
-                getDate(new Date()).setDate(getDate(new Date()).getDate() - 30),
+              gte: getDate(
+                new Date(
+                  getDate(new Date()).setDate(
+                    getDate(new Date()).getDate() - 30,
+                  ),
+                ),
               ),
             },
           },

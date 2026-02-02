@@ -5,6 +5,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { getDate } from "../attendanceUtils";
+import { getCurrentTime } from "../utils";
 
 export interface IdempotencyResult {
   isDuplicate: boolean;
@@ -65,7 +66,7 @@ export class IdempotencyService {
           key: idempotencyKey,
           value: JSON.stringify({
             notificationId,
-            createdAt: getDate(new Date()).toISOString(),
+            createdAt: getCurrentTime().toISOString(),
             ttl: this.TTL_HOURS,
           }),
           description: `Idempotency key for notification: ${notificationId}`,

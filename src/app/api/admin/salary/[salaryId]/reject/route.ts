@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { getDate } from "@/lib/attendanceUtils";
+import { getCurrentTime } from "@/lib/utils";
 
 export async function POST(
   request: NextRequest,
@@ -63,9 +64,9 @@ export async function POST(
       data: {
         status: "REJECTED",
         rejectedBy: session.user.id,
-        rejectedAt: getDate(new Date()),
+        rejectedAt: getCurrentTime(),
         rejectionReason: reason,
-        lockedAt: getDate(new Date()), // Lock after rejection
+        lockedAt: getCurrentTime(), // Lock after rejection
       },
     });
 

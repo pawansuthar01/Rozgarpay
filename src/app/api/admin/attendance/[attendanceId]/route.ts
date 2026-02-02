@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { salaryService } from "@/lib/salaryService";
 import { authOptions } from "@/lib/auth";
 import { getApprovedWorkingHours, getDate } from "@/lib/attendanceUtils";
+import { getCurrentTime } from "@/lib/utils";
 
 export async function GET(
   request: NextRequest,
@@ -188,7 +189,7 @@ export async function PUT(request: NextRequest, { params }: any) {
       data: {
         status: validStatus,
         approvedBy: validStatus === "APPROVED" ? session.user.id : undefined,
-        approvedAt: validStatus === "APPROVED" ? new Date() : undefined,
+        approvedAt: validStatus === "APPROVED" ? getCurrentTime() : undefined,
         workingHours:
           workingHours !== undefined
             ? Math.round(workingHours * 100) / 100

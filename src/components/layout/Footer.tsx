@@ -107,7 +107,8 @@ export const Footer: React.FC = () => {
             </p>
             <div className="flex space-x-6 mt-4 sm:mt-0">
               <Link
-                href="#"
+                href="https://x.com/__Pawan__Kumar_"
+                target="_blank"
                 className="text-gray-400 hover:text-white transition-colors"
               >
                 <span className="sr-only">Twitter</span>
@@ -120,7 +121,8 @@ export const Footer: React.FC = () => {
                 </svg>
               </Link>
               <Link
-                href="#"
+                href="https://www.linkedin.com/in/pawankumar10/"
+                target="_blank"
                 className="text-gray-400 hover:text-white transition-colors"
               >
                 <span className="sr-only">LinkedIn</span>

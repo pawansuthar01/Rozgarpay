@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { getDate } from "@/lib/attendanceUtils";
+import { getCurrentTime } from "@/lib/utils";
 
 export async function POST(request: NextRequest) {
   try {
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
         email: user.email,
         phone: user.phone,
       },
-      generatedAt: getDate(new Date()).toISOString(),
+      generatedAt: getCurrentTime().toISOString(),
       salaries: salaries.map((salary) => ({
         month: salary.month,
         year: salary.year,

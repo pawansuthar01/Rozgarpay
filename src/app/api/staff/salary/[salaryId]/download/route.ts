@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 
 import PDFDocument from "pdfkit";
 import { getDate } from "@/lib/attendanceUtils";
+import { getCurrentTime } from "@/lib/utils";
 
 export async function GET(
   request: NextRequest,
@@ -218,7 +219,7 @@ export async function GET(
     doc
       .fontSize(10)
       .font("Helvetica")
-      .text(`Generated on: ${getDate(new Date()).toLocaleDateString()}`, {
+      .text(`Generated on: ${getCurrentTime().toLocaleDateString()}`, {
         align: "left",
       })
       .text("This is a system-generated payslip", { align: "right" });

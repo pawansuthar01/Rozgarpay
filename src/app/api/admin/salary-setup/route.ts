@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { notificationManager } from "@/lib/notifications/manager";
 import { getDate } from "@/lib/attendanceUtils";
+import { getCurrentTime } from "@/lib/utils";
 
 export async function GET(request: NextRequest) {
   try {
@@ -194,7 +195,7 @@ export async function POST(request: NextRequest) {
             staffName,
             companyName: userBefore.company?.name || "Company",
             phone: userBefore.phone,
-            effectiveDate: getDate(new Date()).toDateString(),
+            effectiveDate: getCurrentTime().toDateString(),
           },
           channels: ["whatsapp", "in_app"],
           priority: "medium",

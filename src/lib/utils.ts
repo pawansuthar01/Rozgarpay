@@ -1,4 +1,5 @@
 import { type ClassValue, clsx } from "clsx";
+import { toZonedTime } from "date-fns-tz";
 import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
@@ -358,4 +359,8 @@ export function sanitizeMsg91Text(message?: string): string {
     .replace(/\n+/g, " ") // remove new lines
     .replace(/\s+/g, " ") // normalize spaces
     .trim();
+}
+
+export function getCurrentTime() {
+  return toZonedTime(new Date(), "Asia/Kolkata");
 }

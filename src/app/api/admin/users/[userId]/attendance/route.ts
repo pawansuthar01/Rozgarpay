@@ -65,8 +65,8 @@ export async function GET(
     }
 
     // Get attendance records for the specified month
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0); // Last day of the month
+    const startDate = getDate(new Date(year, month - 1, 1));
+    const endDate = getDate(new Date(year, month, 0)); // Last day of the month
 
     const attendanceRecords = await prisma.attendance.findMany({
       where: {

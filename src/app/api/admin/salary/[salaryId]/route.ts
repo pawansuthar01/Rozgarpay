@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 
 import { salaryService } from "@/lib/salaryService";
 import { getDate } from "@/lib/attendanceUtils";
+import { getCurrentTime } from "@/lib/utils";
 
 export async function GET(
   request: NextRequest,
@@ -178,7 +179,7 @@ export async function PATCH(request: NextRequest, { params }: any) {
         data: {
           status: "REJECTED",
           rejectedBy: session.user.id,
-          rejectedAt: getDate(new Date()),
+          rejectedAt: getCurrentTime(),
           rejectionReason,
         },
       });

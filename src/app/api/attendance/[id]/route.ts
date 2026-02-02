@@ -5,6 +5,7 @@ import { salaryService } from "@/lib/salaryService";
 import { authOptions } from "@/lib/auth";
 import { notificationManager } from "@/lib/notifications/manager";
 import { getDate } from "@/lib/attendanceUtils";
+import { getCurrentTime } from "@/lib/utils";
 
 export async function PATCH(
   request: NextRequest,
@@ -75,7 +76,7 @@ export async function PATCH(
       data: {
         status,
         approvedBy: session.user.id,
-        approvedAt: getDate(new Date()),
+        approvedAt: getCurrentTime(),
       },
     });
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { getCurrentTime } from "@/lib/utils";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { User } from "next-auth";
@@ -225,7 +226,11 @@ export const generateSalaryPDF = ({
   const pageHeight = doc.internal.pageSize.height;
   doc.setFontSize(8);
   doc.setTextColor(128, 128, 128);
-  doc.text(`Generated on ${new Date().toLocaleString()}`, 20, pageHeight - 20);
+  doc.text(
+    `Generated on ${getCurrentTime().toLocaleString()}`,
+    20,
+    pageHeight - 20,
+  );
   doc.text("PayRollBook - Salary Management System", 20, pageHeight - 10);
 
   // Save the PDF

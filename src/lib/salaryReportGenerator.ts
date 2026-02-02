@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { getDate } from "./attendanceUtils";
 
 interface SalaryReportData {
   company: {
@@ -142,7 +143,7 @@ export const generateSalaryReportPDFBuffer = (
     // Report metadata on right
     doc.setFontSize(8);
     const reportId = `CR-${Date.now().toString().slice(-8)}`;
-    const generatedDate = new Date().toLocaleDateString("en-IN", {
+    const generatedDate = getDate(new Date()).toLocaleDateString("en-IN", {
       year: "numeric",
       month: "short",
       day: "numeric",
@@ -548,7 +549,7 @@ export const generateSalaryReportPDFBuffer = (
 
       doc.setFont("helvetica", "italic");
       doc.text(
-        `Generated: ${new Date().toLocaleString("en-IN")}`,
+        `Generated: ${getDate(new Date()).toLocaleString("en-IN")}`,
         pageWidth - 10,
         footerY + 8,
         { align: "right" },

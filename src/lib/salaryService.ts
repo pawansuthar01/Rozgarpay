@@ -3,6 +3,8 @@
 
 import { prisma } from "@/lib/prisma";
 import { SalaryType, AttendanceStatus, AuditAction } from "@prisma/client";
+import { getDate } from "./attendanceUtils";
+import { getCurrentTime } from "./utils";
 
 export interface SalaryCalculationInput {
   userId: string;
@@ -621,7 +623,7 @@ export class SalaryService {
         data: {
           status: "APPROVED",
           approvedBy,
-          approvedAt: new Date(),
+          approvedAt: getCurrentTime(),
         },
       });
 
@@ -698,14 +700,14 @@ export class SalaryService {
         where: { id: salaryId },
         data: {
           status: "PAID",
-          paidAt: paidAt || new Date(),
-          lockedAt: new Date(), // Lock after payment
+          paidAt: paidAt || getCurrentTime(),
+          lockedAt: getCurrentTime(), // Lock after payment
         },
       });
 
       await this.logSalaryAudit(salaryId, salary.userId, AuditAction.UPDATED, {
         action: "MARKED_AS_PAID",
-        paidAt: paidAt || new Date(),
+        paidAt: paidAt || getCurrentTime(),
       });
 
       return { success: true };

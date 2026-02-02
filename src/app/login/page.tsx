@@ -11,6 +11,7 @@ import {
   useSignInWithPassword,
 } from "@/hooks";
 import { useSession, signOut, getSession } from "next-auth/react";
+import Loading from "@/components/ui/Loading";
 
 export default function LoginPage() {
   const [phone, setPhone] = useState("+91");
@@ -108,10 +109,6 @@ export default function LoginPage() {
         loginMode === "otp"
           ? await loginWithOTP.mutateAsync({ phone, otp })
           : await loginWithPassword.mutateAsync({ phone, password });
-
-      console.log("Login result:", result);
-      // Session update will be handled by the mutation's onSuccess
-      // The useEffect watching session status will trigger the redirect
     } catch (error: any) {
       console.error("Login error:", error);
       setError(error.message || "Login failed. Please try again.");
@@ -119,6 +116,9 @@ export default function LoginPage() {
     }
   };
 
+  if (status && status === "authenticated") {
+    return <Loading message={"Redirecting"} />;
+  }
   if (status === "loading") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">

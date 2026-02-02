@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { salaryService } from "@/lib/salaryService";
 import { authOptions } from "@/lib/auth";
 import { hmToHours } from "@/lib/attendanceUtils";
+import { getCurrentTime } from "@/lib/utils";
 
 export async function PUT(
   request: NextRequest,
@@ -94,7 +95,7 @@ export async function PUT(
         isLate: LateMinute !== null && LateMinute > 0,
         approvalReason: approvalReason || undefined,
         approvedBy: session.user.id,
-        approvedAt: new Date(),
+        approvedAt: getCurrentTime(),
       },
       include: {
         user: { select: { firstName: true, lastName: true, phone: true } },

@@ -6,6 +6,7 @@
 import { prisma } from "@/lib/prisma";
 import { NotificationChannel, NotificationType } from "./types";
 import { getDate } from "../attendanceUtils";
+import { getCurrentTime } from "../utils";
 
 // Queue job status
 const QUEUE_STATUS = {
@@ -53,7 +54,7 @@ export class NotificationQueue {
     const maxAttempts = options?.maxAttempts || this.DEFAULT_MAX_ATTEMPTS;
     const nextAttemptAt = options?.delayMs
       ? getDate(new Date(Date.now() + options.delayMs))
-      : getDate(new Date());
+      : getCurrentTime();
 
     // Create job record in database (using NotificationLog as proxy for now)
     await prisma.notificationLog.create({
@@ -221,7 +222,7 @@ export class NotificationQueue {
           ...job,
           status,
           lastError: error,
-          processedAt: getDate(new Date()).toISOString(),
+          processedAt: getCurrentTime().toISOString(),
         },
       },
     });

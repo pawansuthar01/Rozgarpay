@@ -2,7 +2,7 @@
 
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { formatHoursToHM } from "@/lib/utils";
+import { formatHoursToHM, getCurrentTime } from "@/lib/utils";
 import { User } from "next-auth";
 
 interface AttendanceRecord {
@@ -182,7 +182,11 @@ export const generateAttendancePDF = ({
   const pageHeight = doc.internal.pageSize.height;
   doc.setFontSize(8);
   doc.setTextColor(128, 128, 128);
-  doc.text(`Generated on ${new Date().toLocaleString()}`, 20, pageHeight - 20);
+  doc.text(
+    `Generated on ${getCurrentTime().toLocaleString()}`,
+    20,
+    pageHeight - 20,
+  );
   doc.text("PayRollBook - Attendance Management System", 20, pageHeight - 10);
 
   // Save the PDF

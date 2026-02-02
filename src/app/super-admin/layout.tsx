@@ -148,7 +148,7 @@ export default function SuperAdminLayout({
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-4 lg:p-8">{children}</main>
+        <main className="flex-1  overflow-y-auto p-4 lg:p-8">{children}</main>
       </div>
     </div>
   );

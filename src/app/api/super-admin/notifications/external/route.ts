@@ -62,7 +62,6 @@ export async function POST(request: NextRequest) {
       message,
       type: type || "system_alert",
     });
-    console.log(result);
 
     // Audit log
     try {
