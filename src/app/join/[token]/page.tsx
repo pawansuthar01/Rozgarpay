@@ -250,10 +250,12 @@ export default function JoinPage() {
       return;
     }
     // Check if email verification is required
-    const emailRequired = Boolean(
-      (!invitation.email && !invitation.email.trim()) ||
-      (formData.email && formData.email.trim()),
-    );
+    const emailProvidedInForm =
+      formData.email && formData.email.trim().length > 0;
+
+    // Email OTP is required ONLY if email is entered in form
+    const emailRequired = emailProvidedInForm;
+
     if (emailRequired && !otpVerified.email) {
       setError("Please verify your email OTP before submitting");
       return;
@@ -302,10 +304,10 @@ export default function JoinPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Validating invitation...</p>
+          <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 text-sm">Validating invitation...</p>
         </div>
       </div>
     );
@@ -313,17 +315,17 @@ export default function JoinPage() {
 
   if (error && !invitation) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="max-w-md sm:max-w-lg w-full mx-4">
-          <div className="bg-white p-8 rounded-lg shadow text-center">
-            <AlertTriangle className="h-16 w-16 text-red-500 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="max-w-sm sm:max-w-md w-full mx-4">
+          <div className="bg-white p-6 rounded-lg shadow text-center sm:p-8">
+            <AlertTriangle className="h-12 w-12 sm:h-16 sm:w-16 text-red-500 mx-auto mb-4" />
+            <h1 className="text-lg sm:text-2xl font-bold text-gray-900 mb-2">
               Invalid Invitation
             </h1>
-            <p className="text-gray-600 mb-6">{error}</p>
+            <p className="text-gray-600 mb-6 text-sm">{error}</p>
             <Link
               href="/"
-              className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors"
+              className="inline-block bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors"
             >
               Go to Homepage
             </Link>
@@ -335,19 +337,19 @@ export default function JoinPage() {
 
   if (step === "complete") {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="max-w-md sm:max-w-lg w-full mx-4">
-          <div className="bg-white p-8 rounded-lg shadow text-center">
-            <CheckCircle className="h-16 w-16 text-green-600 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="max-w-sm sm:max-w-md w-full mx-4">
+          <div className="bg-white p-6 rounded-lg shadow text-center sm:p-8">
+            <CheckCircle className="h-12 w-12 sm:h-16 sm:w-16 text-green-600 mx-auto mb-4" />
+            <h1 className="text-lg sm:text-2xl font-bold text-gray-900 mb-2">
               Setup Complete!
             </h1>
-            <p className="text-gray-600 mb-6">
+            <p className="text-gray-600 mb-6 text-sm">
               You're all set to start using {invitation?.company.name}.
             </p>
             <button
               onClick={() => router.push("/login")}
-              className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors flex items-center space-x-2 mx-auto"
+              className="inline-flex items-center space-x-2 bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors"
             >
               <span>Go to Login</span>
               <ArrowRight className="h-4 w-4" />
@@ -360,15 +362,15 @@ export default function JoinPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-md sm:max-w-lg mx-auto py-12 px-4">
-        <div className="bg-white p-8 rounded-lg shadow">
+      <div className="max-w-md mx-auto py-6 px-4 sm:max-w-lg sm:px-6">
+        <div className="bg-white p-6 rounded-lg shadow sm:p-8">
           {/* Header */}
-          <div className="text-center mb-8">
-            <Building2 className="h-12 w-12 text-blue-600 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">
+          <div className="text-center mb-6 sm:mb-8">
+            <Building2 className="h-10 w-10 text-blue-600 mx-auto mb-3 sm:mb-4" />
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
               Join {invitation?.company.name}
             </h1>
-            <p className="text-gray-600">
+            <p className="text-gray-600 text-sm">
               Complete your registration to start managing your company
             </p>
           </div>
@@ -523,28 +525,28 @@ export default function JoinPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Phone OTP * (Required)
                 </label>
-                <div className="flex space-x-2">
-                  <input
-                    type="text"
-                    name="phoneOtp"
-                    required
-                    value={formData.phoneOtp}
-                    onChange={handleInputChange}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Enter 6-digit OTP"
-                    maxLength={6}
-                  />
+                <input
+                  type="text"
+                  name="phoneOtp"
+                  required
+                  value={formData.phoneOtp}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-2"
+                  placeholder="Enter 6-digit OTP"
+                  maxLength={6}
+                />
+                <div className="flex flex-col sm:flex-row gap-2">
                   <button
                     type="button"
                     onClick={() => sendOTP("phone")}
                     disabled={sendingOTP.phone || otpCooldown.phone > 0}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {otpCooldown.phone > 0
                       ? `Wait ${otpCooldown.phone}s`
                       : sendingOTP.phone
                         ? "Sending..."
-                        : "Send"}
+                        : "Send OTP"}
                   </button>
                   <button
                     type="button"
@@ -554,7 +556,7 @@ export default function JoinPage() {
                       !formData.phoneOtp ||
                       formData.phoneOtp.length !== 4
                     }
-                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {verifyingOTP.phone
                       ? "Verifying..."
@@ -571,27 +573,27 @@ export default function JoinPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Email OTP
                   </label>
-                  <div className="flex space-x-2">
-                    <input
-                      type="text"
-                      name="emailOtp"
-                      value={formData.emailOtp}
-                      onChange={handleInputChange}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter 6-digit OTP"
-                      maxLength={6}
-                    />
+                  <input
+                    type="text"
+                    name="emailOtp"
+                    value={formData.emailOtp}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-2"
+                    placeholder="Enter 6-digit OTP"
+                    maxLength={6}
+                  />
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <button
                       type="button"
                       onClick={() => sendOTP("email")}
                       disabled={sendingOTP.email || otpCooldown.email > 0}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {otpCooldown.email > 0
                         ? `Wait ${otpCooldown.email}s`
                         : sendingOTP.email
                           ? "Sending..."
-                          : "Send"}
+                          : "Send OTP"}
                     </button>
                     <button
                       type="button"
@@ -601,7 +603,7 @@ export default function JoinPage() {
                         !formData.emailOtp ||
                         formData.emailOtp.length !== 4
                       }
-                      className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {verifyingOTP.email
                         ? "Verifying..."
