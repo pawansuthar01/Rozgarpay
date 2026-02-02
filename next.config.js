@@ -14,7 +14,7 @@ const nextConfig = {
   reactStrictMode: true,
   images: {
     // Production: allow only listed domains
-    domains: ["pawansuthar.in", "another-allowed-domain.com"],
+    domains: ["rozgarpay.in", "another-allowed-domain.com"],
 
     // Development: allow all remote images using remotePatterns
     remotePatterns: [
