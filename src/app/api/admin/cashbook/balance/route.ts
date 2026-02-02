@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { getDate } from "@/lib/attendanceUtils";
+import { toZonedTime } from "date-fns-tz";
 export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   try {
@@ -45,8 +46,9 @@ export async function GET(request: NextRequest) {
     const currentBalance = totalCredit - totalDebit;
 
     // Monthly balance
-    const currentMonth = getDate(new Date()).getMonth() + 1;
-    const currentYear = getDate(new Date()).getFullYear();
+    const nowLocal = toZonedTime(new Date(), "Asia/Kolkata");
+    const currentMonth = nowLocal.getMonth() + 1;
+    const currentYear = nowLocal.getFullYear();
 
     const monthlyResult = await prisma.cashbookEntry.groupBy({
       by: ["direction"],

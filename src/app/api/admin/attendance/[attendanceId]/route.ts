@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { salaryService } from "@/lib/salaryService";
 import { authOptions } from "@/lib/auth";
 import { getApprovedWorkingHours, getDate } from "@/lib/attendanceUtils";
+import { toZonedTime } from "date-fns-tz";
 import { getCurrentTime } from "@/lib/utils";
 
 export async function GET(
@@ -222,11 +223,13 @@ export async function PUT(request: NextRequest, { params }: any) {
       },
     });
     try {
-      const attendanceDate = getDate(
+      // Derive month/year from the attendance timestamp in Asia/Kolkata
+      const attendanceLocal = toZonedTime(
         new Date(updatedAttendance.attendanceDate),
+        "Asia/Kolkata",
       );
-      const month = attendanceDate.getMonth() + 1;
-      const year = attendanceDate.getFullYear();
+      const month = attendanceLocal.getMonth() + 1;
+      const year = attendanceLocal.getFullYear();
 
       // Check if salary record exists
       const existingSalary = await prisma.salary.findUnique({

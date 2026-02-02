@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { getDate } from "@/lib/attendanceUtils";
+import { toZonedTime } from "date-fns-tz";
 export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
@@ -15,11 +16,12 @@ export async function GET(request: Request) {
     const userId = session.user.id;
     const { searchParams } = new URL(request.url);
     const year = parseInt(
-      searchParams.get("year") || getDate(new Date()).getFullYear().toString(),
+      searchParams.get("year") ||
+        toZonedTime(new Date(), "Asia/Kolkata").getFullYear().toString(),
     );
     const month = parseInt(
       searchParams.get("month") ||
-        (getDate(new Date()).getMonth() + 1).toString(),
+        (toZonedTime(new Date(), "Asia/Kolkata").getMonth() + 1).toString(),
     );
 
     // Get start and end dates for the month

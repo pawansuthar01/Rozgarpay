@@ -5,6 +5,7 @@ import { salaryService } from "@/lib/salaryService";
 import { authOptions } from "@/lib/auth";
 import { notificationManager } from "@/lib/notifications/manager";
 import { getDate } from "@/lib/attendanceUtils";
+import { toZonedTime } from "date-fns-tz";
 import { getCurrentTime } from "@/lib/utils";
 
 export async function PATCH(
@@ -119,9 +120,13 @@ export async function PATCH(
 
     // Auto-recalculate salary for the current month if attendance status affects it
     try {
-      const attendanceDate = new Date(updatedAttendance.attendanceDate);
-      const currentMonth = attendanceDate.getMonth() + 1;
-      const currentYear = attendanceDate.getFullYear();
+      // Derive month/year in Asia/Kolkata from stored UTC timestamp
+      const attendanceLocal = toZonedTime(
+        new Date(updatedAttendance.attendanceDate),
+        "Asia/Kolkata",
+      );
+      const currentMonth = attendanceLocal.getMonth() + 1;
+      const currentYear = attendanceLocal.getFullYear();
 
       // Check if there's a salary record for this month that needs recalculation
       const existingSalary = await prisma.salary.findUnique({

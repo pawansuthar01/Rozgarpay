@@ -108,9 +108,9 @@ export async function GET(request: NextRequest) {
     });
 
     // Calculate pending amount (current balance)
-    const currentDate = getDate(new Date());
-    const currentMonth = currentDate.getMonth() + 1;
-    const currentYear = currentDate.getFullYear();
+    const nowLocal = toZonedTime(new Date(), "Asia/Kolkata");
+    const currentMonth = nowLocal.getMonth() + 1;
+    const currentYear = nowLocal.getFullYear();
 
     const currentSalary = salaries.find(
       (s) => s.month === currentMonth && s.year === currentYear,

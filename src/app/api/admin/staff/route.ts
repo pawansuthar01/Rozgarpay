@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { getDate } from "@/lib/attendanceUtils";
+import { toZonedTime } from "date-fns-tz";
 export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   try {
@@ -79,8 +80,8 @@ export async function GET(request: NextRequest) {
         },
         salaries: {
           where: {
-            month: getDate(new Date()).getMonth() + 1,
-            year: getDate(new Date()).getFullYear(),
+            month: toZonedTime(new Date(), "Asia/Kolkata").getMonth() + 1,
+            year: toZonedTime(new Date(), "Asia/Kolkata").getFullYear(),
           },
           take: 1, // Current month salary
         },
@@ -230,8 +231,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Get salary distribution for current month
-    const currentMonth = getDate(new Date()).getMonth() + 1;
-    const currentYear = getDate(new Date()).getFullYear();
+    const currentMonth = toZonedTime(new Date(), "Asia/Kolkata").getMonth() + 1;
+    const currentYear = toZonedTime(new Date(), "Asia/Kolkata").getFullYear();
 
     const salaryStats = await prisma.salary.groupBy({
       by: ["status"],

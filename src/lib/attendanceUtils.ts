@@ -232,9 +232,6 @@ export function getApprovedWorkingHours(attendance: any, company: any): number {
     let start = sh * 60 + sm;
     let end = eh * 60 + em;
 
-    // Night shift support
-    if (end <= start) end += 1440;
-
     return Math.round(((end - start) / 60) * 100) / 100;
   }
 

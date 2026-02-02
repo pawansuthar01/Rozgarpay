@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { fromZonedTime } from "date-fns-tz";
+import { fromZonedTime, toZonedTime } from "date-fns-tz";
 import { salaryService } from "@/lib/salaryService";
 import { authOptions } from "@/lib/auth";
 export const dynamic = "force-dynamic";
@@ -263,9 +263,12 @@ export async function PUT(request: NextRequest) {
       // Auto-recalculate salary if attendance was updated
       if (updatedAttendance) {
         try {
-          const attendanceDate = new Date(updatedAttendance.attendanceDate);
-          const currentMonth = attendanceDate.getMonth() + 1;
-          const currentYear = attendanceDate.getFullYear();
+          const attendanceLocal = toZonedTime(
+            new Date(updatedAttendance.attendanceDate),
+            "Asia/Kolkata",
+          );
+          const currentMonth = attendanceLocal.getMonth() + 1;
+          const currentYear = attendanceLocal.getFullYear();
 
           const existingSalary = await prisma.salary.findUnique({
             where: {

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { getDate } from "@/lib/attendanceUtils";
+import { toZonedTime } from "date-fns-tz";
 export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   try {
@@ -57,10 +58,10 @@ export async function GET(request: NextRequest) {
       orderBy: [{ year: "desc" }, { month: "desc" }],
     });
 
-    // Get current month/year if no filter
-    const currentDate = getDate(new Date());
-    const currentMonth = month ?? currentDate.getMonth() + 1;
-    const currentYear = year ?? currentDate.getFullYear();
+    // Get current month/year in Asia/Kolkata if no filter
+    const nowLocal = toZonedTime(new Date(), "Asia/Kolkata");
+    const currentMonth = month ?? nowLocal.getMonth() + 1;
+    const currentYear = year ?? nowLocal.getFullYear();
 
     // Get current salary if exists
     const currentSalary = salaries.find(

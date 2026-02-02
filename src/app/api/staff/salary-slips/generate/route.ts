@@ -5,11 +5,13 @@ import { authOptions } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 import jsPDF from "jspdf";
 import { getDate } from "@/lib/attendanceUtils";
+import { toZonedTime } from "date-fns-tz";
 
 /* ================= HELPERS ================= */
 
-const currentYear = getDate(new Date()).getFullYear();
-const currentMonth = getDate(new Date()).getMonth() + 1;
+const nowLocal = toZonedTime(new Date(), "Asia/Kolkata");
+const currentYear = nowLocal.getFullYear();
+const currentMonth = nowLocal.getMonth() + 1;
 
 const monthRange = (year: number, month: number) => ({
   start: new Date(year, month - 1, 1),

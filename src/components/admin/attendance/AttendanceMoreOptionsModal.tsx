@@ -178,7 +178,7 @@ export default function AttendanceMoreOptionsModal({
                     }
                     className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-gray-300"
                   >
-                    {Array.from({ length: 12 }, (_, i) => (
+                    {Array.from({ length: 24 }, (_, i) => (
                       <option key={i} value={i.toString().padStart(2, "0")}>
                         {i.toString().padStart(2, "0")}
                       </option>
