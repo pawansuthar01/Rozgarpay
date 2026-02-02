@@ -233,7 +233,7 @@ export default function AdminInvitationsPage() {
                       <button
                         onClick={() =>
                           copyToClipboard(
-                            `https://${process.env.NEXTAUTH_URL}/join/${invitation.token}`,
+                            `https://${process.env.NEXT_PUBLIC_NEXTAUTH_URL}/join/${invitation.token}`,
                           )
                         }
                         className="p-2 text-blue-600 hover:text-blue-900"
