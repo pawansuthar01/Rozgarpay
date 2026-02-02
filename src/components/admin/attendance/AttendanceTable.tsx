@@ -16,6 +16,12 @@ import { AttendanceRecord } from "@/types/attendance";
 import { CheckCircle, Clock, XCircle, Minus } from "lucide-react";
 import { useState } from "react";
 import AttendanceMoreOptionsModal from "./AttendanceMoreOptionsModal";
+import {
+  formatDate,
+  formatDateTime,
+  formatDateTO,
+  formatTime,
+} from "@/lib/utils";
 
 interface AttendanceTableProps {
   records: AttendanceRecord[];
@@ -161,13 +167,11 @@ export default function AttendanceTable({
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {new Date(record.attendanceDate).toLocaleDateString()}
+                        {formatDate(record.attendanceDate)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         <div className="font-medium gap-2 flex items-center flex-wrap">
-                          {record.punchIn
-                            ? new Date(record.punchIn).toLocaleTimeString()
-                            : "-"}
+                          {record.punchIn ? formatDateTO(record.punchIn) : "-"}
                           {record.punchInImageUrl ? (
                             <button
                               onClick={() =>
@@ -189,9 +193,7 @@ export default function AttendanceTable({
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900  ">
                         <div className="font-medium gap-2 flex items-center flex-wrap">
-                          {record.punchOut
-                            ? new Date(record.punchOut).toLocaleTimeString()
-                            : "-"}
+                          {record.punchOut ? formatTime(record.punchOut) : "-"}
 
                           {record.punchOutImageUrl ? (
                             <button
@@ -367,15 +369,13 @@ export default function AttendanceTable({
                     <div>
                       <p className="text-gray-500">Date</p>
                       <p className="font-medium">
-                        {new Date(record.attendanceDate).toLocaleDateString()}
+                        {formatDate(record.attendanceDate)}
                       </p>
                     </div>
                     <div>
                       <p className="text-gray-500">Punch In</p>
                       <p className="font-medium gap-2 flex items-center flex-wrap">
-                        {record.punchIn
-                          ? new Date(record.punchIn).toLocaleTimeString()
-                          : "-"}
+                        {record.punchIn ? formatTime(record.punchIn) : "-"}
                         {record.punchInImageUrl ? (
                           <button
                             onClick={() =>
@@ -396,9 +396,7 @@ export default function AttendanceTable({
                     <div>
                       <p className="text-gray-500">Punch Out</p>
                       <p className="font-medium gap-2 flex items-center flex-wrap">
-                        {record.punchOut
-                          ? new Date(record.punchOut).toLocaleTimeString()
-                          : "-"}
+                        {record.punchOut ? formatTime(record.punchOut) : "-"}
                         {record.punchOutImageUrl ? (
                           <button
                             onClick={() =>

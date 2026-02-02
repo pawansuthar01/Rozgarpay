@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
+import { fromZonedTime } from "date-fns-tz";
 import { salaryService } from "@/lib/salaryService";
 import { authOptions } from "@/lib/auth";
 export const dynamic = "force-dynamic";
@@ -97,6 +98,18 @@ export async function PUT(request: NextRequest) {
 
     const { id, status, approvedTime, reviewReason } = await request.json();
 
+    // Helper: parse approvedTime. If time string includes timezone info (Z or +/-) treat as ISO.
+    // Otherwise treat the provided time as Asia/Kolkata local time and convert to UTC instant.
+    const parseApprovedTime = (ts?: string) => {
+      if (!ts) return undefined;
+      if (/[Z\+\-]/.test(ts)) return new Date(ts);
+      try {
+        return fromZonedTime(new Date(ts), "Asia/Kolkata");
+      } catch {
+        return new Date(ts);
+      }
+    };
+
     if (!id || !status) {
       return NextResponse.json(
         { error: "Missing required fields" },
@@ -158,7 +171,7 @@ export async function PUT(request: NextRequest) {
           where: { id: correctionRequest.attendanceId! },
           data: {
             punchIn: approvedTime
-              ? new Date(approvedTime)
+              ? parseApprovedTime(approvedTime)
               : correctionRequest.requestedTime,
             status: "APPROVED",
             approvalReason: reviewReason,
@@ -172,7 +185,7 @@ export async function PUT(request: NextRequest) {
           where: { id: correctionRequest.attendanceId! },
           data: {
             punchOut: approvedTime
-              ? new Date(approvedTime)
+              ? parseApprovedTime(approvedTime)
               : correctionRequest.requestedTime,
             status: "APPROVED",
             approvalReason: reviewReason,

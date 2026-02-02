@@ -1,7 +1,7 @@
 import { type ClassValue, clsx } from "clsx";
-import { toZonedTime } from "date-fns-tz";
+import { formatInTimeZone, toZonedTime } from "date-fns-tz";
 import { twMerge } from "tailwind-merge";
-
+import { format } from "date-fns";
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -15,30 +15,21 @@ export function formatCurrency(amount: number, currency = "INR"): string {
 
 export function formatDate(date: Date | string): string {
   const d = new Date(date);
-  return d.toLocaleDateString("en-IN", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+  return formatInTimeZone(d, "Asia/Kolkata", "dd MMM yyyy");
 }
 
 export function formatTime(date: Date | string): string {
   const d = new Date(date);
-  return d.toLocaleTimeString("en-IN", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatInTimeZone(d, "Asia/Kolkata", "hh:mm a");
 }
 
 export function formatDateTime(date: Date | string): string {
   const d = new Date(date);
-  return d.toLocaleString("en-IN", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatInTimeZone(d, "Asia/Kolkata", "dd MMM yyyy, hh:mm a");
+}
+
+export function formatDateTO(timestamp: string | Date) {
+  return formatInTimeZone(new Date(timestamp), "Asia/Kolkata", "hh:mm:ss a");
 }
 
 export function generateOTP(): string {
@@ -362,5 +353,5 @@ export function sanitizeMsg91Text(message?: string): string {
 }
 
 export function getCurrentTime() {
-  return toZonedTime(new Date(), "Asia/Kolkata");
+  return new Date();
 }

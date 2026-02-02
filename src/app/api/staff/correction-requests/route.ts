@@ -33,7 +33,8 @@ export async function POST(request: NextRequest) {
     if (
       type === "LEAVE_REQUEST" &&
       endDate &&
-      new Date(endDate) < new Date(attendanceDate)
+      getDate(new Date(endDate)).getTime() <
+        getDate(new Date(attendanceDate)).getTime()
     ) {
       return NextResponse.json(
         { error: "End date cannot be before start date" },
@@ -68,11 +69,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const date = new Date(attendanceDate);
-    date.setHours(0, 0, 0, 0);
+    // Normalize attendance date to company local midnight (stored as UTC instant)
+    const date = getDate(new Date(attendanceDate));
 
     // Check if date is not in future and not too old (7 days)
-    const now = new Date();
+    const now = getDate(new Date());
     const sevenDaysAgo = new Date(now);
     sevenDaysAgo.setDate(now.getDate() - 7);
 

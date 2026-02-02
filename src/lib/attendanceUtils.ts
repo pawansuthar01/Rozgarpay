@@ -112,19 +112,30 @@ export function isPunchInAllowed(
   shiftStart: string,
   shiftEnd: string,
   grace: number,
+  timeZone: string = "Asia/Kolkata",
 ) {
-  const start = new Date(now);
+  // Convert the provided instant to the company's local time for comparisons
+  const localNow = toZonedTime(now, timeZone);
+
   const [h, m] = shiftStart.split(":").map(Number);
-  start.setHours(h, m, 0, 0);
+  const startLocal = new Date(localNow);
+  startLocal.setHours(h, m, 0, 0);
 
-  const early = new Date(start.getTime() - 30 * 60 * 1000); // 30 minutes early
-  const late = new Date(start.getTime() + grace * 60000); // Grace period in minutes
+  const earlyLocal = new Date(startLocal.getTime() - 30 * 60 * 1000); // 30 minutes early
+  const lateLocal = new Date(startLocal.getTime() + grace * 60000); // Grace period in minutes
 
-  if (now < early)
+  // Convert local boundary times back to UTC instants for safe comparison with `now`
+  const earlyUtc = fromZonedTime(earlyLocal, timeZone);
+  const lateUtc = fromZonedTime(lateLocal, timeZone);
+  const startUtc = fromZonedTime(startLocal, timeZone);
+
+  if (now < earlyUtc)
     return { allowed: false, isLate: false, reason: "Too early to punch in." };
 
-  if (now > late) {
-    const lateMin = Math.floor((now.getTime() - late.getTime()) / (1000 * 60));
+  if (now > lateUtc) {
+    const lateMin = Math.floor(
+      (now.getTime() - lateUtc.getTime()) / (1000 * 60),
+    );
 
     return {
       allowed: true,
@@ -134,7 +145,7 @@ export function isPunchInAllowed(
     };
   }
 
-  return { allowed: true, isLate: now > start };
+  return { allowed: true, isLate: now.getTime() > startUtc.getTime() };
 }
 
 export function isPunchOutAllowed(punchIn: Date, min: number, max: number) {

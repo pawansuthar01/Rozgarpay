@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma";
-import { getCompanySettings } from "../lib/attendanceUtils";
+import { getCompanySettings, getDate } from "../lib/attendanceUtils";
+import { toZonedTime, fromZonedTime } from "date-fns-tz";
 
 // Simple function to calculate auto punch-out time
 function getAutoPunchOutTime(
@@ -7,11 +8,14 @@ function getAutoPunchOutTime(
   shiftStart: string,
   shiftEnd: string,
   bufferMinutes: number,
+  timeZone = "Asia/Kolkata",
 ): Date {
+  // baseDate is expected to be the UTC equivalent of local midnight for the timezone
+  // Convert to local zoned time, set the punch out hour, then convert back to UTC
+  const localBase = toZonedTime(baseDate, timeZone);
   const [endHour, endMinute] = shiftEnd.split(":").map(Number);
-  const punchOutTime = new Date(baseDate);
-  punchOutTime.setHours(endHour, endMinute + bufferMinutes, 0, 0);
-  return punchOutTime;
+  localBase.setHours(endHour, endMinute + bufferMinutes, 0, 0);
+  return fromZonedTime(localBase, timeZone);
 }
 
 /**
@@ -34,10 +38,8 @@ export async function runAutoPunchOut() {
     for (const company of companies) {
       const companySettings = await getCompanySettings(company.id);
 
-      // Calculate auto punch-out time for this company
-      // Use current date for calculation
-      const attendanceDate = new Date(now);
-      attendanceDate.setHours(0, 0, 0, 0);
+      // Calculate auto punch-out time for this company using Asia/Kolkata local date
+      const attendanceDate = getDate(now); // returns UTC date corresponding to local midnight in IST
 
       const autoPunchOutTime = getAutoPunchOutTime(
         attendanceDate,
@@ -59,9 +61,8 @@ export async function runAutoPunchOut() {
       // 2. Are from today or yesterday (to handle night shifts)
       // 3. Have punchIn time
       // 4. Are not already auto-punched
-      const yesterday = new Date(now);
+      const yesterday = new Date(attendanceDate);
       yesterday.setDate(yesterday.getDate() - 1);
-      yesterday.setHours(0, 0, 0, 0);
 
       const openAttendances = await prisma.attendance.findMany({
         where: {
