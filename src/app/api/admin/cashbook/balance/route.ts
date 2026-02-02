@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { getDate } from "@/lib/attendanceUtils";
 export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   try {
@@ -44,8 +45,8 @@ export async function GET(request: NextRequest) {
     const currentBalance = totalCredit - totalDebit;
 
     // Monthly balance
-    const currentMonth = new Date().getMonth() + 1;
-    const currentYear = new Date().getFullYear();
+    const currentMonth = getDate(new Date()).getMonth() + 1;
+    const currentYear = getDate(new Date()).getFullYear();
 
     const monthlyResult = await prisma.cashbookEntry.groupBy({
       by: ["direction"],

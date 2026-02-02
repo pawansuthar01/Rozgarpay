@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { getDate } from "@/lib/attendanceUtils";
 
 export async function POST(request: NextRequest) {
   try {
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
         email: user.email,
         phone: user.phone,
       },
-      generatedAt: new Date().toISOString(),
+      generatedAt: getDate(new Date()).toISOString(),
       salaries: salaries.map((salary) => ({
         month: salary.month,
         year: salary.year,
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest) {
     const response = new NextResponse(reportContent, {
       headers: {
         "Content-Type": "application/json",
-        "Content-Disposition": `attachment; filename="salary-report-${new Date().toISOString().split("T")[0]}.json"`,
+        "Content-Disposition": `attachment; filename="salary-report-${getDate(new Date()).toISOString().split("T")[0]}.json"`,
       },
     });
 

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 
 import { CashbookFilters } from "@/types/cashbook";
+import { getDate } from "@/lib/attendanceUtils";
 
 export async function GET(request: NextRequest) {
   try {
@@ -65,9 +66,9 @@ export async function GET(request: NextRequest) {
     if (filters.startDate || filters.endDate) {
       where.transactionDate = {};
       if (filters.startDate)
-        where.transactionDate.gte = new Date(filters.startDate);
+        where.transactionDate.gte = getDate(new Date(filters.startDate));
       if (filters.endDate)
-        where.transactionDate.lte = new Date(filters.endDate);
+        where.transactionDate.lte = getDate(new Date(filters.endDate));
     }
 
     if (filters.transactionType) {
@@ -256,6 +257,21 @@ export async function POST(request: NextRequest) {
     if (amount <= 0) {
       return NextResponse.json(
         { error: "Amount must be greater than 0" },
+        { status: 400 },
+      );
+    }
+
+    // Validate field lengths
+    if (description && description.length > 500) {
+      return NextResponse.json(
+        { error: "Description must be 500 characters or less" },
+        { status: 400 },
+      );
+    }
+
+    if (notes && notes.length > 1000) {
+      return NextResponse.json(
+        { error: "Notes must be 1000 characters or less" },
         { status: 400 },
       );
     }

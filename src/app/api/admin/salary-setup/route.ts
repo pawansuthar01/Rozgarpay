@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { notificationManager } from "@/lib/notifications/manager";
+import { getDate } from "@/lib/attendanceUtils";
 
 export async function GET(request: NextRequest) {
   try {
@@ -193,7 +194,7 @@ export async function POST(request: NextRequest) {
             staffName,
             companyName: userBefore.company?.name || "Company",
             phone: userBefore.phone,
-            effectiveDate: new Date().toDateString(),
+            effectiveDate: getDate(new Date()).toDateString(),
           },
           channels: ["whatsapp", "in_app"],
           priority: "medium",

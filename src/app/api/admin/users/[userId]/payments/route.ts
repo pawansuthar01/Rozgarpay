@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { getDate } from "@/lib/attendanceUtils";
 
 export async function GET(
   request: NextRequest,
@@ -25,7 +26,7 @@ export async function GET(
     }
 
     // Get current month salary record
-    const currentDate = new Date();
+    const currentDate = getDate(new Date());
     const currentMonth = currentDate.getMonth() + 1;
     const currentYear = currentDate.getFullYear();
 
@@ -114,7 +115,7 @@ export async function POST(request: NextRequest, { params }: any) {
     }
 
     // Get current month salary record
-    const currentDate = new Date();
+    const currentDate = getDate(new Date());
     const currentMonth = currentDate.getMonth() + 1;
     const currentYear = currentDate.getFullYear();
 
@@ -178,7 +179,7 @@ export async function POST(request: NextRequest, { params }: any) {
         description:
           description || `Additional payment to staff (${paymentMode})`,
         notes: `Reference: ${reference || "N/A"}`,
-        transactionDate: new Date(paymentDate),
+        transactionDate: getDate(new Date(paymentDate)),
         createdBy: session.user.id,
       },
     });

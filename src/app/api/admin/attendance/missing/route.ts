@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import authOptions from "@/lib/auth";
+import { getDate } from "@/lib/attendanceUtils";
 
 export async function GET(request: NextRequest) {
   try {
@@ -36,10 +37,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const targetDate = new Date(date);
-    const startOfDay = new Date(targetDate);
+    const targetDate = getDate(new Date(date));
+    const startOfDay = getDate(new Date(targetDate));
     startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(targetDate);
+    const endOfDay = getDate(new Date(targetDate));
     endOfDay.setHours(23, 59, 59, 999);
 
     // Get all staff in the company
@@ -156,7 +157,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const attendanceDate = new Date(date);
+    const attendanceDate = getDate(new Date(date));
     attendanceDate.setHours(0, 0, 0, 0);
 
     // Check if attendance already exists
@@ -182,8 +183,12 @@ export async function POST(request: NextRequest) {
     if (status === "APPROVED") {
       // Calculate from shift start to end
       if (admin.company.shiftStartTime && admin.company.shiftEndTime) {
-        const start = new Date(`1970-01-01T${admin.company.shiftStartTime}:00`);
-        const end = new Date(`1970-01-01T${admin.company.shiftEndTime}:00`);
+        const start = getDate(
+          new Date(`1970-01-01T${admin.company.shiftStartTime}:00`),
+        );
+        const end = getDate(
+          new Date(`1970-01-01T${admin.company.shiftEndTime}:00`),
+        );
         const diffMs = end.getTime() - start.getTime();
         workingHours = Math.max(0, diffMs / (1000 * 60 * 60)); // hours
       }
@@ -197,8 +202,8 @@ export async function POST(request: NextRequest) {
         userId,
         companyId: admin.company.id,
         attendanceDate,
-        punchIn: punchIn ? new Date(punchIn) : null,
-        punchOut: punchOut ? new Date(punchOut) : null,
+        punchIn: punchIn ? getDate(new Date(punchIn)) : null,
+        punchOut: punchOut ? getDate(new Date(punchOut)) : null,
         status: status as any,
         workingHours:
           workingHours !== undefined

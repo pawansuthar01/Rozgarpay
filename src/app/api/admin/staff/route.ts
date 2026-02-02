@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { getDate } from "@/lib/attendanceUtils";
 export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   try {
@@ -64,7 +65,13 @@ export async function GET(request: NextRequest) {
         attendances: {
           where: {
             attendanceDate: {
-              gte: new Date(new Date().setDate(new Date().getDate() - 30)), // Last 30 days
+              gte: getDate(
+                new Date(
+                  getDate(new Date()).setDate(
+                    getDate(new Date()).getDate() - 30,
+                  ),
+                ),
+              ), // Last 30 days
             },
           },
           orderBy: { attendanceDate: "desc" },
@@ -72,8 +79,8 @@ export async function GET(request: NextRequest) {
         },
         salaries: {
           where: {
-            month: new Date().getMonth() + 1,
-            year: new Date().getFullYear(),
+            month: getDate(new Date()).getMonth() + 1,
+            year: getDate(new Date()).getFullYear(),
           },
           take: 1, // Current month salary
         },
@@ -81,7 +88,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Get today's attendance for each staff
-    const today = new Date();
+    const today = getDate(new Date());
     today.setHours(0, 0, 0, 0);
 
     const staffWithTodayAttendance = await Promise.all(
@@ -99,7 +106,9 @@ export async function GET(request: NextRequest) {
           where: {
             userId: member.id,
             attendanceDate: {
-              gte: new Date(new Date().setDate(new Date().getDate() - 30)),
+              gte: new Date(
+                getDate(new Date()).setDate(getDate(new Date()).getDate() - 30),
+              ),
             },
           },
           _count: true,
@@ -187,7 +196,7 @@ export async function GET(request: NextRequest) {
     // Get attendance trends for last 7 days
     const attendanceTrends = [];
     for (let i = 6; i >= 0; i--) {
-      const date = new Date();
+      const date = getDate(new Date());
       date.setDate(date.getDate() - i);
       date.setHours(0, 0, 0, 0);
 
@@ -217,8 +226,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Get salary distribution for current month
-    const currentMonth = new Date().getMonth() + 1;
-    const currentYear = new Date().getFullYear();
+    const currentMonth = getDate(new Date()).getMonth() + 1;
+    const currentYear = getDate(new Date()).getFullYear();
 
     const salaryStats = await prisma.salary.groupBy({
       by: ["status"],

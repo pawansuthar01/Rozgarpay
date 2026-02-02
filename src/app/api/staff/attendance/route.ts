@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { getDate } from "@/lib/attendanceUtils";
 export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
@@ -14,15 +15,16 @@ export async function GET(request: Request) {
     const userId = session.user.id;
     const { searchParams } = new URL(request.url);
     const year = parseInt(
-      searchParams.get("year") || new Date().getFullYear().toString(),
+      searchParams.get("year") || getDate(new Date()).getFullYear().toString(),
     );
     const month = parseInt(
-      searchParams.get("month") || (new Date().getMonth() + 1).toString(),
+      searchParams.get("month") ||
+        (getDate(new Date()).getMonth() + 1).toString(),
     );
 
     // Get start and end dates for the month
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 1);
+    const startDate = getDate(new Date(year, month - 1, 1));
+    const endDate = getDate(new Date(year, month, 1));
 
     const attendanceRecords = await prisma.attendance.findMany({
       where: {

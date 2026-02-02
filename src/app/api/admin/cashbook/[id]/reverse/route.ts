@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { getDate } from "@/lib/attendanceUtils";
 
 export async function POST(
   request: NextRequest,
@@ -73,7 +74,7 @@ export async function POST(
           reference: `REVERSAL-${originalEntry.id}`,
           description: `Reversal: ${originalEntry.description}`,
           notes: `Reversal reason: ${reason}${notes ? ` - ${notes}` : ""}`,
-          transactionDate: new Date(),
+          transactionDate: getDate(new Date()),
           createdBy: session.user.id,
           reversalOf: originalEntry.id,
         },

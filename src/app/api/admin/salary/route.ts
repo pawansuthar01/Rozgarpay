@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { getDate } from "@/lib/attendanceUtils";
 export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   try {
@@ -122,7 +123,7 @@ export async function GET(request: NextRequest) {
     ];
 
     // Monthly totals (for the selected year or current)
-    const selectedYear = year || new Date().getFullYear();
+    const selectedYear = year || getDate(new Date()).getFullYear();
     const monthlyResult = await prisma.salary.groupBy({
       by: ["month"],
       where: {

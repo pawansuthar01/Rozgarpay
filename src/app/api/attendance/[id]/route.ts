@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { salaryService } from "@/lib/salaryService";
 import { authOptions } from "@/lib/auth";
 import { notificationManager } from "@/lib/notifications/manager";
+import { getDate } from "@/lib/attendanceUtils";
 
 export async function PATCH(
   request: NextRequest,
@@ -74,7 +75,7 @@ export async function PATCH(
       data: {
         status,
         approvedBy: session.user.id,
-        approvedAt: new Date(),
+        approvedAt: getDate(new Date()),
       },
     });
 

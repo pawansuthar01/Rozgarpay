@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { OTPService } from "@/lib/OtpService";
 import { validateEmail, validatePhoneNumber } from "@/lib/utils";
+import { getDate } from "@/lib/attendanceUtils";
 
 export async function GET(
   request: NextRequest,
@@ -36,7 +37,7 @@ export async function GET(
       );
     }
 
-    if (new Date() > invitation.expiresAt) {
+    if (getDate(new Date()) > invitation.expiresAt) {
       return NextResponse.json(
         { error: "Invitation expired" },
         { status: 400 },
@@ -93,7 +94,7 @@ export async function POST(request: NextRequest, { params }: any) {
       );
     }
 
-    if (new Date() > invitation.expiresAt) {
+    if (getDate(new Date()) > invitation.expiresAt) {
       return NextResponse.json(
         { error: "Invitation expired" },
         { status: 400 },

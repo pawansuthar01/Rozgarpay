@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 import { generateCashbookPDFBuffer } from "@/lib/cashbookPdfGenerator";
+import { getDate } from "@/lib/attendanceUtils";
 
 export async function GET(request: NextRequest) {
   try {
@@ -137,7 +138,7 @@ export async function GET(request: NextRequest) {
       return new NextResponse(new Uint8Array(pdfBuffer), {
         headers: {
           "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename=cashbook-report-${new Date().toISOString().split("T")[0]}.pdf`,
+          "Content-Disposition": `attachment; filename=cashbook-report-${getDate(new Date()).toISOString().split("T")[0]}.pdf`,
         },
       });
     }
@@ -155,7 +156,7 @@ export async function GET(request: NextRequest) {
         direction: searchParams.get("direction"),
         userId: searchParams.get("userId"),
       },
-      generatedAt: new Date().toISOString(),
+      generatedAt: getDate(new Date()).toISOString(),
       generatedBy: {
         name: `${session.user.firstName || ""} ${session.user.lastName || ""}`.trim(),
         email: session.user.email,

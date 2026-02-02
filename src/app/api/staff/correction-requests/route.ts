@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { getDate } from "@/lib/attendanceUtils";
 
 export async function POST(request: NextRequest) {
   try {
@@ -140,9 +141,9 @@ export async function POST(request: NextRequest) {
         companyId,
         attendanceId: attendance?.id || null,
         attendanceDate: date,
-        endDate: endDate ? new Date(endDate) : null,
+        endDate: endDate ? getDate(new Date(endDate)) : null,
         type,
-        requestedTime: requestedTime ? new Date(requestedTime) : null,
+        requestedTime: requestedTime ? getDate(new Date(requestedTime)) : null,
         requestedAmount: requestedAmount || null,
         reason,
         evidence,

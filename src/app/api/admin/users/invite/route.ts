@@ -5,6 +5,7 @@ import crypto from "crypto";
 import { authOptions } from "@/lib/auth";
 import { notificationManager } from "@/lib/notifications/manager";
 import { validatePhoneNumber } from "@/lib/utils";
+import { getDate } from "@/lib/attendanceUtils";
 
 export async function POST(request: NextRequest) {
   try {
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
     const existingInvitationWhere: any = {
       isUsed: false,
       expiresAt: {
-        gt: new Date(),
+        gt: getDate(new Date()),
       },
     };
 
@@ -110,7 +111,7 @@ export async function POST(request: NextRequest) {
     const token = crypto.randomBytes(32).toString("hex");
 
     // Create invitation (expires in 7 days)
-    const expiresAt = new Date();
+    const expiresAt = getDate(new Date());
     expiresAt.setDate(expiresAt.getDate() + 7);
 
     const invitation = await prisma.companyInvitation.create({

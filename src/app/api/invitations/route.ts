@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
+import { getDate } from "@/lib/attendanceUtils";
 export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   try {
@@ -55,7 +56,7 @@ export async function GET(request: NextRequest) {
     // Status filter
     if (status === "pending") {
       where.isUsed = false;
-      where.expiresAt = { gt: new Date() };
+      where.expiresAt = { gt: getDate(new Date()) };
     }
 
     if (status === "completed") {
@@ -64,7 +65,7 @@ export async function GET(request: NextRequest) {
 
     if (status === "expired") {
       where.isUsed = false;
-      where.expiresAt = { lt: new Date() };
+      where.expiresAt = { lt: getDate(new Date()) };
     }
 
     // Role filter
@@ -115,7 +116,7 @@ export async function GET(request: NextRequest) {
         where: {
           companyId: admin.companyId,
           isUsed: false,
-          expiresAt: { gt: new Date() },
+          expiresAt: { gt: getDate(new Date()) },
         },
       }),
       prisma.companyInvitation.count({
@@ -128,7 +129,7 @@ export async function GET(request: NextRequest) {
         where: {
           companyId: admin.companyId,
           isUsed: false,
-          expiresAt: { lt: new Date() },
+          expiresAt: { lt: getDate(new Date()) },
         },
       }),
       prisma.companyInvitation.groupBy({
@@ -151,7 +152,7 @@ export async function GET(request: NextRequest) {
         createdAt: inv.createdAt,
         status: inv.isUsed
           ? "completed"
-          : new Date() > inv.expiresAt
+          : getDate(new Date()) > inv.expiresAt
             ? "expired"
             : "pending",
       })),

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { getDate } from "@/lib/attendanceUtils";
 
 export async function GET(
   request: NextRequest,
@@ -26,10 +27,12 @@ export async function GET(
     } else {
       // Fallback to separate parameters or current date
       month = parseInt(
-        searchParams.get("month") || (new Date().getMonth() + 1).toString(),
+        searchParams.get("month") ||
+          (getDate(new Date()).getMonth() + 1).toString(),
       );
       year = parseInt(
-        searchParams.get("year") || new Date().getFullYear().toString(),
+        searchParams.get("year") ||
+          getDate(new Date()).getFullYear().toString(),
       );
     }
 

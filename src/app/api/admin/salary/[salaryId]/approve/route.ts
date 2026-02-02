@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { getDate } from "@/lib/attendanceUtils";
 
 export async function POST(
   request: NextRequest,
@@ -53,8 +54,8 @@ export async function POST(
       data: {
         status: "APPROVED",
         approvedBy: session.user.id,
-        approvedAt: new Date(),
-        lockedAt: new Date(), // Lock after approval
+        approvedAt: getDate(new Date()),
+        lockedAt: getDate(new Date()), // Lock after approval
       },
     });
 

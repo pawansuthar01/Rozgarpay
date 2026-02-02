@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 
 import { salaryService } from "@/lib/salaryService";
+import { getDate } from "@/lib/attendanceUtils";
 
 export async function GET(
   request: NextRequest,
@@ -162,7 +163,7 @@ export async function PATCH(request: NextRequest, { params }: any) {
     } else if (action === "pay") {
       const result = await salaryService.markAsPaid(
         salaryId,
-        paidAt ? new Date(paidAt) : undefined,
+        paidAt ? getDate(new Date(paidAt)) : undefined,
       );
       if (result.success) {
         return NextResponse.json({ message: "Salary marked as paid" });
@@ -177,7 +178,7 @@ export async function PATCH(request: NextRequest, { params }: any) {
         data: {
           status: "REJECTED",
           rejectedBy: session.user.id,
-          rejectedAt: new Date(),
+          rejectedAt: getDate(new Date()),
           rejectionReason,
         },
       });

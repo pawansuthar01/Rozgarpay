@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { salaryService } from "@/lib/salaryService";
 import { authOptions } from "@/lib/auth";
+import { getDate } from "@/lib/attendanceUtils";
 export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   try {
@@ -107,7 +108,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Calculate pending amount (current balance)
-    const currentDate = new Date();
+    const currentDate = getDate(new Date());
     const currentMonth = currentDate.getMonth() + 1;
     const currentYear = currentDate.getFullYear();
 

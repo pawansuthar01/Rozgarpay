@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { getDate } from "@/lib/attendanceUtils";
 export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   try {
@@ -66,21 +67,25 @@ export async function GET(request: NextRequest) {
 
     if (startDate && endDate) {
       where.attendanceDate = {
-        gte: new Date(startDate),
-        lte: new Date(endDate),
+        gte: getDate(new Date(startDate)),
+        lte: getDate(new Date(endDate)),
       };
     } else if (startDate) {
       where.attendanceDate = {
-        gte: new Date(startDate),
+        gte: getDate(new Date(startDate)),
       };
     } else if (endDate) {
       where.attendanceDate = {
-        lte: new Date(endDate),
+        lte: getDate(new Date(endDate)),
       };
     } else {
       // Default to last 30 days
       where.attendanceDate = {
-        gte: new Date(new Date().setDate(new Date().getDate() - 30)),
+        gte: getDate(
+          new Date(
+            getDate(new Date()).setDate(getDate(new Date()).getDate() - 30),
+          ),
+        ),
       };
     }
 
@@ -136,8 +141,14 @@ export async function GET(request: NextRequest) {
     // Daily trends for bar chart
     const dateRange =
       startDate && endDate
-        ? { gte: new Date(startDate), lte: new Date(endDate) }
-        : { gte: new Date(new Date().setDate(new Date().getDate() - 30)) };
+        ? { gte: getDate(new Date(startDate)), lte: getDate(new Date(endDate)) }
+        : {
+            gte: getDate(
+              new Date(
+                getDate(new Date()).setDate(getDate(new Date()).getDate() - 30),
+              ),
+            ),
+          };
 
     const dailyTrendsResult = await prisma.attendance.groupBy({
       by: ["attendanceDate"],

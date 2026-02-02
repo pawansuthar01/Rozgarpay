@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { salaryService } from "@/lib/salaryService";
 import { authOptions } from "@/lib/auth";
+import { getDate } from "@/lib/attendanceUtils";
 
 export async function POST(
   request: NextRequest,
@@ -107,7 +108,7 @@ export async function POST(
       where: { id: salaryId },
       data: {
         status: "PAID",
-        paidAt: new Date(date),
+        paidAt: getDate(new Date(date)),
       },
     });
 

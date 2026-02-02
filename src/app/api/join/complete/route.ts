@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { OTPService } from "@/lib/OtpService";
 import { notificationManager } from "@/lib/notifications/manager";
+import { getDate } from "@/lib/attendanceUtils";
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest) {
         action: "CREATED",
         entity: "USER",
         createdAt: {
-          gt: new Date(Date.now() - 60 * 1000), // Last minute
+          gt: getDate( new Date(Date.now() - 60 * 1000)), // Last minute
         },
         meta: {
           path: ["clientIP"],

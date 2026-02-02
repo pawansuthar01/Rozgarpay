@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { salaryService } from "@/lib/salaryService";
 import { authOptions } from "@/lib/auth";
-import { getApprovedWorkingHours } from "@/lib/attendanceUtils";
+import { getApprovedWorkingHours, getDate } from "@/lib/attendanceUtils";
 
 export async function GET(
   request: NextRequest,
@@ -69,7 +69,11 @@ export async function GET(
       where: {
         userId: attendance.userId,
         attendanceDate: {
-          gte: new Date(new Date().setDate(new Date().getDate() - 30)),
+          gte: getDate(
+            new Date(
+              getDate(new Date()).setDate(getDate(new Date()).getDate() - 30),
+            ),
+          ),
         },
       },
       _count: true,
@@ -177,7 +181,7 @@ export async function PUT(request: NextRequest, { params }: any) {
         : validStatus === "APPROVED"
           ? getApprovedWorkingHours(attendance, admin.company)
           : (attendance.workingHours ?? 0);
-    console.log(workingHours);
+
     // Update attendance status
     const updatedAttendance = await prisma.attendance.update({
       where: { id: attendanceId },
@@ -217,7 +221,9 @@ export async function PUT(request: NextRequest, { params }: any) {
       },
     });
     try {
-      const attendanceDate = new Date(updatedAttendance.attendanceDate);
+      const attendanceDate = getDate(
+        new Date(updatedAttendance.attendanceDate),
+      );
       const month = attendanceDate.getMonth() + 1;
       const year = attendanceDate.getFullYear();
 

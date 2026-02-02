@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma";
-import { getAttendanceDate } from "../lib/attendanceUtils";
+import { getDate } from "../lib/attendanceUtils";
 import { AttendanceStatus } from "@prisma/client";
 
 /**
@@ -16,14 +16,14 @@ export async function markAbsentAttendances() {
     });
 
     let totalMarkedAbsent = 0;
-    const now = new Date();
+    const now = getDate(new Date());
 
     for (const company of companies) {
       // Calculate yesterday's attendance date (since we mark absent after shift ends)
-      const yesterday = new Date(now);
+      const yesterday = getDate(new Date(now));
       yesterday.setDate(yesterday.getDate() - 1);
 
-      const attendanceDate = getAttendanceDate(yesterday);
+      const attendanceDate = getDate(yesterday);
 
       // Get all active staff in the company
       const activeStaff = await prisma.user.findMany({

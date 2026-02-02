@@ -65,10 +65,7 @@ export function timeToMinutes(time: string) {
   return h * 60 + m;
 }
 
-export function getAttendanceDate(
-  nowUtc: Date,
-  timeZone: string = "Asia/Kolkata",
-): Date {
+export function getDate(nowUtc: Date, timeZone: string = "Asia/Kolkata"): Date {
   // Convert current UTC time → company local time
   const localNow = toZonedTime(nowUtc, timeZone);
 

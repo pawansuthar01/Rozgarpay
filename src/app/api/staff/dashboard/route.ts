@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { getDate } from "@/lib/attendanceUtils";
 
 // Helper function to create welcome notification
 async function createWelcomeNotification(
@@ -110,7 +111,7 @@ export async function GET() {
 
     const userId = session.user.id;
     const companyId = session.user.companyId;
-    const today = new Date();
+    const today = getDate(new Date());
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { salaryService } from "@/lib/salaryService";
 import { authOptions } from "@/lib/auth";
+import { getDate } from "@/lib/attendanceUtils";
 
 export async function GET(
   request: NextRequest,
@@ -32,7 +33,7 @@ export async function GET(
     if (monthParam && monthParam.includes("-")) {
       [year, month] = monthParam.split("-").map(Number);
     } else {
-      const currentDate = new Date();
+      const currentDate = getDate(new Date());
       month = currentDate.getMonth() + 1;
       year = currentDate.getFullYear();
     }

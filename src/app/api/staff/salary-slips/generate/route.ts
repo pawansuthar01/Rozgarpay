@@ -4,11 +4,12 @@ import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 import jsPDF from "jspdf";
+import { getDate } from "@/lib/attendanceUtils";
 
 /* ================= HELPERS ================= */
 
-const currentYear = new Date().getFullYear();
-const currentMonth = new Date().getMonth() + 1;
+const currentYear = getDate(new Date()).getFullYear();
+const currentMonth = getDate(new Date()).getMonth() + 1;
 
 const monthRange = (year: number, month: number) => ({
   start: new Date(year, month - 1, 1),
@@ -537,7 +538,7 @@ export async function GET(req: NextRequest) {
 
     pdf.setFont("helvetica", "italic");
     pdf.text(
-      `Generated: ${new Date().toLocaleString("en-IN")}`,
+      `Generated: ${getDate(new Date()).toLocaleString("en-IN")}`,
       pageWidth - 10,
       footerY + 7,
       { align: "right" },

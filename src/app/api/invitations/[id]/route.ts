@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 
 import { Prisma } from "@prisma/client";
+import { getDate } from "@/lib/attendanceUtils";
 
 export async function DELETE(
   request: NextRequest,
@@ -52,7 +53,7 @@ export async function DELETE(
       );
     }
 
-    if (new Date() <= invitation.expiresAt) {
+    if (getDate(new Date()) <= invitation.expiresAt) {
       // It's still pending, allow deletion
       await prisma.companyInvitation.delete({
         where: { id },

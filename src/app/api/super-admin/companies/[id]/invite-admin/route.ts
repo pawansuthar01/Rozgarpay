@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 
 import { notificationManager } from "@/lib/notifications/manager";
+import { getDate } from "@/lib/attendanceUtils";
 
 export async function POST(
   request: NextRequest,
@@ -70,7 +71,7 @@ export async function POST(
 
     // Generate unique token for invitation
     const token = crypto.randomUUID();
-    const expiresAt = new Date();
+    const expiresAt = getDate(new Date());
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
 
     const invitation = await prisma.companyInvitation.create({

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { getDate } from "@/lib/attendanceUtils";
 export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   try {
@@ -57,7 +58,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Get current month/year if no filter
-    const currentDate = new Date();
+    const currentDate = getDate(new Date());
     const currentMonth = month ?? currentDate.getMonth() + 1;
     const currentYear = year ?? currentDate.getFullYear();
 

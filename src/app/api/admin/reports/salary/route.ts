@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 import { generateSalaryReportPDFBuffer } from "@/lib/salaryReportGenerator";
+import { getDate } from "@/lib/attendanceUtils";
 
 export async function GET(request: NextRequest) {
   try {
@@ -37,8 +38,8 @@ export async function GET(request: NextRequest) {
       startDate && endDate
         ? {
             createdAt: {
-              gte: new Date(startDate),
-              lte: new Date(endDate),
+              gte: getDate(new Date(startDate)),
+              lte: getDate(new Date(endDate)),
             },
           }
         : {};
@@ -177,7 +178,7 @@ export async function GET(request: NextRequest) {
       return new NextResponse(new Uint8Array(pdfBuffer), {
         headers: {
           "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename=salary-report-${new Date().toISOString().split("T")[0]}.pdf`,
+          "Content-Disposition": `attachment; filename=salary-report-${getDate(new Date()).toISOString().split("T")[0]}.pdf`,
         },
       });
     }

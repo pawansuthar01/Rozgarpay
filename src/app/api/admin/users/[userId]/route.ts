@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { getDate } from "@/lib/attendanceUtils";
 
 export async function GET(request: NextRequest, { params }: any) {
   try {
@@ -107,7 +108,7 @@ export async function GET(request: NextRequest, { params }: any) {
     }));
 
     // Calculate monthly attendance trend (last 6 months) - simplified approach
-    const sixMonthsAgo = new Date();
+    const sixMonthsAgo = getDate(new Date());
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
     // Get attendance records for trend calculation

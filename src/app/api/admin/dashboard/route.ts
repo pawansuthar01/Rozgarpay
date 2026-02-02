@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { getDate } from "@/lib/attendanceUtils";
 export const dynamic = "force-dynamic";
 export async function GET(_request: NextRequest) {
   try {
@@ -33,12 +34,12 @@ export async function GET(_request: NextRequest) {
     /* ───────────────────────
        3️⃣ DATE HELPERS
     ─────────────────────── */
-    const now = new Date();
+    const now = getDate(new Date());
 
-    const startOfDay = new Date(now);
+    const startOfDay = getDate(new Date(now));
     startOfDay.setHours(0, 0, 0, 0);
 
-    const endOfDay = new Date(now);
+    const endOfDay = getDate(new Date(now));
     endOfDay.setHours(23, 59, 59, 999);
 
     const currentMonth = now.getMonth() + 1;
