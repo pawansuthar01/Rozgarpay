@@ -53,3 +53,35 @@
 .animate-slide-up {
   animation: slide-up 0.3s ease-out;
 }
+
+/* Prevent Zoom */
+html {
+  touch-action: manipulation;
+}
+
+/* Prevent zoom on input fields for iOS */
+input,
+textarea,
+select {
+  font-size: 16px !important;
+  max-height: 100vh;
+}
+
+/* Prevent zoom on focus for mobile */
+@media (max-width: 768px) {
+  input:focus,
+  textarea:focus,
+  select:focus {
+    font-size: 16px !important;
+  }
+}
+
+/* Prevent pinch zoom */
+* {
+  touch-action: pan-x pan-y;
+}
+
+/* Prevent double-tap zoom */
+body {
+  touch-action: manipulation;
+}
