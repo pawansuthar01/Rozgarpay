@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SessionProvider } from "next-auth/react";
 import { useState } from "react";
 import { ModalProvider } from "./ModalProvider";
+import { InstallPrompt } from "./ui/InstallPrompt";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -26,7 +27,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <SessionProvider>
-        <ModalProvider>{children}</ModalProvider>
+        <ModalProvider>
+          {children}
+          <InstallPrompt />
+        </ModalProvider>
       </SessionProvider>
     </QueryClientProvider>
   );

@@ -27,3 +27,6 @@ export * from "./useInvitations";
 
 // Dashboard hooks
 export * from "./useDashboard";
+
+// PWA hooks
+export * from "./usePWAInstall";
