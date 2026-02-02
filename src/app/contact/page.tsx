@@ -6,11 +6,12 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { Mail, Phone, MapPin, CheckCircle, AlertCircle } from "lucide-react";
 import ClientLayout from "@/components/layout/ClientLayout";
+import { validatePhoneNumber } from "@/lib/utils";
 
 export default function ContactPage() {
   const [formData, setFormData] = useState({
     name: "",
-    email: "",
+    phone: "+91",
     message: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -33,10 +34,10 @@ export default function ContactPage() {
       newErrors.name = "Name is required";
     }
 
-    if (!formData.email.trim()) {
-      newErrors.email = "Email is required";
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = "Please enter a valid email address";
+    if (!formData.phone) {
+      newErrors.phone = "phone is required";
+    } else if (!validatePhoneNumber(formData.phone)) {
+      newErrors.phone = "Please enter a valid phone number";
     }
 
     if (!formData.message.trim()) {
@@ -58,11 +59,22 @@ export default function ContactPage() {
     setSubmitStatus("idle");
 
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      });
 
-      setSubmitStatus("success");
-      setFormData({ name: "", email: "", message: "" });
+      const data = await response.json();
+
+      if (response.ok) {
+        setSubmitStatus("success");
+        setFormData({ name: "", phone: "+91", message: "" });
+      } else {
+        setSubmitStatus("error");
+      }
     } catch (error) {
       setSubmitStatus("error");
     } finally {
@@ -116,13 +128,14 @@ export default function ContactPage() {
                       />
 
                       <Input
-                        label="Email"
-                        type="email"
-                        value={formData.email}
+                        label="phone"
+                        type="text"
+                        value={formData.phone}
                         onChange={(e) =>
-                          handleInputChange("email", e.target.value)
+                          handleInputChange("phone", e.target.value)
                         }
-                        error={errors.email}
+                        placeholder="+91"
+                        error={errors.phone}
                         required
                       />
 
@@ -186,7 +199,7 @@ export default function ContactPage() {
                           <h3 className="font-semibold text-gray-900">
                             Email Support
                           </h3>
-                          <p className="text-gray-600">support@Rozgarpay.com</p>
+                          <p className="text-gray-600">mail@pawansuthar.in</p>
                           <p className="text-sm text-gray-500 mt-1">
                             For technical support and general inquiries
                           </p>
@@ -197,7 +210,7 @@ export default function ContactPage() {
                         <Mail className="h-6 w-6 text-blue-600 mt-1 mr-4" />
                         <div>
                           <h3 className="font-semibold text-gray-900">Sales</h3>
-                          <p className="text-gray-600">sales@Rozgarpay.com</p>
+                          <p className="text-gray-600">mail@pawansuthar.in</p>
                           <p className="text-sm text-gray-500 mt-1">
                             For pricing, demos, and enterprise solutions
                           </p>
@@ -208,25 +221,9 @@ export default function ContactPage() {
                         <Phone className="h-6 w-6 text-blue-600 mt-1 mr-4" />
                         <div>
                           <h3 className="font-semibold text-gray-900">Phone</h3>
-                          <p className="text-gray-600">+1 (555) 123-4567</p>
+                          <p className="text-gray-600">+91 86192 18048</p>
                           <p className="text-sm text-gray-500 mt-1">
                             Mon-Fri, 9 AM - 6 PM EST
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-start">
-                        <MapPin className="h-6 w-6 text-blue-600 mt-1 mr-4" />
-                        <div>
-                          <h3 className="font-semibold text-gray-900">
-                            Address
-                          </h3>
-                          <p className="text-gray-600">
-                            123 Business Street
-                            <br />
-                            Suite 100
-                            <br />
-                            San Francisco, CA 94105
                           </p>
                         </div>
                       </div>

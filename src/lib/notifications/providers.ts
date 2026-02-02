@@ -174,7 +174,8 @@ function getWhatsAppTemplate(type: NotificationType): string {
     protection:
       process.env.MSG91_WHATSAPP_TEMPLATE_PROTECTION_NAME || "protection_alert",
     customer_support:
-      process.env.MSG91_WHATSAPP_TEMPLATE_GENERAL_NAME || "townkart_general",
+      process.env.MSG91_WHATSAPP_TEMPLATE_CUSTOMER_SUPPORT_NAME ||
+      "customer_support",
 
     admin_manual:
       process.env.MSG91_WHATSAPP_TEMPLATE_GENERAL_NAME || "townkart_general",
@@ -220,6 +221,13 @@ function buildWhatsAppComponents(notification: {
     case "salary_setup_done":
       return {
         body_1: { type: "text", value: data?.staffName || "team member" },
+      };
+    case "customer_support":
+      return {
+        body_1: {
+          type: "text",
+          value: sanitizeMsg91Text(data?.message) || "team member",
+        },
       };
     case "system_alert":
       return {

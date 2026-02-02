@@ -565,7 +565,6 @@ export class NotificationManager {
           data: { email, phone, ...data, title, message },
           type,
         });
-        console.log(success);
         if (!success) {
           errors.push(`Failed to send WhatsApp to ${phone}`);
         }
