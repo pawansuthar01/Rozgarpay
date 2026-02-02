@@ -15,7 +15,7 @@ async function createWelcomeNotification(
     const existingNotification = await prisma.notification.findFirst({
       where: {
         userId,
-        title: "Welcome to Pagarbook!",
+        title: "Welcome to Rozgarpay!",
       },
     });
 
@@ -27,7 +27,7 @@ async function createWelcomeNotification(
       data: {
         userId,
         companyId,
-        title: "Welcome to Pagarbook!",
+        title: "Welcome to Rozgarpay!",
         message: `Hi ${firstName || "there"}! Welcome to ${companyName || "our company"}. We're excited to have you on board. Your salary setup is in progress - please contact your admin for any questions.`,
         channel: "IN_APP",
         status: "SENT",
