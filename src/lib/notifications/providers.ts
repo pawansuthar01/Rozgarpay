@@ -204,13 +204,21 @@ function buildWhatsAppComponents(notification: {
     case "company_join_link":
       return {
         body_1: { type: "text", value: data?.companyName || "team member" },
-        button_1: { subtype: "url", type: "text", value: data?.token || "#" },
+        button_1: {
+          subtype: "url",
+          type: "text",
+          value: `/${data?.token}` || "#",
+        },
       };
     case "company_staff_join":
       return {
         body_1: { type: "text", value: data?.staffName || "team member" },
         body_2: { type: "text", value: data?.companyName || "team member" },
-        button_1: { subtype: "url", type: "text", value: data?.token || "#" },
+        button_1: {
+          subtype: "url",
+          type: "text",
+          value: `/${data?.token}` || "#",
+        },
       };
     case "salary_setup_pending":
       return {
@@ -238,7 +246,7 @@ function buildWhatsAppComponents(notification: {
         button_1: {
           subtype: "url",
           type: "text",
-          value: data?.actionUrl || "#",
+          value: `/${data?.actionUrl}` || "#",
         },
       };
     case "promotional":
@@ -254,7 +262,7 @@ function buildWhatsAppComponents(notification: {
         button_1: {
           subtype: "url",
           type: "text",
-          value: data?.actionUrl || "#",
+          value: `/${data?.actionUrl}` || "#",
         },
       };
 
@@ -376,7 +384,6 @@ export const emailProvider = {
         return false;
       }
 
-      console.log("[EMAIL] Sent successfully:", result.data?.id);
       await logNotification(
         notification.type,
         "email",
