@@ -181,8 +181,9 @@ export default function StaffAttendancePage() {
 
   // Show loading or salary pending state
   if (
-    dashboardLoading ||
-    ((dashboardData && !dashboardData.salarySetup?.isConfigured) ?? true)
+    !dashboardLoading &&
+    dashboardData &&
+    !dashboardData.salarySetup?.isConfigured
   ) {
     return (
       <div className=" min-h-screen">

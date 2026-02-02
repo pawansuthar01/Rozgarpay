@@ -43,7 +43,8 @@ export function useTodayAttendance() {
       const data = await response.json();
       return data.attendance as AttendanceRecord | null;
     },
-    staleTime: 1000 * 60 * 1, // 1 minute
+    staleTime: 0, // Always refetch on mount to get latest status
+    refetchOnWindowFocus: true, // Refetch when window regains focus
   });
 }
 
