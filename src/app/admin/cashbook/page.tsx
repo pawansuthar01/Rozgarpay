@@ -179,7 +179,7 @@ export default function AdminCashbookPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Mobile-first container with responsive padding */}
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6">
+      <div className="max-w-7xl mx-auto  sm:px-4 lg:px-6 xl:px-8  sm:py-6">
         {/* Header - Mobile optimized */}
         <div className="mb-4 sm:mb-6">
           <div className="flex flex-col space-y-4">

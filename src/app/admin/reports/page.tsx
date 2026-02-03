@@ -121,30 +121,6 @@ export default function AdminReportsPage() {
     },
   ];
 
-  const quickStats = [
-    {
-      title: "Monthly Reports",
-      value: "12", // This could be fetched from an API later
-      description: "Generated this month",
-      icon: FileText,
-      color: "text-blue-600",
-    },
-    {
-      title: "Active Staff",
-      value: staffData?.stats?.totalStaff?.toString() || "0",
-      description: "Currently employed",
-      icon: Users,
-      color: "text-green-600",
-    },
-    {
-      title: "Total Payout",
-      value: "₹2.5L", // This could be calculated from salary data
-      description: "This month",
-      icon: Wallet,
-      color: "text-purple-600",
-    },
-  ];
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Mobile-first container */}
@@ -165,38 +141,6 @@ export default function AdminReportsPage() {
                 </p>
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Quick Stats - Mobile responsive */}
-        <div className="mb-4 sm:mb-6">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-            {quickStats.map((stat, index) => {
-              const Icon = stat.icon;
-              return (
-                <div
-                  key={index}
-                  className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-200"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs sm:text-sm font-medium text-gray-600">
-                        {stat.title}
-                      </p>
-                      <p className="text-lg sm:text-xl font-bold text-gray-900">
-                        {stat.value}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {stat.description}
-                      </p>
-                    </div>
-                    <div className={`p-2 rounded-lg bg-gray-50 ${stat.color}`}>
-                      <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
           </div>
         </div>
 
