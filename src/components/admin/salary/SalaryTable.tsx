@@ -275,7 +275,17 @@ export default function SalaryTable({
                               View Report
                             </Link>
                           )}
-
+                          {record.status === "PENDING" && (
+                            <button
+                              onClick={() => onRecalculate?.(record.id)}
+                              disabled={isRecordLoading(record.id)}
+                              className="text-purple-600 hover:text-purple-900 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center px-2 py-1 text-xs font-medium bg-purple-100 rounded-md"
+                              title="Recalculate salary based on latest attendance"
+                            >
+                              <RotateCcw className="h-3 w-3 mr-1" />
+                              Recalculate
+                            </button>
+                          )}
                           {showActions && (
                             <>
                               {record.status === "PENDING" && (
@@ -315,17 +325,6 @@ export default function SalaryTable({
                                     Mark Paid
                                   </button>
                                 )}
-                              {record.status === "PENDING" && (
-                                <button
-                                  onClick={() => onRecalculate?.(record.id)}
-                                  disabled={isRecordLoading(record.id)}
-                                  className="text-purple-600 hover:text-purple-900 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center px-2 py-1 text-xs font-medium bg-purple-100 rounded-md"
-                                  title="Recalculate salary based on latest attendance"
-                                >
-                                  <RotateCcw className="h-3 w-3 mr-1" />
-                                  Recalculate
-                                </button>
-                              )}
                             </>
                           )}
                         </div>
