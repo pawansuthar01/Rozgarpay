@@ -247,18 +247,29 @@ export async function PUT(request: NextRequest, { params }: any) {
         existingSalary.status === "PENDING" &&
         !existingSalary.lockedAt
       ) {
-        // Recalculate existing salary
-        await salaryService.recalculateSalary(existingSalary.id);
+        // Recalculate existing salary (fire-and-forget)
+        salaryService
+          .recalculateSalary(existingSalary.id)
+          .catch((err) =>
+            console.error(
+              "Auto salary recalculation failed (recalculate):",
+              err,
+            ),
+          );
       } else if (!existingSalary) {
-        // Create new salary record for this month
+        // Create new salary record for this month (fire-and-forget)
         // Use the already fetched admin data instead of redefining
         if (admin?.companyId) {
-          await salaryService.generateSalary({
-            userId: updatedAttendance.userId,
-            companyId: admin.companyId,
-            month,
-            year,
-          });
+          salaryService
+            .generateSalary({
+              userId: updatedAttendance.userId,
+              companyId: admin.companyId,
+              month,
+              year,
+            })
+            .catch((err) =>
+              console.error("Auto salary generation failed (generate):", err),
+            );
         }
       }
     } catch (err) {

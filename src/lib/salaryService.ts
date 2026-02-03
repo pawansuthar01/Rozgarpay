@@ -306,7 +306,7 @@ export class SalaryService {
         companyId,
         attendanceDate: {
           gte: startDate,
-          lte: endDate,
+          lt: endDate,
         },
       },
       select: {

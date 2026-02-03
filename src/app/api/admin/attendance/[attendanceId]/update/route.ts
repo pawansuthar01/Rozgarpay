@@ -5,6 +5,7 @@ import { salaryService } from "@/lib/salaryService";
 import { authOptions } from "@/lib/auth";
 import { hmToHours } from "@/lib/attendanceUtils";
 import { getCurrentTime } from "@/lib/utils";
+import { toZonedTime } from "date-fns-tz";
 
 export async function PUT(
   request: NextRequest,
@@ -102,24 +103,81 @@ export async function PUT(
       },
     });
 
-    // Create audit log
-    await prisma.auditLog.create({
-      data: {
-        userId: session.user.id,
-        action: "UPDATED",
-        entity: "Attendance",
-        entityId: attendanceId,
-        meta: {
-          updates: {
-            overtimeHours,
-            workingHours,
-            shiftDurationHours,
-            LateMinute,
-            approvalReason,
+    try {
+      // Create audit log
+      await prisma.auditLog.create({
+        data: {
+          userId: session.user.id,
+          action: "UPDATED",
+          entity: "Attendance",
+          entityId: attendanceId,
+          meta: {
+            updates: {
+              overtimeHours,
+              workingHours,
+              shiftDurationHours,
+              LateMinute,
+              approvalReason,
+            },
           },
         },
-      },
-    });
+      });
+    } catch (error) {}
+
+    try {
+      // Derive month/year from the attendance timestamp in Asia/Kolkata
+      const attendanceLocal = toZonedTime(
+        new Date(updatedAttendance.attendanceDate),
+        "Asia/Kolkata",
+      );
+      const month = attendanceLocal.getMonth() + 1;
+      const year = attendanceLocal.getFullYear();
+
+      // Check if salary record exists
+      const existingSalary = await prisma.salary.findUnique({
+        where: {
+          userId_month_year: {
+            userId: updatedAttendance.userId,
+            month,
+            year,
+          },
+        },
+      });
+
+      if (
+        existingSalary &&
+        existingSalary.status === "PENDING" &&
+        !existingSalary.lockedAt
+      ) {
+        // Recalculate existing salary (fire-and-forget)
+        salaryService
+          .recalculateSalary(existingSalary.id)
+          .catch((err) =>
+            console.error(
+              "Auto salary recalculation failed (recalculate):",
+              err,
+            ),
+          );
+      } else if (!existingSalary) {
+        // Create new salary record for this month (fire-and-forget)
+        // Use the already fetched admin data instead of redefining
+        if (admin?.companyId) {
+          salaryService
+            .generateSalary({
+              userId: updatedAttendance.userId,
+              companyId: admin.companyId,
+              month,
+              year,
+            })
+            .catch((err) =>
+              console.error("Auto salary generation failed (generate):", err),
+            );
+        }
+      }
+    } catch (err) {
+      console.error("Auto salary recalculation failed:", err);
+      // ❗ salary fail hone par attendance update fail nahi hona chahiye
+    }
 
     return NextResponse.json({ attendance: updatedAttendance });
   } catch (error) {
