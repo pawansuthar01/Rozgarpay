@@ -14,8 +14,9 @@ import {
   LocationData,
 } from "@/lib/attendanceUtils";
 import { notificationManager } from "@/lib/notifications/manager";
-import { toZonedTime } from "date-fns-tz";
+
 import { getCurrentTime } from "@/lib/utils";
+import { toZonedTime } from "date-fns-tz";
 
 export async function POST(request: NextRequest) {
   try {
@@ -53,10 +54,11 @@ export async function POST(request: NextRequest) {
 
     /* ================= SETTINGS ================= */
     const settings = await getCompanySettings(companyId);
-    const now = getCurrentTime();
+    const nowUtc = getCurrentTime();
+    const nowIst = toZonedTime(nowUtc, "Asia/Kolkata");
 
     /* ================= ATTENDANCE DATE ================= */
-    const attendanceDate = getDate(new Date());
+    const attendanceDate = getDate(nowUtc);
 
     /* ================= FIND REAL OPEN ATTENDANCE ================= */
     let openAttendance = await prisma.attendance.findFirst({
@@ -76,14 +78,15 @@ export async function POST(request: NextRequest) {
        ====================== PUNCH OUT =====================
        ===================================================== */
     if (openAttendance) {
-      const hoursOpen = (Date.now() - openAttendance.punchIn!.getTime()) / 36e5;
+      const hoursOpen =
+        (nowUtc.getTime() - openAttendance.punchIn!.getTime()) / 36e5;
 
       if (hoursOpen > 20) {
         // Fixed BUG-005: Set punchOut to current time instead of punchIn time
         await prisma.attendance.update({
           where: { id: openAttendance.id },
           data: {
-            punchOut: now,
+            punchOut: nowUtc,
             workingHours: 0,
             status: "REJECTED",
             approvalReason:
@@ -134,7 +137,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const punchOutTime = now;
+      const punchOutTime = nowUtc;
 
       const { workingHours, overtimeHours } = calculateHours(
         openAttendance.punchIn!,
@@ -192,7 +195,7 @@ export async function POST(request: NextRequest) {
       }
 
       const punchInCheck = isPunchInAllowed(
-        now,
+        nowIst,
         settings.shiftStartTime,
         settings.shiftEndTime,
         settings.gracePeriodMinutes,
@@ -232,7 +235,7 @@ export async function POST(request: NextRequest) {
           companyId,
           attendanceDate,
           LateMinute: punchInCheck.lateMin ?? 0,
-          punchIn: now,
+          punchIn: nowUtc,
           punchInLocation: location
             ? JSON.stringify(location)
             : Prisma.JsonNull,

@@ -352,6 +352,6 @@ export function sanitizeMsg91Text(message?: string): string {
     .trim();
 }
 
-export function getCurrentTime() {
-  return toZonedTime(new Date(), "Asia/Kolkata");
+export function getCurrentTime(): Date {
+  return new Date();
 }

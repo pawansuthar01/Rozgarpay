@@ -73,7 +73,6 @@ export default function SalaryTable({
     year: 0,
   });
   const [markPaidLoading, setMarkPaidLoading] = useState(false);
-
   const handleOpenMarkPaidModal = (salary: SalaryRecord) => {
     setMarkPaidModal({
       isOpen: true,
@@ -164,7 +163,7 @@ export default function SalaryTable({
                 Total Days
               </th>
               <th className="hidden sm:table-cell px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Approved Days
+                absent Days
               </th>
               <th className="hidden md:table-cell px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Gross Amount
@@ -229,7 +228,7 @@ export default function SalaryTable({
                         {months[record.month - 1]} {record.year}
                       </td>
                       <td className="hidden sm:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {record.totalDays || 0}
+                        {record.totalWorkingDays || 0}
                       </td>
                       <td className="hidden sm:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {record.approvedDays || 0}

@@ -37,11 +37,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const targetDate = getDate(new Date(date));
-    const startOfDay = getDate(new Date(targetDate));
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = getDate(new Date(targetDate));
-    endOfDay.setHours(23, 59, 59, 999);
+    const targetDate = getDate(new Date(`${date}T00:00:00`));
+    const startOfDay = getDate(new Date(`${date}T00:00:00`));
+    const endOfDay = getDate(new Date(`${date}T23:59:59.999`));
 
     // Get all staff in the company
     const allStaff = await prisma.user.findMany({
@@ -189,7 +187,8 @@ export async function POST(request: NextRequest) {
         const end = getDate(
           new Date(`1970-01-01T${admin.company.shiftEndTime}:00`),
         );
-        const diffMs = end.getTime() - start.getTime();
+        let diffMs = end.getTime() - start.getTime();
+        if (diffMs < 0) diffMs += 24 * 60 * 60 * 1000;
         workingHours = Math.max(0, diffMs / (1000 * 60 * 60)); // hours
       }
     } else if (status === "ABSENT" || status === "LEAVE") {
@@ -202,8 +201,8 @@ export async function POST(request: NextRequest) {
         userId,
         companyId: admin.company.id,
         attendanceDate,
-        punchIn: punchIn ? getDate(new Date(punchIn)) : null,
-        punchOut: punchOut ? getDate(new Date(punchOut)) : null,
+        punchIn: punchIn ? new Date(punchIn) : null,
+        punchOut: punchOut ? new Date(punchOut) : null,
         status: status as any,
         workingHours:
           workingHours !== undefined

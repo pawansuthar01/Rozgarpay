@@ -114,7 +114,7 @@ export async function PATCH(
           title: "Attendance Update",
           message: `Your attendance has been ${status.toLowerCase()}.`,
         },
-        channels: ["whatsapp", "push"],
+        channels: ["push"],
       });
     }
 
@@ -148,21 +148,13 @@ export async function PATCH(
           `Auto-recalculating salary for user ${updatedAttendance.userId} - ${currentMonth}/${currentYear} due to status change to ${status}`,
         );
 
-        const recalcResult = await salaryService.recalculateSalary(
-          existingSalary.id,
-        );
-
-        if (!recalcResult.success) {
-          console.error(
-            "Failed to auto-recalculate salary:",
-            recalcResult.error,
-          );
-          // Don't fail the attendance update if salary recalculation fails
-        } else {
-          console.log(
-            `Successfully auto-recalculated salary for user ${updatedAttendance.userId} after status change`,
-          );
-        }
+        setImmediate(async () => {
+          try {
+            await salaryService.recalculateSalary(existingSalary.id);
+          } catch (err) {
+            console.error("Async salary recalculation failed:", err);
+          }
+        });
       }
     } catch (salaryError) {
       console.error("Error during auto salary recalculation:", salaryError);

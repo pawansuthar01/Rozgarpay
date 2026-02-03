@@ -31,7 +31,6 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (status === "authenticated" && session?.user) {
-      console.log("Session authenticated, redirecting...", session.user);
       const redirectUrl = getRedirectUrl(session.user.role);
       router.push(redirectUrl);
     }

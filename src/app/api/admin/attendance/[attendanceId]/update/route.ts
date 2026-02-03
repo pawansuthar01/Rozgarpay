@@ -75,7 +75,7 @@ export async function PUT(
         { status: 404 },
       );
     }
-
+    // getCurrentTime time is retune same new Date utc time
     // Update attendance with additional details
     const updatedAttendance = await prisma.attendance.update({
       where: { id: attendanceId },
@@ -124,8 +124,8 @@ export async function PUT(
       });
     } catch (error) {}
 
-    try {
-      // Derive month/year from the attendance timestamp in Asia/Kolkata
+    // 🔥 Fire-and-forget salary recalculation (non-blocking, production-ready)
+    setImmediate(async () => {
       const attendanceLocal = toZonedTime(
         new Date(updatedAttendance.attendanceDate),
         "Asia/Kolkata",
@@ -133,7 +133,6 @@ export async function PUT(
       const month = attendanceLocal.getMonth() + 1;
       const year = attendanceLocal.getFullYear();
 
-      // Check if salary record exists
       const existingSalary = await prisma.salary.findUnique({
         where: {
           userId_month_year: {
@@ -149,35 +148,16 @@ export async function PUT(
         existingSalary.status === "PENDING" &&
         !existingSalary.lockedAt
       ) {
-        // Recalculate existing salary (fire-and-forget)
-        salaryService
-          .recalculateSalary(existingSalary.id)
-          .catch((err) =>
-            console.error(
-              "Auto salary recalculation failed (recalculate):",
-              err,
-            ),
-          );
-      } else if (!existingSalary) {
-        // Create new salary record for this month (fire-and-forget)
-        // Use the already fetched admin data instead of redefining
-        if (admin?.companyId) {
-          salaryService
-            .generateSalary({
-              userId: updatedAttendance.userId,
-              companyId: admin.companyId,
-              month,
-              year,
-            })
-            .catch((err) =>
-              console.error("Auto salary generation failed (generate):", err),
-            );
-        }
+        await salaryService.recalculateSalary(existingSalary.id);
+      } else if (!existingSalary && admin?.companyId) {
+        await salaryService.generateSalary({
+          userId: updatedAttendance.userId,
+          companyId: admin.companyId,
+          month,
+          year,
+        });
       }
-    } catch (err) {
-      console.error("Auto salary recalculation failed:", err);
-      // ❗ salary fail hone par attendance update fail nahi hona chahiye
-    }
+    });
 
     return NextResponse.json({ attendance: updatedAttendance });
   } catch (error) {

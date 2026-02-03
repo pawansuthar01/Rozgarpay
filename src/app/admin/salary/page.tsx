@@ -124,7 +124,6 @@ export default function AdminSalaryPage() {
       setRejectLoading(null);
     }
   };
-
   const handleMarkAsPaid = async (
     salaryId: string,
     paymentData: {

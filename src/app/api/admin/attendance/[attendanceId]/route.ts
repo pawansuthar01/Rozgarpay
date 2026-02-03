@@ -65,17 +65,17 @@ export async function GET(
       );
     }
 
+    const nowUtc = new Date();
+    const fromDate = new Date(nowUtc);
+    fromDate.setDate(fromDate.getDate() - 30);
+
     // Fetch user's attendance trends for chart (last 30 days)
     const trends = await prisma.attendance.groupBy({
       by: ["attendanceDate"],
       where: {
         userId: attendance.userId,
         attendanceDate: {
-          gte: getDate(
-            new Date(
-              getDate(new Date()).setDate(getDate(new Date()).getDate() - 30),
-            ),
-          ),
+          gte: getDate(fromDate),
         },
       },
       _count: true,
@@ -183,7 +183,7 @@ export async function PUT(request: NextRequest, { params }: any) {
         : validStatus === "APPROVED"
           ? getApprovedWorkingHours(attendance, admin.company)
           : (attendance.workingHours ?? 0);
-
+    // getCurrentTime  time retune same new Date() utc time
     // Update attendance status
     const updatedAttendance = await prisma.attendance.update({
       where: { id: attendanceId },
@@ -222,16 +222,17 @@ export async function PUT(request: NextRequest, { params }: any) {
         },
       },
     });
-    try {
-      // Derive month/year from the attendance timestamp in Asia/Kolkata
-      const attendanceLocal = toZonedTime(
+
+    // 🔥 Fire-and-forget salary recalculation (non-blocking, production-ready)
+    // Moved outside try-catch to ensure attendance response is sent immediately
+    setImmediate(async () => {
+      const attendanceLocal = getDate(
         new Date(updatedAttendance.attendanceDate),
         "Asia/Kolkata",
       );
       const month = attendanceLocal.getMonth() + 1;
       const year = attendanceLocal.getFullYear();
 
-      // Check if salary record exists
       const existingSalary = await prisma.salary.findUnique({
         where: {
           userId_month_year: {
@@ -247,35 +248,17 @@ export async function PUT(request: NextRequest, { params }: any) {
         existingSalary.status === "PENDING" &&
         !existingSalary.lockedAt
       ) {
-        // Recalculate existing salary (fire-and-forget)
-        salaryService
-          .recalculateSalary(existingSalary.id)
-          .catch((err) =>
-            console.error(
-              "Auto salary recalculation failed (recalculate):",
-              err,
-            ),
-          );
-      } else if (!existingSalary) {
-        // Create new salary record for this month (fire-and-forget)
-        // Use the already fetched admin data instead of redefining
-        if (admin?.companyId) {
-          salaryService
-            .generateSalary({
-              userId: updatedAttendance.userId,
-              companyId: admin.companyId,
-              month,
-              year,
-            })
-            .catch((err) =>
-              console.error("Auto salary generation failed (generate):", err),
-            );
-        }
+        await salaryService.recalculateSalary(existingSalary.id);
+      } else if (!existingSalary && admin?.companyId) {
+        await salaryService.generateSalary({
+          userId: updatedAttendance.userId,
+          companyId: admin.companyId,
+          month,
+          year,
+        });
       }
-    } catch (err) {
-      console.error("Auto salary recalculation failed:", err);
-      // ❗ salary fail hone par attendance update fail nahi hona chahiye
-    }
+    });
+
     return NextResponse.json({ attendance: updatedAttendance });
   } catch (error) {
     console.error("Attendance status update error:", error);

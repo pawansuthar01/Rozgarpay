@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { getDate } from "@/lib/attendanceUtils";
-
+export const dynamic = "force-dynamic";
 // Helper function to create welcome notification
 async function createWelcomeNotification(
   userId: string,

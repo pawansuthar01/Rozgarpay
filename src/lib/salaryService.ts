@@ -137,7 +137,7 @@ export class SalaryService {
         month,
         year,
       );
-
+      console.log(attendanceSummary);
       // Calculate salary components
       const calculation = await this.calculateSalaryComponents(
         user,
@@ -277,9 +277,8 @@ export class SalaryService {
     month: number,
     year: number,
   ): Promise<AttendanceSummary> {
-    const startDate = getDate(new Date(year, month - 1, 1));
-    const endDate = getDate(new Date(year, month, 1));
-
+    const startDate = getDate(new Date(`${year}-${month}-01T00:00:00`));
+    const endDate = getDate(new Date(`${year}-${month + 1}-01T00:00:00`));
     if (user?.joiningDate) {
       const joinDate = new Date(user.joiningDate);
       if (joinDate > startDate) {
@@ -431,7 +430,7 @@ export class SalaryService {
             description: `Hourly Rate (${user.hourlyRate}/hr)`,
             amount: baseAmount,
             hours: attendance.workingHours,
-            quantity: attendance.workingHours,
+            quantity: attendance.approvedDays,
           });
         }
         break;
@@ -532,7 +531,7 @@ export class SalaryService {
     }
 
     // Deductions
-    const grossAmount = baseAmount + overtimeAmount - penaltyAmount;
+    let grossAmount = baseAmount + overtimeAmount - penaltyAmount;
     const statutoryBase = baseAmount;
     if (user.pfEsiApplicable && grossAmount > 0) {
       if (company.pfPercentage) {
@@ -555,8 +554,14 @@ export class SalaryService {
         });
       }
     }
-    const netAmount = Math.max(0, grossAmount - deductions);
-
+    let netAmount = Math.max(0, grossAmount - deductions);
+    const round = (n: number) => Math.round(n * 100) / 100;
+    baseAmount = round(baseAmount);
+    overtimeAmount = round(overtimeAmount);
+    penaltyAmount = round(penaltyAmount);
+    deductions = round(deductions);
+    grossAmount = round(grossAmount);
+    netAmount = round(netAmount);
     return {
       baseAmount,
       overtimeAmount,

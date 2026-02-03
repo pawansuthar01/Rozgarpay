@@ -89,6 +89,7 @@ export default function AttendanceTable({
   const handleMoreOptions = (attendanceId: string) => {
     const attendance = records.find((r) => r.id === attendanceId);
     if (attendance) {
+      console.log(attendance);
       setSelectedAttendance(attendance);
       setModalOpen(true);
     }
@@ -171,7 +172,7 @@ export default function AttendanceTable({
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         <div className="font-medium gap-2 flex items-center flex-wrap">
-                          {record.punchIn ? formatDateTO(record.punchIn) : "-"}
+                          {record.punchIn ? formatTime(record.punchIn) : "-"}
                           {record.punchInImageUrl ? (
                             <button
                               onClick={() =>
