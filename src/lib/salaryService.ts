@@ -277,8 +277,8 @@ export class SalaryService {
     month: number,
     year: number,
   ): Promise<AttendanceSummary> {
-    const startDate = getDate(new Date(`${year}-${month}-01T00:00:00`));
-    const endDate = getDate(new Date(`${year}-${month + 1}-01T00:00:00`));
+    const startDate = getDate(new Date(year, month - 1, 1));
+    const endDate = getDate(new Date(year, month, 1));
     if (user?.joiningDate) {
       const joinDate = new Date(user.joiningDate);
       if (joinDate > startDate) {
