@@ -277,8 +277,13 @@ export class SalaryService {
     month: number,
     year: number,
   ): Promise<AttendanceSummary> {
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0); // Last day of month
+    const startDate = getDate(new Date(year, month - 1, 1));
+    const endDate = getDate(new Date(year, month, 0));
+    console.log("Salary range:", {
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+    });
+
     if (user?.joiningDate) {
       const joinDate = new Date(user.joiningDate);
       if (joinDate > startDate) {
@@ -322,7 +327,10 @@ export class SalaryService {
         autoPunchOut: true,
       },
     });
-
+    console.log(
+      "Sample attendance:",
+      attendances.map((a) => a.attendanceDate.toISOString()),
+    );
     let approvedDays = 0;
     let workingHours = 0;
     let overtimeHours = 0;
