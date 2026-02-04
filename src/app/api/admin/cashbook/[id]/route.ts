@@ -43,40 +43,22 @@ export async function PUT(
       );
     }
 
-    // Validate field lengths
-    if (description && description.length > 500) {
-      return NextResponse.json(
-        { error: "Description must be 500 characters or less" },
-        { status: 400 },
-      );
-    }
-
-    if (notes && notes.length > 1000) {
-      return NextResponse.json(
-        { error: "Notes must be 1000 characters or less" },
-        { status: 400 },
-      );
-    }
-
-    // Get admin's company
+    // Get admin's company with minimal fields
     const admin = await prisma.user.findUnique({
       where: { id: session.user.id },
-      include: { company: true },
+      select: { companyId: true },
     });
 
-    if (!admin?.company) {
+    if (!admin?.companyId) {
       return NextResponse.json({ error: "Company not found" }, { status: 400 });
     }
 
-    // If userId provided, verify they belong to the company
+    // Verify user if userId provided
     if (userId) {
       const user = await prisma.user.findFirst({
-        where: {
-          id: userId,
-          companyId: admin.company.id,
-        },
+        where: { id: userId, companyId: admin.companyId },
+        select: { id: true },
       });
-
       if (!user) {
         return NextResponse.json(
           { error: "User not found in company" },
@@ -85,13 +67,10 @@ export async function PUT(
       }
     }
 
-    // Get the existing transaction
+    // Get existing transaction
     const existingEntry = await prisma.cashbookEntry.findFirst({
-      where: {
-        id,
-        companyId: admin.company.id,
-        isReversed: false, // Can't edit reversed entries
-      },
+      where: { id, companyId: admin.companyId, isReversed: false },
+      select: { id: true, reference: true, userId: true, amount: true },
     });
 
     if (!existingEntry) {
@@ -101,19 +80,7 @@ export async function PUT(
       );
     }
 
-    // Prevent changing reference for linked entries (once linked to user, reference cannot change)
-    if (
-      existingEntry.reference &&
-      reference &&
-      existingEntry.reference !== reference
-    ) {
-      return NextResponse.json(
-        { error: "Cannot change reference for linked entries" },
-        { status: 400 },
-      );
-    }
-
-    // Check if there's a linked SalaryLedger entry via reference (reference = salaryId)
+    // Check for linked ledger
     let linkedLedger = null;
     if (existingEntry.reference && existingEntry.userId) {
       linkedLedger = await prisma.salaryLedger.findFirst({
@@ -121,15 +88,14 @@ export async function PUT(
           salaryId: existingEntry.reference,
           userId: existingEntry.userId,
         },
+        select: { id: true, type: true },
       });
     }
 
-    // Start a transaction to update both cashbook and ledger
+    // Update with transaction
     const result = await prisma.$transaction(async (tx) => {
-      // For linked entries, preserve the original reference
       const finalReference = linkedLedger ? existingEntry.reference : reference;
 
-      // Update the cashbook entry
       const updatedEntry = await tx.cashbookEntry.update({
         where: { id },
         data: {
@@ -143,29 +109,21 @@ export async function PUT(
           notes,
           transactionDate: transactionDate
             ? new Date(transactionDate)
-            : existingEntry.transactionDate,
+            : undefined,
         },
-        include: {
-          user: {
-            select: {
-              firstName: true,
-              lastName: true,
-              email: true,
-            },
-          },
-          creator: {
-            select: {
-              firstName: true,
-              lastName: true,
-              email: true,
-            },
-          },
+        select: {
+          id: true,
+          transactionType: true,
+          direction: true,
+          amount: true,
+          description: true,
+          transactionDate: true,
+          user: { select: { firstName: true, lastName: true } },
         },
       });
 
-      // If there's a linked ledger and amount changed, update it too
+      // Update linked ledger if amount changed
       if (linkedLedger && amount !== existingEntry.amount) {
-        // Determine the sign based on transaction type
         let ledgerAmount = amount;
         if (
           linkedLedger.type === "DEDUCTION" ||
@@ -175,7 +133,6 @@ export async function PUT(
         } else {
           ledgerAmount = Math.abs(amount);
         }
-
         await tx.salaryLedger.update({
           where: { id: linkedLedger.id },
           data: {
@@ -185,33 +142,21 @@ export async function PUT(
         });
       }
 
-      // Create audit log
-      await tx.auditLog.create({
+      return updatedEntry;
+    });
+
+    // Fire-and-forget audit log
+    prisma.auditLog
+      .create({
         data: {
           userId: session.user.id,
           action: "UPDATED",
           entity: "CashbookEntry",
           entityId: id,
-          meta: {
-            userId,
-            transactionType,
-            direction,
-            amount,
-            description,
-            linkedLedgerId: linkedLedger?.id || null,
-            previousData: {
-              userId: existingEntry.userId,
-              transactionType: existingEntry.transactionType,
-              direction: existingEntry.direction,
-              amount: existingEntry.amount,
-              description: existingEntry.description,
-            },
-          },
+          meta: { transactionType, direction, amount, description },
         },
-      });
-
-      return updatedEntry;
-    });
+      })
+      .catch(console.error);
 
     return NextResponse.json({ entry: result });
   } catch (error) {
@@ -223,7 +168,10 @@ export async function PUT(
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: any) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } },
+) {
   try {
     const session = await getServerSession(authOptions);
     const { id } = params;
@@ -235,30 +183,27 @@ export async function DELETE(request: NextRequest, { params }: any) {
     // Get admin's company
     const admin = await prisma.user.findUnique({
       where: { id: session.user.id },
-      include: { company: true },
+      select: { companyId: true },
     });
 
-    if (!admin?.company) {
+    if (!admin?.companyId) {
       return NextResponse.json({ error: "Company not found" }, { status: 400 });
     }
 
-    // Get the existing transaction
+    // Get existing transaction
     const existingEntry = await prisma.cashbookEntry.findFirst({
-      where: {
-        id,
-        companyId: admin.company.id,
-        isReversed: false, // Can't delete reversed entries
-      },
+      where: { id, companyId: admin.companyId, isReversed: false },
+      select: { id: true, reference: true, userId: true },
     });
 
     if (!existingEntry) {
       return NextResponse.json(
-        { error: "Transaction not found or cannot be deleted" },
+        { error: "Transaction not found" },
         { status: 404 },
       );
     }
 
-    // Check if there's a linked SalaryLedger entry (reference = salaryId)
+    // Check for linked ledger
     let linkedLedger = null;
     if (existingEntry.reference && existingEntry.userId) {
       linkedLedger = await prisma.salaryLedger.findFirst({
@@ -266,40 +211,29 @@ export async function DELETE(request: NextRequest, { params }: any) {
           salaryId: existingEntry.reference,
           userId: existingEntry.userId,
         },
+        select: { id: true },
       });
     }
 
-    // Start a transaction to delete both cashbook and ledger
+    // Delete with transaction
     await prisma.$transaction(async (tx) => {
-      // Delete the cashbook entry
-      await tx.cashbookEntry.delete({
-        where: { id },
-      });
-
-      // If there's a linked ledger, delete it too
+      await tx.cashbookEntry.delete({ where: { id } });
       if (linkedLedger) {
-        await tx.salaryLedger.delete({
-          where: { id: linkedLedger.id },
-        });
+        await tx.salaryLedger.delete({ where: { id: linkedLedger.id } });
       }
+    });
 
-      // Create audit log
-      await tx.auditLog.create({
+    // Fire-and-forget audit log
+    prisma.auditLog
+      .create({
         data: {
           userId: session.user.id,
           action: "DELETED",
           entity: "CashbookEntry",
           entityId: id,
-          meta: {
-            transactionType: existingEntry.transactionType,
-            direction: existingEntry.direction,
-            amount: existingEntry.amount,
-            description: existingEntry.description,
-            linkedLedgerId: linkedLedger?.id || null,
-          },
         },
-      });
-    });
+      })
+      .catch(console.error);
 
     return NextResponse.json({ success: true });
   } catch (error) {

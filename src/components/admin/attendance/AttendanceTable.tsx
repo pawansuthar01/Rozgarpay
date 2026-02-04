@@ -26,7 +26,7 @@ import {
 interface AttendanceTableProps {
   records: AttendanceRecord[];
   loading: boolean;
-  actionLoading: string | null;
+  isRowLoading: (attendanceId: string) => boolean;
   onAttendanceAction: (
     attendanceId: string,
     action: "APPROVE" | "REJECT" | "HALF_DAY" | "ABSENT" | "LEAVE",
@@ -41,7 +41,7 @@ interface AttendanceTableProps {
 export default function AttendanceTable({
   records,
   loading,
-  actionLoading,
+  isRowLoading,
   onAttendanceAction,
   onMoreOptions,
   currentPage,
@@ -53,7 +53,7 @@ export default function AttendanceTable({
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedAttendance, setSelectedAttendance] =
     useState<AttendanceRecord | null>(null);
-
+  console.log(records);
   const getStatusInfo = (status: string) => {
     switch (status) {
       case "APPROVED":
@@ -233,12 +233,12 @@ export default function AttendanceTable({
                               onClick={() =>
                                 onAttendanceAction(record.id, "APPROVE")
                               }
-                              disabled={actionLoading === record.id}
+                              disabled={isRowLoading(record.id)}
                               className="text-green-600 hover:text-green-900 disabled:opacity-50 border border-green-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
                               title="Approve attendance"
                               aria-label="Approve attendance"
                             >
-                              {actionLoading === record.id ? (
+                              {isRowLoading(record.id) ? (
                                 <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                               ) : (
                                 <Check className="h-3 w-3 mr-1" />
@@ -252,14 +252,14 @@ export default function AttendanceTable({
                                 onAttendanceAction(record.id, "REJECT")
                               }
                               disabled={
-                                actionLoading === record.id ||
+                                isRowLoading(record.id) ||
                                 record.status === "APPROVED"
                               }
                               className="text-red-600 hover:text-red-900 disabled:opacity-50 border border-red-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
                               title="Reject attendance"
                               aria-label="Reject attendance"
                             >
-                              {actionLoading === record.id ? (
+                              {isRowLoading(record.id) ? (
                                 <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                               ) : (
                                 <X className="h-3 w-3 mr-1" />
@@ -272,12 +272,12 @@ export default function AttendanceTable({
                               onClick={() =>
                                 onAttendanceAction(record.id, "ABSENT")
                               }
-                              disabled={actionLoading === record.id}
+                              disabled={isRowLoading(record.id)}
                               className="text-red-600 hover:text-red-900 disabled:opacity-50 border border-red-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
                               title="Mark as absent"
                               aria-label="Mark as absent"
                             >
-                              {actionLoading === record.id ? (
+                              {isRowLoading(record.id) ? (
                                 <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                               ) : (
                                 <X className="h-3 w-3 mr-1" />
@@ -290,12 +290,12 @@ export default function AttendanceTable({
                               onClick={() =>
                                 onAttendanceAction(record.id, "LEAVE")
                               }
-                              disabled={actionLoading === record.id}
+                              disabled={isRowLoading(record.id)}
                               className="text-blue-600 hover:text-blue-900 disabled:opacity-50 border border-blue-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
                               title="Mark as leave"
                               aria-label="Mark as leave"
                             >
-                              {actionLoading === record.id ? (
+                              {isRowLoading(record.id) ? (
                                 <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                               ) : (
                                 <ClockIcon className="h-3 w-3 mr-1" />
@@ -306,6 +306,7 @@ export default function AttendanceTable({
                           {onMoreOptions && (
                             <button
                               onClick={() => handleMoreOptions(record.id)}
+                              disabled={isRowLoading(record.id)}
                               className="text-gray-600 hover:text-gray-900 border border-gray-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
                               title="More options"
                               aria-label="More options"
@@ -424,12 +425,12 @@ export default function AttendanceTable({
                     {record.status !== "APPROVED" && (
                       <button
                         onClick={() => onAttendanceAction(record.id, "APPROVE")}
-                        disabled={actionLoading === record.id}
+                        disabled={isRowLoading(record.id)}
                         className="text-green-600 hover:text-green-900 disabled:opacity-50 border border-green-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
                         title="Approve attendance"
                         aria-label="Approve attendance"
                       >
-                        {actionLoading === record.id ? (
+                        {isRowLoading(record.id) ? (
                           <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                         ) : (
                           <Check className="h-3 w-3 mr-1" />
@@ -441,14 +442,14 @@ export default function AttendanceTable({
                       <button
                         onClick={() => onAttendanceAction(record.id, "REJECT")}
                         disabled={
-                          actionLoading === record.id ||
+                          isRowLoading(record.id) ||
                           record.status === "APPROVED"
                         }
                         className="text-red-600 hover:text-red-900 disabled:opacity-50 border border-red-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
                         title="Reject attendance"
                         aria-label="Reject attendance"
                       >
-                        {actionLoading === record.id ? (
+                        {isRowLoading(record.id) ? (
                           <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                         ) : (
                           <X className="h-3 w-3 mr-1" />
@@ -459,12 +460,12 @@ export default function AttendanceTable({
                     {record.status !== "ABSENT" && (
                       <button
                         onClick={() => onAttendanceAction(record.id, "ABSENT")}
-                        disabled={actionLoading === record.id}
+                        disabled={isRowLoading(record.id)}
                         className="text-red-600 hover:text-red-900 disabled:opacity-50 border border-red-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
                         title="Mark as absent"
                         aria-label="Mark as absent"
                       >
-                        {actionLoading === record.id ? (
+                        {isRowLoading(record.id) ? (
                           <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                         ) : (
                           <X className="h-3 w-3 mr-1" />
@@ -475,12 +476,12 @@ export default function AttendanceTable({
                     {record.status !== "LEAVE" && (
                       <button
                         onClick={() => onAttendanceAction(record.id, "LEAVE")}
-                        disabled={actionLoading === record.id}
+                        disabled={isRowLoading(record.id)}
                         className="text-blue-600 hover:text-blue-900 disabled:opacity-50 border border-blue-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
                         title="Mark as leave"
                         aria-label="Mark as leave"
                       >
-                        {actionLoading === record.id ? (
+                        {isRowLoading(record.id) ? (
                           <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                         ) : (
                           <ClockIcon className="h-3 w-3 mr-1" />
@@ -491,6 +492,7 @@ export default function AttendanceTable({
                     {onMoreOptions && (
                       <button
                         onClick={() => handleMoreOptions(record.id)}
+                        disabled={isRowLoading(record.id)}
                         className="text-gray-600 hover:text-gray-900 border border-gray-600 px-2 py-1 cursor-pointer rounded text-xs flex items-center"
                         title="More options"
                         aria-label="More options"

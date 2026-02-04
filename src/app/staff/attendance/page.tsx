@@ -9,21 +9,21 @@ import {
   AlertCircle,
   XCircle,
   Minus,
-  Moon,
-  Clock,
   CalendarOff,
   ClockAlert,
 } from "lucide-react";
 import PunchModal from "@/components/PunchModal";
-import MessageModal from "@/components/MessageModal";
 import {
   useStaffAttendance,
   useTodayAttendance,
-  useCompanySettings,
-  usePunchAttendance,
+  useStaffPunchAttendance,
 } from "@/hooks/useStaffAttendance";
-import { useStaffDashboard } from "@/hooks/useStaffDashboard";
+import {
+  useStaffDashboard,
+  prefetchStaffDashboard,
+} from "@/hooks/useStaffDashboard";
 import { useModal } from "@/components/ModalProvider";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface AttendanceRecord {
   date: string;
@@ -39,6 +39,15 @@ interface CalendarDay {
   isToday: boolean;
 }
 
+interface ValidationData {
+  valid: boolean;
+  error?: string;
+  punchType: "in" | "out";
+  attendanceId?: string;
+  lateMinutes?: number;
+  isLate?: boolean;
+}
+
 export default function StaffAttendancePage() {
   const router = useRouter();
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -46,6 +55,12 @@ export default function StaffAttendancePage() {
   const [punchType, setPunchType] = useState<"in" | "out">("in");
 
   const { showMessage } = useModal();
+  const queryClient = useQueryClient();
+
+  // Prefetch dashboard data for faster salary check
+  useEffect(() => {
+    prefetchStaffDashboard(queryClient);
+  }, [queryClient]);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth() + 1;
@@ -57,7 +72,8 @@ export default function StaffAttendancePage() {
   const { data: attendanceData = [], isLoading: attendanceLoading } =
     useStaffAttendance(year, month);
   const { data: todaysAttendance } = useTodayAttendance();
-  const punchMutation = usePunchAttendance();
+  const punchMutation = useStaffPunchAttendance();
+
   const generateCalendarDays = (): CalendarDay[] => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
@@ -122,6 +138,13 @@ export default function StaffAttendancePage() {
           icon: <CalendarOff className="h-4 w-4 text-gray-600" />,
           label: "leave",
         };
+      case "ABSENT":
+        return {
+          bgColor: "bg-yellow-100 border-yellow-300",
+          textColor: "text-red-800",
+          icon: <XCircle className="h-4 w-4 text-gray-600" />,
+          label: "absent",
+        };
       default:
         return {
           bgColor: "bg-gray-50 border-gray-200",
@@ -149,13 +172,17 @@ export default function StaffAttendancePage() {
     setModalOpen(true);
   };
 
-  const handlePunchComplete = async (type: "in" | "out", imageData: string) => {
+  const handlePunchComplete = async (
+    type: "in" | "out",
+    imageData: string,
+    validation: ValidationData,
+  ) => {
     setModalOpen(false);
     try {
       await punchMutation.mutateAsync(
-        { type, imageData },
+        { type, imageData, validation },
         {
-          onError: (error) => {
+          onError: (error: Error) => {
             let errorMessage = error.message || "Failed to complete punch";
             let errorTitle = "Punch Failed";
 
@@ -172,7 +199,7 @@ export default function StaffAttendancePage() {
       );
 
       return true;
-    } catch (error: any) {
+    } catch (error) {
       return false;
     }
   };

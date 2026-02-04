@@ -24,9 +24,27 @@ export async function GET(request: NextRequest) {
         companyId,
         attendanceDate,
       },
+      select: {
+        id: true,
+        status: true,
+        punchIn: true,
+        punchOut: true,
+        attendanceDate: true,
+        workingHours: true,
+      },
     });
-    return NextResponse.json({ success: true, attendance: attendanceRecord });
+
+    const response = NextResponse.json({
+      success: true,
+      attendance: attendanceRecord,
+    });
+
+    // Cache for 30 seconds
+    response.headers.set("Cache-Control", "public, s-maxage=30");
+
+    return response;
   } catch (error) {
+    console.error("Today's attendance error:", error);
     return NextResponse.json(
       { error: "Failed to fetch today's attendance" },
       { status: 500 },

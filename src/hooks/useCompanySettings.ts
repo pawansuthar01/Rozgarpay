@@ -1,4 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
+import { performanceMonitor } from "@/lib/performanceMonitor";
 
 interface Company {
   id: string;
@@ -32,15 +34,38 @@ interface CompanyResponse {
 // Query: Get company settings
 export function useCompanySettings() {
   return useQuery({
-    queryKey: ["company-settings"],
+    queryKey: queryKeys.company,
     queryFn: async () => {
-      const response = await fetch("/api/admin/company");
-      if (!response.ok) {
-        throw new Error("Failed to fetch company settings");
+      const startTime = performance.now();
+      try {
+        const response = await fetch("/api/admin/company");
+        if (!response.ok) {
+          throw new Error("Failed to fetch company settings");
+        }
+        const data = (await response.json()) as CompanyResponse;
+
+        performanceMonitor.recordQueryMetric({
+          queryKey: "company-settings",
+          duration: performance.now() - startTime,
+          status: "success",
+          isCacheHit: false,
+          timestamp: Date.now(),
+        });
+
+        return data;
+      } catch (error) {
+        performanceMonitor.recordQueryMetric({
+          queryKey: "company-settings",
+          duration: performance.now() - startTime,
+          status: "error",
+          isCacheHit: false,
+          timestamp: Date.now(),
+        });
+        throw error;
       }
-      return response.json() as Promise<CompanyResponse>;
     },
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 5, // 5 minutes - low volatility
+    gcTime: 1000 * 60 * 30, // 30 minutes cache
   });
 }
 
@@ -64,7 +89,7 @@ export function useUpdateCompanySettings() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["company-settings"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.company });
     },
   });
 }

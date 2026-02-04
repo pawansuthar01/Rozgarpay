@@ -1,5 +1,3 @@
-import { SalaryRecord } from "@/hooks";
-
 export interface SalaryStats {
   totalRecords: number;
   pending: number;
@@ -22,4 +20,31 @@ export interface SalaryApiResponse {
     statusDistribution: { name: string; value: number; color: string }[];
     monthlyTotals: { month: string; amount: number }[];
   };
+}
+
+export interface SalaryRecord {
+  id: string;
+  userId: string;
+  user: {
+    firstName: string | null;
+    lastName: string | null;
+    phone: string;
+    email: string;
+  };
+  month: number;
+  year: number;
+  basicSalary: number;
+  da: number;
+  hra: number;
+  allowances: number;
+  deductions: number;
+  netSalary: number;
+  totalWorkingDays?: number;
+  approvedDays?: number;
+  grossAmount?: number;
+  netAmount?: number;
+  pdfUrl?: string;
+  status: string;
+  paidAt: string | null;
+  createdAt: string;
 }

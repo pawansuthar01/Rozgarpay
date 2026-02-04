@@ -4,7 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { getDate } from "@/lib/attendanceUtils";
 import { toZonedTime } from "date-fns-tz";
+
 export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -36,6 +38,12 @@ export async function GET(request: Request) {
           lt: endDate,
         },
       },
+      select: {
+        attendanceDate: true,
+        punchIn: true,
+        punchOut: true,
+        status: true,
+      },
       orderBy: {
         attendanceDate: "asc",
       },
@@ -48,7 +56,12 @@ export async function GET(request: Request) {
       status: record.status,
     }));
 
-    return NextResponse.json(records);
+    // Cache at CDN for 5 minutes, browser for 5 minutes
+    return NextResponse.json(records, {
+      headers: {
+        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=300",
+      },
+    });
   } catch (error) {
     console.error("Staff attendance error:", error);
     return NextResponse.json(

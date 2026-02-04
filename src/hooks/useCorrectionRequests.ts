@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { performanceMonitor } from "@/lib/performanceMonitor";
 
 export interface CorrectionRequest {
   id: string;
@@ -46,6 +47,7 @@ export function useCorrectionRequests(
   const query = useQuery({
     queryKey: ["correction-requests", options],
     queryFn: async () => {
+      const startTime = performance.now();
       const endpoint = options.isAdmin
         ? "/api/correction-requests"
         : "/api/staff/correction-requests";
@@ -65,13 +67,35 @@ export function useCorrectionRequests(
       if (options.pagination?.limit)
         params.append("limit", options.pagination.limit.toString());
 
-      const res = await fetch(`${endpoint}?${params}`);
-      if (!res.ok) {
-        throw new Error("Failed to fetch correction requests");
+      try {
+        const res = await fetch(`${endpoint}?${params}`);
+        if (!res.ok) {
+          throw new Error("Failed to fetch correction requests");
+        }
+        const data = await res.json();
+
+        performanceMonitor.recordQueryMetric({
+          queryKey: "correction-requests.list",
+          duration: performance.now() - startTime,
+          status: "success",
+          isCacheHit: false,
+          timestamp: Date.now(),
+        });
+
+        return data.correctionRequests || [];
+      } catch (error) {
+        performanceMonitor.recordQueryMetric({
+          queryKey: "correction-requests.list",
+          duration: performance.now() - startTime,
+          status: "error",
+          isCacheHit: false,
+          timestamp: Date.now(),
+        });
+        throw error;
       }
-      const data = await res.json();
-      return data.correctionRequests || [];
     },
+    staleTime: 1000 * 60 * 2, // 2 minutes
+    gcTime: 1000 * 60 * 10, // 10 minutes cache
   });
 
   const submitMutation = useMutation({

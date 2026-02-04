@@ -30,7 +30,7 @@ export default function AdminSalaryPage() {
   const [status, setStatus] = useState<string>("");
   const [pageLimit, setPageLimit] = useState<number>(10);
   const [sortBy, setSortBy] = useState<string>("createdAt");
-  const [sortOrder, setSortOrder] = useState<string>("desc");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [search, setSearch] = useState<string>("");
   const debouncedSearch = useDebounce(search, 500);
 
@@ -229,7 +229,7 @@ export default function AdminSalaryPage() {
                     sortBy={sortBy}
                     setSortBy={setSortBy}
                     sortOrder={sortOrder}
-                    setSortOrder={setSortOrder}
+                    setSortOrder={setSortOrder as (value: string) => void}
                     search={search}
                     setSearch={setSearch}
                   />

@@ -4,10 +4,23 @@ import { useRef, useState, useEffect } from "react";
 import { Camera, X, RotateCcw, Loader2, CheckCircle } from "lucide-react";
 import { useModal } from "./ModalProvider";
 
+interface ValidationData {
+  valid: boolean;
+  error?: string;
+  punchType: "in" | "out";
+  attendanceId?: string;
+  lateMinutes?: number;
+  isLate?: boolean;
+}
+
 interface PunchModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onPunch: (type: "in" | "out", image: string) => Promise<boolean>;
+  onPunch: (
+    type: "in" | "out",
+    image: string,
+    validation: ValidationData,
+  ) => Promise<boolean>;
   punchType: "in" | "out";
 }
 
@@ -23,10 +36,21 @@ export default function PunchModal({
   const [shouldRender, setShouldRender] = useState(false);
   const { showMessage } = useModal();
   const [stage, setStage] = useState<
-    "idle" | "opening" | "live" | "preview" | "uploading" | "success"
+    | "idle"
+    | "opening"
+    | "live"
+    | "preview"
+    | "validating"
+    | "uploading"
+    | "success"
+    | "error"
   >("idle");
 
   const [isAnimating, setIsAnimating] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [validationData, setValidationData] = useState<ValidationData | null>(
+    null,
+  );
 
   /* ---------------- CLEANUP ON MODAL CLOSE ---------------- */
   useEffect(() => {
@@ -34,6 +58,8 @@ export default function PunchModal({
       setShouldRender(true);
       setIsAnimating(false);
       setStage("idle");
+      setValidationError(null);
+      setValidationData(null);
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           setIsAnimating(true);
@@ -68,13 +94,10 @@ export default function PunchModal({
       videoRef.current.muted = true;
       videoRef.current.playsInline = true;
 
-      // wait for actual play
       await videoRef.current.play();
 
       setStage("live");
     } catch (err) {
-      // Instead of alert, we could emit an error event or use a callback
-      // For now, we'll keep it simple but could be improved with a modal
       showMessage(
         "error",
         "Error",
@@ -105,9 +128,8 @@ export default function PunchModal({
       return;
     }
 
-    // VERY IMPORTANT
     if (video.videoWidth === 0 || video.videoHeight === 0) {
-      showMessage("info", "wait 1 sec", "Camera still loading, wait 1 second");
+      showMessage("info", "Wait", "Camera still loading, wait 1 second");
       return;
     }
 
@@ -125,6 +147,8 @@ export default function PunchModal({
 
   /* ---------------- RETAKE ---------------- */
   const retakePhoto = () => {
+    setValidationError(null);
+    setValidationData(null);
     setStage("idle");
   };
 
@@ -133,14 +157,46 @@ export default function PunchModal({
     if (!canvasRef.current) return;
 
     try {
-      setStage("uploading");
-      const image = canvasRef.current.toDataURL("image/jpeg", 0.85);
-      const res = await onPunch(punchType, image);
-      if (!res) {
-        handleClose();
-        setStage("idle");
+      // Step 1: Validate first WITHOUT uploading image
+      setStage("validating");
+      setValidationError(null);
+
+      const validateRes = await fetch("/api/attendance/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: punchType }),
+      });
+
+      const validateData = await validateRes.json();
+
+      if (!validateRes.ok || !validateData.valid) {
+        // Validation failed - show error immediately
+        setValidationError(validateData.error || "Validation failed");
+        setStage("error");
         return;
       }
+
+      // Validation passed - store validation data
+      const validation: ValidationData = {
+        valid: true,
+        punchType: validateData.punchType,
+        attendanceId: validateData.attendanceId,
+        lateMinutes: validateData.lateMinutes,
+        isLate: validateData.isLate,
+      };
+      setValidationData(validation);
+
+      // Step 2: Validation passed - now upload image
+      setStage("uploading");
+      const image = canvasRef.current.toDataURL("image/jpeg", 0.85);
+
+      const res = await onPunch(punchType, image, validation);
+
+      if (!res) {
+        setStage("error");
+        return;
+      }
+
       setStage("success");
 
       // Auto close after success
@@ -153,15 +209,18 @@ export default function PunchModal({
       setStage("preview");
     }
   };
+
   function handleClose() {
-    if (stage == "uploading") {
-      showMessage("warning", "Please wait ", "Please wait a few sec...");
+    if (stage === "validating" || stage === "uploading") {
+      showMessage("warning", "Please wait", "Please wait a few seconds...");
       return;
     }
     setIsAnimating(false);
     setTimeout(() => {
       stopCamera();
       setShouldRender(false);
+      setValidationError(null);
+      setValidationData(null);
       onClose();
     }, 500);
   }
@@ -179,8 +238,7 @@ export default function PunchModal({
       {/* MODAL WITH BOTTOM-TO-TOP ANIMATION */}
       <div
         className={`absolute bottom-0 bg-white w-full max-w-sm rounded-t-3xl shadow-2xl
-  transform transition-all duration-500 ease-out
-  ${
+  transform transition-all duration-500 ease-out ${
     isAnimating
       ? "translate-y-0 opacity-100 scale-100"
       : "translate-y-full opacity-0 scale-95"
@@ -201,13 +259,15 @@ export default function PunchModal({
               {stage === "opening" && "Opening camera..."}
               {stage === "live" && "Position yourself and tap capture"}
               {stage === "preview" && "Review your photo"}
+              {stage === "validating" && "Checking eligibility..."}
               {stage === "uploading" && "Processing your punch..."}
               {stage === "success" && "Punch successful!"}
+              {stage === "error" && "Could not punch"}
             </p>
           </div>
           <button
             onClick={handleClose}
-            className="p-2 hover:bg-gray-100  cursor-pointer  rounded-full transition-colors"
+            className="p-2 hover:bg-gray-100 cursor-pointer rounded-full transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -216,7 +276,7 @@ export default function PunchModal({
         {/* CAMERA / PREVIEW CONTAINER */}
         <div className="relative mx-4 mb-4 bg-gray-900 rounded-2xl overflow-hidden shadow-inner">
           <div className="aspect-[4/3] relative">
-            {/* VIDEO – ALWAYS MOUNTED */}
+            {/* VIDEO */}
             <video
               ref={videoRef}
               className={`absolute inset-0 w-full h-full object-cover transition-all duration-300 ${
@@ -224,33 +284,38 @@ export default function PunchModal({
                   ? "opacity-100 scale-100"
                   : "opacity-0 scale-95"
               }`}
-              style={{ transform: "scaleX(-1)" }} // Mirror effect for selfie
+              style={{ transform: "scaleX(-1)" }}
             />
 
-            {/* CANVAS – ALWAYS MOUNTED */}
+            {/* CANVAS */}
             <canvas
               ref={canvasRef}
               className={`absolute inset-0 w-full h-full transition-all duration-300 ${
-                stage === "preview"
+                stage === "preview" ||
+                stage === "validating" ||
+                stage === "uploading"
                   ? "opacity-100 scale-100"
                   : "opacity-0 scale-95"
               }`}
             />
 
             {/* PLACEHOLDER */}
-            {stage !== "live" && stage !== "preview" && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
-                <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-3">
-                  <Camera className="w-8 h-8" />
+            {stage !== "live" &&
+              stage !== "preview" &&
+              stage !== "validating" &&
+              stage !== "uploading" && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
+                  <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-3">
+                    <Camera className="w-8 h-8" />
+                  </div>
+                  <p className="text-sm font-medium">Camera Preview</p>
+                  <p className="text-xs text-white/70 mt-1">
+                    {stage === "opening"
+                      ? "Initializing..."
+                      : "Tap start to begin"}
+                  </p>
                 </div>
-                <p className="text-sm font-medium">Camera Preview</p>
-                <p className="text-xs text-white/70 mt-1">
-                  {stage === "opening"
-                    ? "Initializing..."
-                    : "Tap start to begin"}
-                </p>
-              </div>
-            )}
+              )}
 
             {/* SUCCESS OVERLAY */}
             {stage === "success" && (
@@ -259,6 +324,16 @@ export default function PunchModal({
                   <CheckCircle className="w-16 h-16 mx-auto mb-2" />
                   <p className="text-lg font-bold">Success!</p>
                   <p className="text-sm">Punch recorded</p>
+                </div>
+              </div>
+            )}
+
+            {/* ERROR OVERLAY */}
+            {stage === "error" && validationError && (
+              <div className="absolute inset-0 bg-red-500/90 flex items-center justify-center p-4">
+                <div className="text-center text-white">
+                  <p className="text-lg font-bold mb-1">Cannot Punch</p>
+                  <p className="text-sm">{validationError}</p>
                 </div>
               </div>
             )}
@@ -313,7 +388,7 @@ export default function PunchModal({
             </div>
           )}
 
-          {stage === "preview" && (
+          {(stage === "preview" || stage === "error") && (
             <div className="flex gap-3">
               <button
                 onClick={confirmPunch}
@@ -333,11 +408,13 @@ export default function PunchModal({
             </div>
           )}
 
-          {stage === "uploading" && (
+          {(stage === "validating" || stage === "uploading") && (
             <div className="text-center py-8">
               <Loader2 className="animate-spin w-8 h-8 mx-auto mb-3 text-blue-500" />
               <p className="text-gray-600 font-medium">
-                Processing your punch...
+                {stage === "validating"
+                  ? "Checking eligibility..."
+                  : "Processing your punch..."}
               </p>
               <p className="text-sm text-gray-500 mt-1">Please wait</p>
             </div>

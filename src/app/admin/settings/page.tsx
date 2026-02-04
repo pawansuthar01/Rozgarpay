@@ -18,6 +18,7 @@ import {
   Settings as SettingsIcon,
   AlertTriangle,
   IndianRupee,
+  Loader2,
 } from "lucide-react";
 import MessageModal from "@/components/MessageModal";
 import {
@@ -73,6 +74,7 @@ export default function AdminSettingsPage() {
   };
 
   const [editing, setEditing] = useState<string | null>(null);
+  const [saving, setSaving] = useState<string | null>(null); // Track which section is saving
   const [tempAttendanceSettings, setTempAttendanceSettings] =
     useState<AttendanceSettings>(attendanceSettings);
   const [messageModal, setMessageModal] = useState<{
@@ -93,6 +95,7 @@ export default function AdminSettingsPage() {
   };
 
   const handleSave = async (section: string) => {
+    setSaving(section);
     try {
       await updateSettingsMutation.mutateAsync(tempAttendanceSettings);
       setEditing(null);
@@ -110,6 +113,8 @@ export default function AdminSettingsPage() {
         title: "Save Failed",
         message: error.message || "Failed to save settings. Please try again.",
       });
+    } finally {
+      setSaving(null);
     }
   };
 
@@ -233,15 +238,23 @@ export default function AdminSettingsPage() {
               <div className="flex space-x-2">
                 <button
                   onClick={() => handleSave("shift")}
-                  className="px-4 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg font-medium transition-colors flex items-center space-x-2"
+                  disabled={saving === "shift"}
+                  className="px-4 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg font-medium transition-colors flex items-center space-x-2 disabled:opacity-50"
                   aria-label="Save shift settings"
                 >
-                  <Save className="h-4 w-4" />
-                  <span className="hidden sm:inline">Save</span>
+                  {saving === "shift" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  <span className="hidden sm:inline">
+                    {saving === "shift" ? "Saving..." : "Save"}
+                  </span>
                 </button>
                 <button
                   onClick={handleCancel}
-                  className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-medium transition-colors flex items-center space-x-2"
+                  disabled={saving === "shift"}
+                  className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-medium transition-colors flex items-center space-x-2 disabled:opacity-50"
                   aria-label="Cancel editing"
                 >
                   <X className="h-4 w-4" />
@@ -391,14 +404,22 @@ export default function AdminSettingsPage() {
               <div className="flex space-x-2">
                 <button
                   onClick={() => handleSave("hours")}
-                  className="px-4 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg font-medium transition-colors flex items-center space-x-2"
+                  disabled={saving === "hours"}
+                  className="px-4 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg font-medium transition-colors flex items-center space-x-2 disabled:opacity-50"
                 >
-                  <Save className="h-4 w-4" />
-                  <span className="hidden sm:inline">Save</span>
+                  {saving === "hours" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  <span className="hidden sm:inline">
+                    {saving === "hours" ? "Saving..." : "Save"}
+                  </span>
                 </button>
                 <button
                   onClick={handleCancel}
-                  className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-medium transition-colors flex items-center space-x-2"
+                  disabled={saving === "hours"}
+                  className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-medium transition-colors flex items-center space-x-2 disabled:opacity-50"
                 >
                   <X className="h-4 w-4" />
                   <span className="hidden sm:inline">Cancel</span>
@@ -541,14 +562,22 @@ export default function AdminSettingsPage() {
               <div className="flex space-x-2">
                 <button
                   onClick={() => handleSave("location")}
-                  className="px-4 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg font-medium transition-colors flex items-center space-x-2"
+                  disabled={saving === "location"}
+                  className="px-4 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg font-medium transition-colors flex items-center space-x-2 disabled:opacity-50"
                 >
-                  <Save className="h-4 w-4" />
-                  <span className="hidden sm:inline">Save</span>
+                  {saving === "location" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  <span className="hidden sm:inline">
+                    {saving === "location" ? "Saving..." : "Save"}
+                  </span>
                 </button>
                 <button
                   onClick={handleCancel}
-                  className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-medium transition-colors flex items-center space-x-2"
+                  disabled={saving === "location"}
+                  className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-medium transition-colors flex items-center space-x-2 disabled:opacity-50"
                 >
                   <X className="h-4 w-4" />
                   <span className="hidden sm:inline">Cancel</span>
@@ -677,14 +706,22 @@ export default function AdminSettingsPage() {
               <div className="flex space-x-2">
                 <button
                   onClick={() => handleSave("overtime")}
-                  className="px-4 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg font-medium transition-colors flex items-center space-x-2"
+                  disabled={saving === "overtime"}
+                  className="px-4 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg font-medium transition-colors flex items-center space-x-2 disabled:opacity-50"
                 >
-                  <Save className="h-4 w-4" />
-                  <span className="hidden sm:inline">Save</span>
+                  {saving === "overtime" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  <span className="hidden sm:inline">
+                    {saving === "overtime" ? "Saving..." : "Save"}
+                  </span>
                 </button>
                 <button
                   onClick={handleCancel}
-                  className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-medium transition-colors flex items-center space-x-2"
+                  disabled={saving === "overtime"}
+                  className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-medium transition-colors flex items-center space-x-2 disabled:opacity-50"
                 >
                   <X className="h-4 w-4" />
                   <span className="hidden sm:inline">Cancel</span>
@@ -756,14 +793,22 @@ export default function AdminSettingsPage() {
               <div className="flex space-x-2">
                 <button
                   onClick={() => handleSave("penalty")}
-                  className="px-4 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg font-medium transition-colors flex items-center space-x-2"
+                  disabled={saving === "penalty"}
+                  className="px-4 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg font-medium transition-colors flex items-center space-x-2 disabled:opacity-50"
                 >
-                  <Save className="h-4 w-4" />
-                  <span className="hidden sm:inline">Save</span>
+                  {saving === "penalty" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  <span className="hidden sm:inline">
+                    {saving === "penalty" ? "Saving..." : "Save"}
+                  </span>
                 </button>
                 <button
                   onClick={handleCancel}
-                  className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-medium transition-colors flex items-center space-x-2"
+                  disabled={saving === "penalty"}
+                  className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-medium transition-colors flex items-center space-x-2 disabled:opacity-50"
                 >
                   <X className="h-4 w-4" />
                   <span className="hidden sm:inline">Cancel</span>

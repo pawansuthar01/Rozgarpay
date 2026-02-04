@@ -1,4 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { invitationsKeys } from "@/lib/queryKeys";
+import { performanceMonitor } from "@/lib/performanceMonitor";
 
 interface Invitation {
   id: string;
@@ -38,8 +40,9 @@ export function useInvitations(params?: {
   search?: string;
 }) {
   return useQuery({
-    queryKey: ["invitations", params],
+    queryKey: invitationsKeys.lists(params),
     queryFn: async () => {
+      const startTime = performance.now();
       const searchParams = new URLSearchParams();
       if (params?.page) searchParams.set("page", params.page.toString());
       if (params?.limit) searchParams.set("limit", params.limit.toString());
@@ -47,13 +50,36 @@ export function useInvitations(params?: {
       if (params?.role) searchParams.set("role", params.role);
       if (params?.search) searchParams.set("search", params.search);
 
-      const response = await fetch(`/api/invitations?${searchParams}`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch invitations");
+      try {
+        const response = await fetch(`/api/invitations?${searchParams}`);
+        if (!response.ok) {
+          throw new Error("Failed to fetch invitations");
+        }
+        const data = (await response.json()) as InvitationsResponse;
+
+        // Record performance metric
+        performanceMonitor.recordQueryMetric({
+          queryKey: "invitations.list",
+          duration: performance.now() - startTime,
+          status: "success",
+          isCacheHit: false,
+          timestamp: Date.now(),
+        });
+
+        return data;
+      } catch (error) {
+        performanceMonitor.recordQueryMetric({
+          queryKey: "invitations.list",
+          duration: performance.now() - startTime,
+          status: "error",
+          isCacheHit: false,
+          timestamp: Date.now(),
+        });
+        throw error;
       }
-      return response.json() as Promise<InvitationsResponse>;
     },
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 5, // 5 minutes - low volatility data
+    gcTime: 1000 * 60 * 30, // 30 minutes cache
   });
 }
 
@@ -83,7 +109,7 @@ export function useCreateInvitation() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["invitations"] });
+      queryClient.invalidateQueries({ queryKey: invitationsKeys.all });
     },
   });
 }
@@ -106,7 +132,7 @@ export function useDeleteInvitation() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["invitations"] });
+      queryClient.invalidateQueries({ queryKey: invitationsKeys.all });
     },
   });
 }

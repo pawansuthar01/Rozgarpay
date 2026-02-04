@@ -208,9 +208,11 @@ export default function AdminSalaryReportsPage() {
                     paddingAngle={5}
                     dataKey="value"
                   >
-                    {(report?.statusDistribution || []).map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
+                    {(report?.statusDistribution || []).map(
+                      (entry: { color: string }, index: number) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ),
+                    )}
                   </Pie>
                   <Tooltip />
                   <Legend />
@@ -273,21 +275,31 @@ export default function AdminSalaryReportsPage() {
                       </td>
                     </tr>
                   ))
-                : report?.staffBreakdown.map((staff) => (
-                    <tr key={staff.userId} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {staff.user.firstName} {staff.user.lastName}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {staff.user.email}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        ₹{staff.totalAmount.toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
+                : report?.staffBreakdown.map(
+                    (staff: {
+                      userId: string;
+                      user: {
+                        firstName: string | null;
+                        lastName: string | null;
+                        email: string;
+                      };
+                      totalAmount: number;
+                    }) => (
+                      <tr key={staff.userId} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">
+                            {staff.user.firstName} {staff.user.lastName}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {staff.user.email}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          ₹{staff.totalAmount.toLocaleString()}
+                        </td>
+                      </tr>
+                    ),
+                  )}
             </tbody>
           </table>
         </div>

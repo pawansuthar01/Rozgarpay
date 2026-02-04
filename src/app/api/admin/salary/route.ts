@@ -4,7 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { getDate } from "@/lib/attendanceUtils";
 import { getCurrentTime } from "@/lib/utils";
+
 export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -14,8 +16,11 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "10");
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1") || 1);
+    let limit = Math.max(
+      1,
+      Math.min(parseInt(searchParams.get("limit") || "10") || 10, 100),
+    );
     const month = searchParams.get("month")
       ? parseInt(searchParams.get("month")!)
       : null;
@@ -27,23 +32,26 @@ export async function GET(request: NextRequest) {
     const sortOrder = searchParams.get("sortOrder") || "desc";
     const search = searchParams.get("search") || "";
 
-    // Get admin's company
+    // Get admin's company with minimal fields
     const admin = await prisma.user.findUnique({
       where: { id: session.user.id },
-      include: { company: true },
+      select: { companyId: true },
     });
 
-    if (!admin?.company) {
+    if (!admin?.companyId) {
       return NextResponse.json(
         { error: "Admin company not found" },
         { status: 400 },
       );
     }
 
+    const companyId = admin.companyId;
+    const skip = (page - 1) * limit;
+
     // Build where clause
     const where: any = {
       user: {
-        companyId: admin.company.id,
+        companyId,
         role: "STAFF",
       },
     };
@@ -71,38 +79,65 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    // Get total count
-    const total = await prisma.salary.count({ where });
+    // PARALLEL QUERIES: Run all independent queries concurrently
+    const [total, records, statsResult, monthlyResult] = await Promise.all([
+      // Total count
+      prisma.salary.count({ where }),
 
-    // Get records
-    const records = await prisma.salary.findMany({
-      where,
-      include: {
-        user: {
-          select: {
-            firstName: true,
-            lastName: true,
-            email: true,
+      // Records with selective field fetching
+      prisma.salary.findMany({
+        where,
+        select: {
+          id: true,
+          month: true,
+          year: true,
+          grossAmount: true,
+          netAmount: true,
+          status: true,
+          paidAt: true,
+          createdAt: true,
+          user: {
+            select: {
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
           },
         },
-      },
-      orderBy: {
-        [sortBy]: sortOrder,
-      },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+        orderBy: {
+          [sortBy]: sortOrder,
+        },
+        skip,
+        take: limit,
+      }),
 
-    // Get stats
-    const statsResult = await prisma.salary.groupBy({
-      by: ["status"],
-      where,
-      _count: true,
-      _sum: {
-        netAmount: true,
-      },
-    });
+      // Stats aggregation
+      prisma.salary.groupBy({
+        by: ["status"],
+        where,
+        _count: true,
+        _sum: {
+          netAmount: true,
+        },
+      }),
 
+      // Monthly totals
+      prisma.salary.groupBy({
+        by: ["month"],
+        where: {
+          ...where,
+          year: year || getCurrentTime().getFullYear(),
+        },
+        _sum: {
+          netAmount: true,
+        },
+        orderBy: {
+          month: "asc",
+        },
+      }),
+    ]);
+
+    // Process stats
     const stats = {
       totalRecords: total,
       pending: statsResult.find((s) => s.status === "PENDING")?._count || 0,
@@ -123,22 +158,8 @@ export async function GET(request: NextRequest) {
       { name: "Rejected", value: stats.rejected, color: "#EF4444" },
     ];
 
-    // Monthly totals (for the selected year or current)
+    // Monthly totals
     const selectedYear = year || getCurrentTime().getFullYear();
-    const monthlyResult = await prisma.salary.groupBy({
-      by: ["month"],
-      where: {
-        ...where,
-        year: selectedYear,
-      },
-      _sum: {
-        netAmount: true,
-      },
-      orderBy: {
-        month: "asc",
-      },
-    });
-
     const monthlyTotals = monthlyResult.map((m) => ({
       month: new Date(selectedYear, m.month - 1).toLocaleString("default", {
         month: "short",
@@ -146,7 +167,8 @@ export async function GET(request: NextRequest) {
       amount: m._sum.netAmount || 0,
     }));
 
-    return NextResponse.json({
+    // Build response with caching headers
+    const response = NextResponse.json({
       records,
       pagination: {
         page,
@@ -160,6 +182,14 @@ export async function GET(request: NextRequest) {
         monthlyTotals,
       },
     });
+
+    // Cache for 30 seconds, stale-while-revalidate for 2 minutes
+    response.headers.set(
+      "Cache-Control",
+      "public, s-maxage=30, stale-while-revalidate=120",
+    );
+
+    return response;
   } catch (error) {
     console.error("Salary fetch error:", error);
     return NextResponse.json(

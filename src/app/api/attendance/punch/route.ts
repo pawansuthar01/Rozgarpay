@@ -6,17 +6,12 @@ import { authOptions } from "@/lib/auth";
 import { Prisma } from "@prisma/client";
 import {
   getCompanySettings,
-  isLocationValid,
-  isPunchInAllowed,
-  isPunchOutAllowed,
   calculateHours,
   getDate,
   LocationData,
 } from "@/lib/attendanceUtils";
-import { notificationManager } from "@/lib/notifications/manager";
 
 import { getCurrentTime } from "@/lib/utils";
-import { toZonedTime } from "date-fns-tz";
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,17 +28,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Company not found" }, { status: 400 });
     }
 
-    /* ================= SALARY SETUP CHECK ================= */
-
     const body = await request.json();
 
-    /* ================= IMAGE ================= */
+    // IMAGE - only upload after validation
     if (!body.imageUrl) {
       return NextResponse.json({ error: "Image is required" }, { status: 400 });
     }
     const imageUrl: string = body.imageUrl;
 
-    /* ================= LOCATION ================= */
+    // VALIDATION DATA from validate endpoint
+    const validation = body.validation;
+    if (!validation || !validation.valid) {
+      return NextResponse.json(
+        { error: "Validation required first" },
+        { status: 400 },
+      );
+    }
+
+    // LOCATION
     let location: LocationData | null = null;
     if (body.location) {
       location = {
@@ -52,87 +54,20 @@ export async function POST(request: NextRequest) {
       };
     }
 
-    /* ================= SETTINGS ================= */
-    const settings = await getCompanySettings(companyId);
     const nowUtc = getCurrentTime();
-    const nowIst = toZonedTime(nowUtc, "Asia/Kolkata");
-
-    /* ================= ATTENDANCE DATE ================= */
-    const attendanceDate = getDate(nowUtc);
-
-    /* ================= FIND REAL OPEN ATTENDANCE ================= */
-    let openAttendance = await prisma.attendance.findFirst({
-      where: {
-        userId,
-        companyId,
-        punchIn: { not: null },
-        punchOut: null,
-        attendanceDate,
-      },
-      orderBy: { punchIn: "desc" },
-    });
+    const settings = await getCompanySettings(companyId);
 
     let attendance;
 
-    /* =====================================================
-       ====================== PUNCH OUT =====================
-       ===================================================== */
-    if (openAttendance) {
-      const hoursOpen =
-        (nowUtc.getTime() - openAttendance.punchIn!.getTime()) / 36e5;
+    // PUNCH OUT
+    if (validation.punchType === "out" && validation.attendanceId) {
+      const openAttendance = await prisma.attendance.findUnique({
+        where: { id: validation.attendanceId },
+      });
 
-      if (hoursOpen > 20) {
-        // Fixed BUG-005: Set punchOut to current time instead of punchIn time
-        await prisma.attendance.update({
-          where: { id: openAttendance.id },
-          data: {
-            punchOut: nowUtc,
-            workingHours: 0,
-            status: "REJECTED",
-            approvalReason:
-              "System auto-closed stale attendance (no punch-out for >20 hours)",
-          },
-        });
-
-        openAttendance = null;
-      }
-    }
-
-    if (openAttendance) {
-      //location system in not ready now
-
-      // if (settings.locationLat && settings.locationLng) {
-      //   if (!location) {
-      //     return NextResponse.json(
-      //       { error: "Location is required for punch-out." },
-      //       { status: 400 },
-      //     );
-      //   }
-
-      //   const valid = isLocationValid(
-      //     location,
-      //     { lat: settings.locationLat, lng: settings.locationLng },
-      //     settings.locationRadius,
-      //   );
-
-      //   if (!valid) {
-      //     return NextResponse.json(
-      //       { error: "You are not within company premises." },
-      //       { status: 400 },
-      //     );
-      //   }
-      // }
-
-      // Punch-out rules
-      const punchOutCheck = isPunchOutAllowed(
-        openAttendance.punchIn!,
-        settings.minWorkingHours,
-        settings.maxDailyHours,
-      );
-
-      if (!punchOutCheck.allowed) {
+      if (!openAttendance) {
         return NextResponse.json(
-          { error: punchOutCheck.reason },
+          { error: "Attendance session not found" },
           { status: 400 },
         );
       }
@@ -156,7 +91,6 @@ export async function POST(request: NextRequest) {
           punchOutLocation: location
             ? JSON.stringify(location)
             : Prisma.JsonNull,
-
           workingHours,
           overtimeHours,
         },
@@ -171,19 +105,21 @@ export async function POST(request: NextRequest) {
           meta: { type: "PUNCH_OUT" },
         },
       });
-    } else {
-      /* =====================================================
-       ====================== PUNCH IN ======================
-       ===================================================== */
-      // ❌ Prevent double punch-in
+    }
+    // PUNCH IN
+    else if (validation.punchType === "in") {
+      const attendanceDate = getDate(nowUtc);
+
+      // Double-check no existing open attendance
       const existingOpen = await prisma.attendance.findFirst({
         where: {
           userId,
           companyId,
           punchOut: null,
-          attendanceDate: attendanceDate,
+          attendanceDate,
         },
       });
+
       if (existingOpen) {
         return NextResponse.json(
           {
@@ -194,53 +130,18 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const punchInCheck = isPunchInAllowed(
-        nowIst,
-        settings.shiftStartTime,
-        settings.shiftEndTime,
-        settings.gracePeriodMinutes,
-      );
-
-      if (!punchInCheck.allowed) {
-        return NextResponse.json(
-          { error: punchInCheck.reason },
-          { status: 400 },
-        );
-      }
-      //location system in not ready now
-      // if (settings.locationLat && settings.locationLng) {
-      //   if (!location) {
-      //     return NextResponse.json(
-      //       { error: "Location is required for punch-in." },
-      //       { status: 400 },
-      //     );
-      //   }
-
-      //   const valid = isLocationValid(
-      //     location,
-      //     { lat: settings.locationLat, lng: settings.locationLng },
-      //     settings.locationRadius,
-      //   );
-
-      //   if (!valid) {
-      //     return NextResponse.json(
-      //       { error: "You are not within company premises." },
-      //       { status: 400 },
-      //     );
-      //   }
-      // }
       attendance = await prisma.attendance.create({
         data: {
           userId,
           companyId,
           attendanceDate,
-          LateMinute: punchInCheck.lateMin ?? 0,
+          LateMinute: validation.lateMinutes ?? 0,
           punchIn: nowUtc,
           punchInLocation: location
             ? JSON.stringify(location)
             : Prisma.JsonNull,
           punchInImageUrl: imageUrl,
-          isLate: punchInCheck.isLate,
+          isLate: validation.isLate,
           status: "PENDING",
         },
       });
@@ -254,10 +155,16 @@ export async function POST(request: NextRequest) {
           meta: { type: "PUNCH_IN" },
         },
       });
+    } else {
+      return NextResponse.json(
+        { error: "Invalid punch type" },
+        { status: 400 },
+      );
     }
 
     return NextResponse.json({ success: true, attendance });
   } catch (error) {
+    console.error("Punch error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

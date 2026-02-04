@@ -47,7 +47,7 @@ export default function AdminAttendanceDetailPage() {
   const [auditPage, setAuditPage] = useState(1);
   const [auditLimit, setAuditLimit] = useState(10);
   const [auditSortBy, setAuditSortBy] = useState("attendanceDate");
-  const [auditSortOrder, setAuditSortOrder] = useState("desc");
+  const [auditSortOrder, setAuditSortOrder] = useState<"asc" | "desc">("desc");
 
   // Use hooks
   const {
@@ -278,7 +278,9 @@ export default function AdminAttendanceDetailPage() {
             </select>
             <select
               value={auditSortOrder}
-              onChange={(e) => setAuditSortOrder(e.target.value)}
+              onChange={(e) =>
+                setAuditSortOrder(e.target.value as "asc" | "desc")
+              }
               className="px-3 py-2 border border-gray-300 rounded-md text-sm"
             >
               <option value="desc">Descending</option>

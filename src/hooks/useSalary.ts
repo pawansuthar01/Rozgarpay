@@ -1,113 +1,30 @@
+/**
+ * Optimized Salary Hook
+ *
+ * Performance optimizations:
+ * - Optimized stale times
+ * - Performance monitoring integration
+ * - Placeholder data for smooth loading
+ */
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { performanceMonitor } from "@/lib/performanceMonitor";
+import { SalaryRecord, SalaryApiResponse } from "@/types/salary";
 
-export interface SalaryRecord {
-  id: string;
-  userId: string;
-  month: number;
-  year: number;
-  totalWorkingDays: number;
-  totalDays: number;
-  totalWorkingHours: number;
-  overtimeHours: number;
-  approvedDays: number;
-  lateMinutes: number;
-  halfDays: number;
-  netSalary: number;
-  absentDays: number;
-  baseAmount: number;
-  overtimeAmount: number;
-  penaltyAmount: number;
-  deductions: number;
-  grossAmount: number;
-  netAmount: number;
-  status: string;
-  paidAt?: string;
-  pdfUrl?: string;
-  approvedByUser?: {
-    firstName: string;
-    lastName: string;
-  };
-  rejectedByUser?: {
-    firstName: string;
-    lastName: string;
-  };
-  user: {
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone: string;
-  };
-  breakdowns: Array<{
-    type: string;
-    description: string;
-    amount: number;
-  }>;
-  ledger?: Array<{
-    id: string;
-    type: string;
-    amount: number;
-    reason?: string;
-    description?: string;
-    createdAt: string;
-  }>;
-}
+// ============================================================================
+// Stale Times
+// ============================================================================
 
-interface SalaryBreakdown {
-  id: string;
-  salaryId: string;
-  type: "BASE" | "PAYMENT" | "DEDUCTION" | "RECOVERY" | "ADVANCE";
-  description: string;
-  amount: number;
-  date: string;
-}
+const STALE_TIMES = {
+  LIST: 1000 * 60 * 2, // 2 minutes
+  DETAIL: 1000 * 60 * 5, // 5 minutes
+  REPORTS: 1000 * 60 * 5, // 5 minutes
+} as const;
 
-interface SalaryResponse {
-  salaries: SalaryRecord[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
-}
+// ============================================================================
+// Hooks
+// ============================================================================
 
-interface GenerateSalaryRequest {
-  month: number;
-  year: number;
-  companyId: string;
-}
-
-interface GenerateSalaryResponse {
-  success: boolean;
-  generatedCount: number;
-  errors: string[];
-}
-
-interface AddPaymentRequest {
-  amount: number;
-  reason: string;
-  mode: string;
-  paymentDate: string;
-}
-
-interface AddPaymentResponse {
-  paymentId: string;
-  newBalance: number;
-}
-
-interface AddDeductionRequest {
-  cycle: string;
-  recordDate: string;
-  amount: number;
-  description?: string;
-}
-
-interface AddDeductionResponse {
-  success: boolean;
-  message: string;
-}
-
-// Query: Get salaries
 export function useSalaries(params?: {
   page?: number;
   limit?: number;
@@ -115,74 +32,56 @@ export function useSalaries(params?: {
   month?: number;
   year?: number;
   status?: string;
-  sortBy?: string;
-  sortOrder?: string;
   search?: string;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
 }) {
   return useQuery({
-    queryKey: ["salaries", params],
+    queryKey: ["salaries", "list", params] as const,
     queryFn: async () => {
+      const startTime = performance.now();
       const searchParams = new URLSearchParams();
-      if (params?.page) searchParams.set("page", params.page.toString());
-      if (params?.limit) searchParams.set("limit", params.limit.toString());
-      if (params?.userId) searchParams.set("userId", params.userId);
-      if (params?.month) searchParams.set("month", params.month.toString());
-      if (params?.year) searchParams.set("year", params.year.toString());
-      if (params?.status) searchParams.set("status", params.status);
-      if (params?.sortBy) searchParams.set("sortBy", params.sortBy);
-      if (params?.sortOrder) searchParams.set("sortOrder", params.sortOrder);
-      if (params?.search) searchParams.set("search", params.search);
+      if (params?.page) searchParams.set("page", String(params.page));
+      if (params?.limit) searchParams.set("limit", String(params.limit));
+      if (params?.userId) searchParams.set("userId", String(params.userId));
+      if (params?.month) searchParams.set("month", String(params.month));
+      if (params?.year) searchParams.set("year", String(params.year));
+      if (params?.status) searchParams.set("status", String(params.status));
+      if (params?.search) searchParams.set("search", String(params.search));
 
       const response = await fetch(`/api/admin/salary?${searchParams}`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch salaries");
-      }
-      return response.json() as Promise<{
-        records: SalaryRecord[];
-        pagination: {
-          page: number;
-          limit: number;
-          total: number;
-          totalPages: number;
-        };
-        stats: {
-          totalRecords: number;
-          pending: number;
-          approved: number;
-          paid: number;
-          rejected: number;
-          totalAmount: number;
-        };
-        charts: {
-          statusDistribution: { name: string; value: number; color: string }[];
-          monthlyTotals: { month: string; amount: number }[];
-        };
-      }>;
+      if (!response.ok) throw new Error("Failed to fetch salaries");
+
+      const data = await response.json();
+      performanceMonitor.recordQueryMetric({
+        queryKey: "salaries.list",
+        duration: performance.now() - startTime,
+        status: "success",
+        isCacheHit: false,
+        timestamp: Date.now(),
+      });
+      return data;
     },
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: STALE_TIMES.LIST,
+    placeholderData: (previousData) => previousData,
   });
 }
 
-// Mutation: Generate salaries
 export function useGenerateSalaries() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (data: GenerateSalaryRequest) => {
+    mutationFn: async (data: any) => {
       const response = await fetch("/api/admin/salary/generate", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Failed to generate salaries");
       }
-
-      return response.json() as Promise<GenerateSalaryResponse>;
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["salaries"] });
@@ -190,22 +89,29 @@ export function useGenerateSalaries() {
   });
 }
 
-// Query: Get salary by ID
 export function useSalary(salaryId: string) {
   return useQuery({
-    queryKey: ["salary", salaryId],
+    queryKey: ["salary", "detail", salaryId] as const,
     queryFn: async () => {
+      const startTime = performance.now();
       const response = await fetch(`/api/admin/salary/${salaryId}`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch salary");
-      }
-      return response.json() as Promise<SalaryRecord>;
+      if (!response.ok) throw new Error("Failed to fetch salary");
+
+      const data = await response.json();
+      performanceMonitor.recordQueryMetric({
+        queryKey: "salaries.detail",
+        duration: performance.now() - startTime,
+        status: "success",
+        isCacheHit: false,
+        timestamp: Date.now(),
+      });
+      return data;
     },
     enabled: !!salaryId,
+    staleTime: STALE_TIMES.DETAIL,
   });
 }
 
-// Mutation: Approve salary
 export function useApproveSalary() {
   const queryClient = useQueryClient();
 
@@ -214,22 +120,21 @@ export function useApproveSalary() {
       const response = await fetch(`/api/admin/salary/${salaryId}/approve`, {
         method: "POST",
       });
-
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Failed to approve salary");
       }
-
-      return response.json() as Promise<SalaryRecord>;
+      return response.json();
     },
-    onSuccess: (data, salaryId) => {
+    onSuccess: (_, salaryId) => {
       queryClient.invalidateQueries({ queryKey: ["salaries"] });
-      queryClient.invalidateQueries({ queryKey: ["salary", salaryId] });
+      queryClient.invalidateQueries({
+        queryKey: ["salary", "detail", salaryId],
+      });
     },
   });
 }
 
-// Mutation: Reject salary
 export function useRejectSalary() {
   const queryClient = useQueryClient();
 
@@ -238,22 +143,21 @@ export function useRejectSalary() {
       const response = await fetch(`/api/admin/salary/${salaryId}/reject`, {
         method: "POST",
       });
-
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Failed to reject salary");
       }
-
-      return response.json() as Promise<SalaryRecord>;
+      return response.json();
     },
-    onSuccess: (data, salaryId) => {
+    onSuccess: (_, salaryId) => {
       queryClient.invalidateQueries({ queryKey: ["salaries"] });
-      queryClient.invalidateQueries({ queryKey: ["salary", salaryId] });
+      queryClient.invalidateQueries({
+        queryKey: ["salary", "detail", salaryId],
+      });
     },
   });
 }
 
-// Mutation: Mark salary as paid
 export function useMarkSalaryPaid() {
   const queryClient = useQueryClient();
 
@@ -263,42 +167,28 @@ export function useMarkSalaryPaid() {
       paymentData,
     }: {
       salaryId: string;
-      paymentData: {
-        date: string;
-        method: string;
-        reference?: string;
-        sendNotification?: boolean;
-      };
+      paymentData: any;
     }) => {
       const response = await fetch(`/api/admin/salary/${salaryId}/mark-paid`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          date: paymentData.date,
-          method: paymentData.method,
-          reference: paymentData.reference,
-          sendNotification: paymentData.sendNotification ?? true,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(paymentData),
       });
-
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Failed to mark salary as paid");
       }
-
-      return response.json() as Promise<{ salary: SalaryRecord }>;
+      return response.json();
     },
-    onSuccess: (data, variables) => {
-      const salaryId = variables.salaryId;
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["salaries"] });
-      queryClient.invalidateQueries({ queryKey: ["salary", salaryId] });
+      queryClient.invalidateQueries({
+        queryKey: ["salary", "detail", variables.salaryId],
+      });
     },
   });
 }
 
-// Mutation: Recalculate salary
 export function useRecalculateSalary() {
   const queryClient = useQueryClient();
 
@@ -306,237 +196,103 @@ export function useRecalculateSalary() {
     mutationFn: async (salaryId: string) => {
       const response = await fetch(
         `/api/admin/salary/${salaryId}/recalculate`,
-        {
-          method: "POST",
-        },
+        { method: "POST" },
       );
-
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Failed to recalculate salary");
       }
-
-      return response.json() as Promise<SalaryRecord>;
+      return response.json();
     },
-    onSuccess: (data, salaryId) => {
+    onSuccess: (_, salaryId) => {
       queryClient.invalidateQueries({ queryKey: ["salaries"] });
-      queryClient.invalidateQueries({ queryKey: ["salary", salaryId] });
+      queryClient.invalidateQueries({
+        queryKey: ["salary", "detail", salaryId],
+      });
     },
   });
 }
 
-// Mutation: Add payment to user
 export function useAddPayment() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
-      userId,
-      data,
-    }: {
-      userId: string;
-      data: AddPaymentRequest;
-    }) => {
+    mutationFn: async ({ userId, data }: { userId: string; data: any }) => {
       const response = await fetch(`/api/admin/users/${userId}/payments`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Failed to add payment");
       }
-
-      return response.json() as Promise<AddPaymentResponse>;
+      return response.json();
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["salaries"] });
       queryClient.invalidateQueries({ queryKey: ["payments"] });
-      // Invalidate user profile queries
       queryClient.invalidateQueries({
         queryKey: ["userProfile", variables.userId],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["userCurrentMonth", variables.userId],
       });
     },
   });
 }
 
-interface RecoverPaymentRequest {
-  amount: number;
-  recoverDate: string;
-  reason: string;
-}
-
-interface RecoverPaymentResponse {
-  success: boolean;
-  message: string;
-}
-
-// Mutation: Recover payment from user
 export function useRecoverPayment() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
-      userId,
-      data,
-    }: {
-      userId: string;
-      data: RecoverPaymentRequest;
-    }) => {
+    mutationFn: async ({ userId, data }: { userId: string; data: any }) => {
       const response = await fetch(
         `/api/admin/users/${userId}/recover-payment`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(data),
         },
       );
-
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Failed to recover payment");
       }
-
-      return response.json() as Promise<RecoverPaymentResponse>;
+      return response.json();
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["salaries"] });
       queryClient.invalidateQueries({ queryKey: ["payments"] });
-      // Invalidate user profile queries
       queryClient.invalidateQueries({
         queryKey: ["userProfile", variables.userId],
       });
-      queryClient.invalidateQueries({
-        queryKey: ["userCurrentMonth", variables.userId],
-      });
     },
   });
 }
 
-// Query: Get staff salaries
-export function useStaffSalaries(params?: { month?: number; year?: number }) {
-  return useQuery({
-    queryKey: ["staff", "salaries", params],
-    queryFn: async () => {
-      const searchParams = new URLSearchParams();
-      if (params?.month) searchParams.set("month", params.month.toString());
-      if (params?.year) searchParams.set("year", params.year.toString());
-
-      const response = await fetch(`/api/staff/salary?${searchParams}`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch staff salaries");
-      }
-      return response.json() as Promise<{
-        salaries: SalaryRecord[];
-        currentSalary?: SalaryRecord;
-        stats: {
-          totalSalaries: number;
-          pending: number;
-          approved: number;
-          paid: number;
-          rejected: number;
-          totalEarned: number;
-        };
-        currentMonth: number;
-        currentYear: number;
-      }>;
-    },
-    staleTime: 1000 * 60 * 5, // 5 minutes
-  });
-}
-
-// Query: Get staff salary overview
-export function useStaffSalaryOverview() {
-  return useQuery({
-    queryKey: ["staff", "salary", "overview"],
-    queryFn: async () => {
-      const response = await fetch("/api/staff/salary/overview");
-      if (!response.ok) {
-        throw new Error("Failed to fetch staff salary overview");
-      }
-      return response.json() as Promise<{
-        totalOwed: number;
-        totalOwe: number;
-        pendingAmount: number;
-        monthlyBreakdown: Array<{
-          month: number;
-          year: number;
-          given: number;
-          taken: number;
-          net: number;
-          balance: number;
-          status: string;
-        }>;
-        recentTransactions: Array<{
-          id: string;
-          type: string;
-          description: string;
-          amount: number;
-          date: string;
-          salaryMonth?: string;
-        }>;
-        currentMonth: {
-          owed: number;
-          owe: number;
-          net: number;
-        };
-      }>;
-    },
-    staleTime: 1000 * 60 * 5, // 5 minutes
-  });
-}
-
-// Mutation: Add deduction to user
 export function useAddDeduction() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
-      userId,
-      data,
-    }: {
-      userId: string;
-      data: AddDeductionRequest;
-    }) => {
+    mutationFn: async ({ userId, data }: { userId: string; data: any }) => {
       const response = await fetch(`/api/admin/users/${userId}/deductions`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Failed to add deduction");
       }
-
-      return response.json() as Promise<AddDeductionResponse>;
+      return response.json();
     },
-    onSuccess: (data, variables) => {
-      // Invalidate salary-related queries
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["salaries"] });
-      queryClient.invalidateQueries({ queryKey: ["salary"] });
-      // Invalidate user profile queries
       queryClient.invalidateQueries({
         queryKey: ["userProfile", variables.userId],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["userCurrentMonth", variables.userId],
       });
     },
   });
 }
 
-// Query: Get salary reports
 export function useSalaryReports(params?: {
   startDate?: string;
   endDate?: string;
@@ -544,40 +300,33 @@ export function useSalaryReports(params?: {
   limit?: number;
 }) {
   return useQuery({
-    queryKey: ["salary", "reports", params],
+    queryKey: ["salary", "reports", params] as const,
     queryFn: async () => {
+      const startTime = performance.now();
       const searchParams = new URLSearchParams();
-      if (params?.startDate) searchParams.set("startDate", params.startDate);
-      if (params?.endDate) searchParams.set("endDate", params.endDate);
-      if (params?.page) searchParams.set("page", params.page.toString());
-      if (params?.limit) searchParams.set("limit", params.limit.toString());
+      if (params?.startDate)
+        searchParams.set("startDate", String(params.startDate));
+      if (params?.endDate) searchParams.set("endDate", String(params.endDate));
+      if (params?.page) searchParams.set("page", String(params.page));
+      if (params?.limit) searchParams.set("limit", String(params.limit));
 
       const response = await fetch(`/api/admin/reports/salary?${searchParams}`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch salary reports");
-      }
-      return response.json() as Promise<{
-        totalPayout: number;
-        staffCount: number;
-        monthlyBreakdown: { month: string; amount: number }[];
-        staffBreakdown: {
-          userId: string;
-          user: {
-            firstName: string | null;
-            lastName: string | null;
-            email: string;
-          };
-          totalAmount: number;
-        }[];
-        statusDistribution: { name: string; value: number; color: string }[];
-        totalPages: number;
-      }>;
+      if (!response.ok) throw new Error("Failed to fetch salary reports");
+
+      const data = await response.json();
+      performanceMonitor.recordQueryMetric({
+        queryKey: "salary.reports",
+        duration: performance.now() - startTime,
+        status: "success",
+        isCacheHit: false,
+        timestamp: Date.now(),
+      });
+      return data;
     },
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: STALE_TIMES.REPORTS,
   });
 }
 
-// Mutation: Download salary slip
 export function useSalarySlipDownload() {
   return useMutation({
     mutationFn: async ({
@@ -592,17 +341,14 @@ export function useSalarySlipDownload() {
       const params = new URLSearchParams({
         year: String(year),
         month: String(month),
-        type: type,
+        type,
       });
-
       const res = await fetch(`/api/staff/salary-slips/generate?${params}`);
       const contentType = res.headers.get("content-type");
-
       if (!res.ok || !contentType?.includes("pdf")) {
         const err = await res.json();
         throw new Error(err?.error || "Failed to generate PDF");
       }
-
       const blob = await res.blob();
       return new File([blob], `${type}-salary-slip-${month}-${year}.pdf`, {
         type: "application/pdf",
@@ -611,7 +357,6 @@ export function useSalarySlipDownload() {
   });
 }
 
-// Mutation: Generate salary report
 export function useGenerateSalaryReport() {
   return useMutation({
     mutationFn: async ({ format }: { format?: string }) => {
@@ -620,14 +365,11 @@ export function useGenerateSalaryReport() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ format: format || "pdf" }),
       });
-
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Failed to generate report");
       }
-
-      const blob = await response.blob();
-      return blob;
+      return response.blob();
     },
   });
 }

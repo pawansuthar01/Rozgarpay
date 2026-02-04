@@ -43,7 +43,7 @@ export default function CreateUserPage() {
   const [formData, setFormData] = useState<FormData>({
     name: "",
     email: "",
-    phone: "",
+    phone: "+91",
     role: "STAFF",
     sendWelcome: true,
   });

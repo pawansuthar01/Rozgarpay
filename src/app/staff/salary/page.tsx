@@ -29,10 +29,10 @@ import {
 } from "lucide-react";
 import { formatDate, formatTime, formatCurrency } from "@/lib/utils";
 import {
+  useGenerateSalaryReport,
   useStaffSalaries,
   useStaffSalaryOverview,
-  useGenerateSalaryReport,
-} from "@/hooks/useSalary";
+} from "@/hooks";
 
 interface SalaryTransaction {
   id: string;
@@ -273,7 +273,7 @@ export default function StaffSalaryOverviewPage() {
                             </td>
                           </tr>
                         ))
-                      : overview?.monthlyBreakdown.map((month) => (
+                      : overview?.monthlyBreakdown.map((month: any) => (
                           <tr
                             key={`${month.year}-${month.month}`}
                             className="hover:bg-gray-50"
@@ -328,7 +328,7 @@ export default function StaffSalaryOverviewPage() {
                         <Skeleton height={20} width={80} />
                       </div>
                     ))
-                  : overview?.recentTransactions.map((transaction) => (
+                  : overview?.recentTransactions.map((transaction: any) => (
                       <div
                         key={transaction.id}
                         className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
@@ -409,9 +409,9 @@ export default function StaffSalaryOverviewPage() {
                 className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white shadow-sm"
               >
                 <option value="all">All Years</option>
-                {Array.from(new Set(salaries.map((s) => s.year)))
-                  .sort((a, b) => b - a)
-                  .map((year) => (
+                {Array.from(new Set(salaries.map((s: any) => s.year)))
+                  .sort((a: any, b: any) => b - a)
+                  .map((year: any) => (
                     <option key={year} value={year}>
                       {year}
                     </option>
@@ -456,23 +456,23 @@ export default function StaffSalaryOverviewPage() {
               <div className="space-y-6">
                 {salaries
                   .filter(
-                    (salary) =>
+                    (salary: any) =>
                       (selectedYear === "all" ||
                         salary.year === selectedYear) &&
                       (selectedStatus === "all" ||
                         salary.status === selectedStatus),
                   )
                   .sort(
-                    (a, b) =>
+                    (a: any, b: any) =>
                       new Date(b.year, b.month - 1).getTime() -
                       new Date(a.year, a.month - 1).getTime(),
                   )
-                  .map((salary) => {
+                  .map((salary: any) => {
                     const isExpanded = expandedId === salary.id;
-                    const earnings = salary.breakdowns.filter((b) =>
+                    const earnings = salary.breakdowns.filter((b: any) =>
                       ["BASE_SALARY", "OVERTIME"].includes(b.type),
                     );
-                    const deductions = salary.breakdowns.filter((b) =>
+                    const deductions = salary.breakdowns.filter((b: any) =>
                       [
                         "PF_DEDUCTION",
                         "ESI_DEDUCTION",
@@ -482,13 +482,17 @@ export default function StaffSalaryOverviewPage() {
                     );
                     // Get ledger deductions and recoveries with dates
                     const ledgerDeductions =
-                      salary.ledger?.filter((l) => l.type === "DEDUCTION") ||
-                      [];
+                      salary.ledger?.filter(
+                        (l: any) => l.type === "DEDUCTION",
+                      ) || [];
                     const ledgerRecoveries =
-                      salary.ledger?.filter((l) => l.type === "RECOVERY") || [];
+                      salary.ledger?.filter(
+                        (l: any) => l.type === "RECOVERY",
+                      ) || [];
                     const ledgerPayments =
                       salary.ledger?.filter(
-                        (l) => l.type === "PAYMENT" || l.type === "EARNING",
+                        (l: any) =>
+                          l.type === "PAYMENT" || l.type === "EARNING",
                       ) || [];
                     const payments = salary.paidAt
                       ? [{ amount: salary.netAmount, date: salary.paidAt }]
@@ -591,19 +595,21 @@ export default function StaffSalaryOverviewPage() {
                               </button>
                               {earningsExpanded && (
                                 <div className="mt-2 space-y-2">
-                                  {earnings.map((breakdown, index) => (
-                                    <div
-                                      key={index}
-                                      className="flex justify-between"
-                                    >
-                                      <span className="text-gray-700">
-                                        {breakdown.description}
-                                      </span>
-                                      <span className="font-medium">
-                                        ₹{formatCurrency(breakdown.amount)}
-                                      </span>
-                                    </div>
-                                  ))}
+                                  {earnings.map(
+                                    (breakdown: any, index: any) => (
+                                      <div
+                                        key={index}
+                                        className="flex justify-between"
+                                      >
+                                        <span className="text-gray-700">
+                                          {breakdown.description}
+                                        </span>
+                                        <span className="font-medium">
+                                          ₹{formatCurrency(breakdown.amount)}
+                                        </span>
+                                      </div>
+                                    ),
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -615,24 +621,26 @@ export default function StaffSalaryOverviewPage() {
                               </h4>
                               <div className="space-y-2">
                                 {/* Salary breakdown deductions */}
-                                {deductions.map((breakdown, index) => (
-                                  <div
-                                    key={`breakdown-${index}`}
-                                    className="flex justify-between"
-                                  >
-                                    <span className="text-gray-700">
-                                      {breakdown.description}
-                                    </span>
-                                    <span className="font-medium text-red-600">
-                                      ₹
-                                      {formatCurrency(
-                                        Math.abs(breakdown.amount),
-                                      )}
-                                    </span>
-                                  </div>
-                                ))}
+                                {deductions.map(
+                                  (breakdown: any, index: any) => (
+                                    <div
+                                      key={`breakdown-${index}`}
+                                      className="flex justify-between"
+                                    >
+                                      <span className="text-gray-700">
+                                        {breakdown.description}
+                                      </span>
+                                      <span className="font-medium text-red-600">
+                                        ₹
+                                        {formatCurrency(
+                                          Math.abs(breakdown.amount),
+                                        )}
+                                      </span>
+                                    </div>
+                                  ),
+                                )}
                                 {/* Ledger deductions with dates */}
-                                {ledgerDeductions.map((deduction) => (
+                                {ledgerDeductions.map((deduction: any) => (
                                   <div
                                     key={deduction.id}
                                     className="flex justify-between"
@@ -658,7 +666,7 @@ export default function StaffSalaryOverviewPage() {
                                   </div>
                                 ))}
                                 {/* Ledger recoveries with dates */}
-                                {ledgerRecoveries.map((recovery) => (
+                                {ledgerRecoveries.map((recovery: any) => (
                                   <div
                                     key={recovery.id}
                                     className="flex justify-between"
@@ -699,7 +707,7 @@ export default function StaffSalaryOverviewPage() {
                               <div className="space-y-2">
                                 {/* Ledger payments with dates */}
                                 {ledgerPayments.length > 0 ? (
-                                  ledgerPayments.map((payment) => (
+                                  ledgerPayments.map((payment: any) => (
                                     <div
                                       key={payment.id}
                                       className="flex justify-between"

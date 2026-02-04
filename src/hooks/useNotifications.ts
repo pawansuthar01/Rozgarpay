@@ -1,4 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { notificationsKeys } from "@/lib/queryKeys";
+import { performanceMonitor } from "@/lib/performanceMonitor";
 
 interface Notification {
   id: string;
@@ -21,6 +23,17 @@ interface NotificationsResponse {
   };
 }
 
+// Placeholder data for smooth loading
+const PLACEHOLDER_NOTIFICATIONS = {
+  notifications: [],
+  pagination: {
+    page: 1,
+    limit: 20,
+    total: 0,
+    totalPages: 0,
+  },
+};
+
 // Query: Get notifications
 export function useNotifications(params?: {
   page?: number;
@@ -28,21 +41,47 @@ export function useNotifications(params?: {
   isRead?: boolean;
 }) {
   return useQuery({
-    queryKey: ["notifications", params],
+    queryKey: notificationsKeys.lists(params),
     queryFn: async () => {
+      const startTime = performance.now();
       const searchParams = new URLSearchParams();
       if (params?.page) searchParams.set("page", params.page.toString());
       if (params?.limit) searchParams.set("limit", params.limit.toString());
       if (params?.isRead !== undefined)
         searchParams.set("isRead", params.isRead.toString());
 
-      const response = await fetch(`/api/admin/notifications?${searchParams}`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch notifications");
+      try {
+        const response = await fetch(
+          `/api/admin/notifications?${searchParams}`,
+        );
+        if (!response.ok) {
+          throw new Error("Failed to fetch notifications");
+        }
+        const data = (await response.json()) as NotificationsResponse;
+
+        performanceMonitor.recordQueryMetric({
+          queryKey: "notifications.list",
+          duration: performance.now() - startTime,
+          status: "success",
+          isCacheHit: false,
+          timestamp: Date.now(),
+        });
+
+        return data;
+      } catch (error) {
+        performanceMonitor.recordQueryMetric({
+          queryKey: "notifications.list",
+          duration: performance.now() - startTime,
+          status: "error",
+          isCacheHit: false,
+          timestamp: Date.now(),
+        });
+        throw error;
       }
-      return response.json() as Promise<NotificationsResponse>;
     },
-    staleTime: 1000 * 60 * 2, // 2 minutes
+    staleTime: 1000 * 60 * 1, // 1 minute - notifications change frequently
+    gcTime: 1000 * 60 * 10, // 10 minutes cache
+    placeholderData: PLACEHOLDER_NOTIFICATIONS,
   });
 }
 
@@ -53,21 +92,47 @@ export function useStaffNotifications(params?: {
   isRead?: boolean;
 }) {
   return useQuery({
-    queryKey: ["staff", "notifications", params],
+    queryKey: ["staff", "notifications", "list", params],
     queryFn: async () => {
+      const startTime = performance.now();
       const searchParams = new URLSearchParams();
       if (params?.page) searchParams.set("page", params.page.toString());
       if (params?.limit) searchParams.set("limit", params.limit.toString());
       if (params?.isRead !== undefined)
         searchParams.set("isRead", params.isRead.toString());
 
-      const response = await fetch(`/api/staff/notifications?${searchParams}`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch staff notifications");
+      try {
+        const response = await fetch(
+          `/api/staff/notifications?${searchParams}`,
+        );
+        if (!response.ok) {
+          throw new Error("Failed to fetch staff notifications");
+        }
+        const data = (await response.json()) as NotificationsResponse;
+
+        performanceMonitor.recordQueryMetric({
+          queryKey: "staff.notifications.list",
+          duration: performance.now() - startTime,
+          status: "success",
+          isCacheHit: false,
+          timestamp: Date.now(),
+        });
+
+        return data;
+      } catch (error) {
+        performanceMonitor.recordQueryMetric({
+          queryKey: "staff.notifications.list",
+          duration: performance.now() - startTime,
+          status: "error",
+          isCacheHit: false,
+          timestamp: Date.now(),
+        });
+        throw error;
       }
-      return response.json() as Promise<NotificationsResponse>;
     },
-    staleTime: 1000 * 60 * 2, // 2 minutes
+    staleTime: 1000 * 60 * 1, // 1 minute
+    gcTime: 1000 * 60 * 10, // 10 minutes cache
+    placeholderData: PLACEHOLDER_NOTIFICATIONS,
   });
 }
 
@@ -92,7 +157,7 @@ export function useMarkNotificationRead() {
       return response.json() as Promise<Notification>;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: notificationsKeys.all });
       queryClient.invalidateQueries({ queryKey: ["staff", "notifications"] });
     },
   });
@@ -125,7 +190,7 @@ export function useCreateNotification() {
       return response.json() as Promise<Notification>;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: notificationsKeys.all });
       queryClient.invalidateQueries({ queryKey: ["staff", "notifications"] });
     },
   });

@@ -1,15 +1,15 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  saveAttendance,
-  getAttendanceByUser,
-  getAttendanceByDate,
-  isOnline,
-} from "@/lib/storage";
+  useQuery,
+  useMutation,
+  useQueryClient,
+  queryOptions,
+} from "@tanstack/react-query";
+import { saveAttendance } from "@/lib/storageWorker";
+import { performanceMonitor } from "@/lib/performanceMonitor";
 
-interface AttendanceTrend {
-  date: string;
-  count: number;
-}
+// ============================================================================
+// Types
+// ============================================================================
 
 interface AttendanceRecord {
   id: string;
@@ -23,18 +23,7 @@ interface AttendanceRecord {
   punchIn: string | null;
   punchOut: string | null;
   status: string;
-  punchOutImageUrl?: string;
-  punchInImageUrl?: string;
   workingHours?: number;
-  overtimeHours?: number;
-  shiftDurationHours?: number;
-  isLate?: boolean;
-  LateMinute?: number;
-  requiresApproval?: boolean;
-  approvalReason?: string;
-  approvedBy?: string;
-  approvedAt?: string;
-  rejectionReason?: string;
   createdAt: string;
 }
 
@@ -110,7 +99,166 @@ interface UpdateAttendanceStatusRequest {
   status: "APPROVED" | "REJECTED" | "ABSENT" | "LEAVE";
 }
 
-// Query: Get attendance records
+interface AuditLogRecord {
+  id: string;
+  action: string;
+  details: string;
+  userId: string;
+  createdAt: string;
+}
+
+interface MissingStaff {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string;
+  phone: string;
+}
+
+interface MissingStaffResponse {
+  missingStaff: MissingStaff[];
+  totalMissing: number;
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export type {
+  AttendanceRecord,
+  AttendanceResponse,
+  TodayAttendanceResponse,
+  PunchRequest,
+  PunchResponse,
+  UpdateAttendanceRequest,
+  ManagerAttendanceRecord,
+  ManagerAttendanceResponse,
+  UpdateAttendanceStatusRequest,
+  AuditLogRecord,
+  MissingStaff,
+  MissingStaffResponse,
+};
+
+// ============================================================================
+// Stale Times (based on data volatility)
+// ============================================================================
+
+const STALE_TIMES = {
+  LIST: 1000 * 60 * 2, // 2 minutes - changes occasionally
+  TODAY: 1000 * 60 * 1, // 1 minute - changes frequently
+  DETAIL: 1000 * 60 * 5, // 5 minutes - detailed data changes rarely
+  REPORTS: 1000 * 60 * 5, // 5 minutes - reports are expensive
+} as const;
+
+// ============================================================================
+// Fetch Functions
+// ============================================================================
+
+async function fetchAttendance(
+  params?: Record<string, string | number | undefined>,
+): Promise<AttendanceResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set("page", String(params.page));
+  if (params?.limit) searchParams.set("limit", String(params.limit));
+  if (params?.userId) searchParams.set("userId", String(params.userId));
+  if (params?.date) searchParams.set("date", String(params.date));
+  if (params?.status) searchParams.set("status", String(params.status));
+
+  const startTime = performance.now();
+
+  try {
+    const response = await fetch(`/api/admin/attendance?${searchParams}`);
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch attendance");
+    }
+
+    const data = (await response.json()) as AttendanceResponse;
+
+    const duration = performance.now() - startTime;
+    performanceMonitor.recordQueryMetric({
+      queryKey: "attendance.list",
+      duration,
+      status: "success",
+      isCacheHit: false,
+      timestamp: Date.now(),
+    });
+
+    // Cache to IndexedDB (non-blocking)
+    if (data.records && data.records.length > 0) {
+      saveAttendance(
+        data.records.map((record) => ({
+          id: record.id,
+          userId: record.userId,
+          attendanceDate: record.attendanceDate,
+          punchInTime: record.punchIn,
+          punchOutTime: record.punchOut,
+          status: record.status,
+          totalHours: record.workingHours,
+        })),
+      ).catch(() => {
+        /* Ignore caching errors */
+      });
+    }
+
+    return data;
+  } catch (error) {
+    const duration = performance.now() - startTime;
+    performanceMonitor.recordQueryMetric({
+      queryKey: "attendance.list",
+      duration,
+      status: "error",
+      isCacheHit: false,
+      timestamp: Date.now(),
+    });
+    throw error;
+  }
+}
+
+async function fetchTodayAttendance(): Promise<TodayAttendanceResponse> {
+  const startTime = performance.now();
+
+  try {
+    const response = await fetch("/api/attendance/today");
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch today's attendance");
+    }
+
+    const data = (await response.json()) as TodayAttendanceResponse;
+
+    const duration = performance.now() - startTime;
+    performanceMonitor.recordQueryMetric({
+      queryKey: "attendance.today",
+      duration,
+      status: "success",
+      isCacheHit: false,
+      timestamp: Date.now(),
+    });
+
+    return data;
+  } catch (error) {
+    const duration = performance.now() - startTime;
+    performanceMonitor.recordQueryMetric({
+      queryKey: "attendance.today",
+      duration,
+      status: "error",
+      isCacheHit: false,
+      timestamp: Date.now(),
+    });
+    throw error;
+  }
+}
+
+// ============================================================================
+// Hooks
+// ============================================================================
+
+/**
+ * Optimized attendance records query
+ */
 export function useAttendance(params?: {
   page?: number;
   limit?: number;
@@ -118,75 +266,55 @@ export function useAttendance(params?: {
   date?: string;
   status?: string;
   sortBy?: string;
-  sortOrder?: string;
+  sortOrder?: "asc" | "desc";
 }) {
   return useQuery({
-    queryKey: ["attendance", params],
-    queryFn: async () => {
-      const searchParams = new URLSearchParams();
-      if (params?.page) searchParams.set("page", params.page.toString());
-      if (params?.limit) searchParams.set("limit", params.limit.toString());
-      if (params?.userId) searchParams.set("userId", params.userId);
-      if (params?.date) searchParams.set("date", params.date);
-      if (params?.status) searchParams.set("status", params.status);
-      if (params?.sortBy) searchParams.set("sortBy", params.sortBy);
-      if (params?.sortOrder) searchParams.set("sortOrder", params.sortOrder);
-
-      const response = await fetch(`/api/admin/attendance?${searchParams}`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch attendance");
-      }
-
-      const data = (await response.json()) as AttendanceResponse;
-
-      // Cache the data in IndexedDB for offline use
-      // Fixed BUG-009: Improved error handling for IndexedDB caching
-      if (data.records && data.records.length > 0) {
-        try {
-          await saveAttendance(
-            data.records.map((record) => ({
-              id: record.id,
-              userId: record.userId,
-              attendanceDate: record.attendanceDate,
-              punchInTime: record.punchIn,
-              punchOutTime: record.punchOut,
-              status: record.status,
-              totalHours: record.workingHours,
-            })),
-          );
-        } catch (error) {
-          // BUG-009: Log more detailed error information
-          console.warn(
-            "Failed to cache attendance data for offline use:",
-            error instanceof Error ? error.message : "Unknown error",
-            "This may affect offline functionality.",
-          );
-          // Note: IndexedDB errors are non-critical, attendance data will still work online
-        }
-      }
-
-      return data;
-    },
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    queryKey: ["attendance", "list", params] as const,
+    queryFn: () => fetchAttendance(params),
+    staleTime: STALE_TIMES.LIST,
+    gcTime: 1000 * 60 * 10,
+    // Placeholder data for instant UI feedback while loading
+    placeholderData: (previousData) =>
+      previousData ?? {
+        records: [],
+        pagination: {
+          page: params?.page || 1,
+          limit: params?.limit || 10,
+          total: 0,
+          totalPages: 0,
+        },
+        stats: {
+          totalRecords: 0,
+          pending: 0,
+          approved: 0,
+          rejected: 0,
+          absent: 0,
+          leave: 0,
+        },
+        charts: {
+          statusDistribution: [],
+          dailyTrends: [],
+        },
+      },
   });
 }
 
-// Query: Get today's attendance
+/**
+ * Today's attendance - more frequent updates
+ */
 export function useTodayAttendance() {
   return useQuery({
-    queryKey: ["attendance", "today"],
-    queryFn: async () => {
-      const response = await fetch("/api/attendance/today");
-      if (!response.ok) {
-        throw new Error("Failed to fetch today's attendance");
-      }
-      return response.json() as Promise<TodayAttendanceResponse>;
-    },
-    staleTime: 1000 * 60 * 1, // 1 minute
+    queryKey: ["attendance", "today"] as const,
+    queryFn: fetchTodayAttendance,
+    staleTime: STALE_TIMES.TODAY,
+    gcTime: 1000 * 60 * 5,
+    refetchInterval: 60000, // Refetch every minute for active users
   });
 }
 
-// Mutation: Punch attendance
+/**
+ * Punch attendance mutation with optimistic updates
+ */
 export function usePunchAttendance() {
   const queryClient = useQueryClient();
 
@@ -194,9 +322,7 @@ export function usePunchAttendance() {
     mutationFn: async (data: PunchRequest) => {
       const response = await fetch("/api/attendance/punch", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
 
@@ -207,36 +333,72 @@ export function usePunchAttendance() {
 
       return response.json() as Promise<PunchResponse>;
     },
-    onSuccess: () => {
-      // Invalidate today's attendance
+    onMutate: async (newPunch) => {
+      await queryClient.cancelQueries({ queryKey: ["attendance", "today"] });
+      await queryClient.cancelQueries({ queryKey: ["attendance", "list"] });
+
+      const previousToday = queryClient.getQueryData(["attendance", "today"]);
+
+      queryClient.setQueryData(
+        ["attendance", "today"],
+        (old: TodayAttendanceResponse | undefined) => {
+          if (!old) return old;
+
+          if (newPunch.type === "IN") {
+            return {
+              ...old,
+              hasPunchedIn: true,
+              punchInTime: new Date().toISOString(),
+            };
+          } else {
+            return {
+              ...old,
+              hasPunchedOut: true,
+              punchOutTime: new Date().toISOString(),
+            };
+          }
+        },
+      );
+
+      return { previousToday };
+    },
+    onError: (error, variables, context) => {
+      if (context?.previousToday) {
+        queryClient.setQueryData(
+          ["attendance", "today"],
+          context.previousToday,
+        );
+      }
+      console.error("Punch attendance failed:", error);
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["attendance", "today"] });
-      queryClient.invalidateQueries({ queryKey: ["attendance"] });
+      queryClient.invalidateQueries({ queryKey: ["attendance", "list"] });
     },
   });
 }
 
-// Query: Get attendance by ID
+/**
+ * Get attendance by ID
+ */
 export function useAttendanceById(attendanceId: string) {
   return useQuery({
-    queryKey: ["attendance", attendanceId],
+    queryKey: ["attendance", "detail", attendanceId] as const,
     queryFn: async () => {
       const response = await fetch(`/api/admin/attendance/${attendanceId}`);
       if (!response.ok) {
         throw new Error("Failed to fetch attendance record");
       }
-      return response.json() as Promise<{
-        attendance: AttendanceRecord;
-        auditHistory: AttendanceRecord[];
-        charts: {
-          attendanceTrends: AttendanceTrend[];
-        };
-      }>;
+      return response.json();
     },
     enabled: !!attendanceId,
+    staleTime: STALE_TIMES.DETAIL,
   });
 }
 
-// Mutation: Update attendance
+/**
+ * Update attendance mutation
+ */
 export function useUpdateAttendance() {
   const queryClient = useQueryClient();
 
@@ -252,9 +414,7 @@ export function useUpdateAttendance() {
         `/api/admin/attendance/${attendanceId}/update`,
         {
           method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(data),
         },
       );
@@ -266,28 +426,46 @@ export function useUpdateAttendance() {
 
       return response.json() as Promise<{ attendance: AttendanceRecord }>;
     },
-    onSuccess: (data, variables) => {
-      // Update the cache with the new attendance data
+    onMutate: async ({ attendanceId, data }) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["attendance", "list"] });
+
+      // Snapshot the previous value
+      const previousList = queryClient.getQueryData(["attendance", "list"]);
+
+      // Optimistically update to the new value
       queryClient.setQueriesData(
-        { queryKey: ["attendance"] },
-        (oldData: any) => {
+        { queryKey: ["attendance", "list"] },
+        (oldData: AttendanceResponse | undefined) => {
           if (!oldData?.records) return oldData;
           return {
             ...oldData,
-            records: oldData.records.map((record: AttendanceRecord) =>
-              record.id === variables.attendanceId
-                ? { ...data.attendance }
-                : record,
+            records: oldData.records.map((record) =>
+              record.id === attendanceId ? { ...record, ...data } : record,
             ),
           };
         },
       );
-      queryClient.invalidateQueries({
-        queryKey: ["attendance", variables.attendanceId],
-      });
+
+      return { previousList };
+    },
+    onError: (error, variables, context) => {
+      // Rollback on error
+      if (context?.previousList) {
+        queryClient.setQueryData(["attendance", "list"], context.previousList);
+      }
+    },
+    onSettled: () => {
+      // Don't invalidate - we already updated optimistically
+      // If you need to sync with server, uncomment below:
+      // queryClient.invalidateQueries({ queryKey: ["attendance", "list"] });
     },
   });
 }
+
+/**
+ * Update attendance status - updates AFTER API response
+ */
 export function useUpdateStatus() {
   const queryClient = useQueryClient();
 
@@ -301,9 +479,7 @@ export function useUpdateStatus() {
     }) => {
       const response = await fetch(`/api/admin/attendance/${attendanceId}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
 
@@ -314,30 +490,16 @@ export function useUpdateStatus() {
 
       return response.json() as Promise<{ attendance: AttendanceRecord }>;
     },
-    onSuccess: (data, variables) => {
-      // Update the cache with the new attendance data
-      queryClient.setQueriesData(
-        { queryKey: ["attendance"] },
-        (oldData: any) => {
-          if (!oldData?.records) return oldData;
-          return {
-            ...oldData,
-            records: oldData.records.map((record: AttendanceRecord) =>
-              record.id === variables.attendanceId
-                ? { ...data.attendance }
-                : record,
-            ),
-          };
-        },
-      );
-      queryClient.invalidateQueries({
-        queryKey: ["attendance", variables.attendanceId],
-      });
+    onSettled: () => {
+      // Refetch after API response to update UI
+      queryClient.invalidateQueries({ queryKey: ["attendance", "list"] });
     },
   });
 }
 
-// Query: Get attendance reports
+/**
+ * Attendance reports query
+ */
 export function useAttendanceReports(params?: {
   startDate?: string;
   endDate?: string;
@@ -345,13 +507,14 @@ export function useAttendanceReports(params?: {
   limit?: number;
 }) {
   return useQuery({
-    queryKey: ["attendance", "reports", params],
+    queryKey: ["attendance", "reports", params] as const,
     queryFn: async () => {
       const searchParams = new URLSearchParams();
-      if (params?.startDate) searchParams.set("startDate", params.startDate);
-      if (params?.endDate) searchParams.set("endDate", params.endDate);
-      if (params?.page) searchParams.set("page", params.page.toString());
-      if (params?.limit) searchParams.set("limit", params.limit.toString());
+      if (params?.startDate)
+        searchParams.set("startDate", String(params.startDate));
+      if (params?.endDate) searchParams.set("endDate", String(params.endDate));
+      if (params?.page) searchParams.set("page", String(params.page));
+      if (params?.limit) searchParams.set("limit", String(params.limit));
 
       const response = await fetch(
         `/api/admin/reports/attendance?${searchParams}`,
@@ -359,48 +522,27 @@ export function useAttendanceReports(params?: {
       if (!response.ok) {
         throw new Error("Failed to fetch attendance reports");
       }
-      return response.json() as Promise<{
-        totalRecords: number;
-        present: number;
-        absent: number;
-        late: number;
-        trends: {
-          date: string;
-          present: number;
-          absent: number;
-          late: number;
-        }[];
-        staffSummary: {
-          userId: string;
-          user: {
-            firstName: string | null;
-            lastName: string | null;
-            email: string;
-          };
-          present: number;
-          absent: number;
-          late: number;
-        }[];
-        totalPages: number;
-      }>;
+      return response.json();
     },
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: STALE_TIMES.REPORTS,
   });
 }
 
-// Query: Get missing attendance
+/**
+ * Missing attendance query
+ */
 export function useMissingAttendance(params?: {
   date?: string;
   page?: number;
   limit?: number;
 }) {
-  return useQuery({
-    queryKey: ["attendance", "missing", params],
+  return useQuery<MissingStaffResponse>({
+    queryKey: ["attendance", "missing", params] as const,
     queryFn: async () => {
       const searchParams = new URLSearchParams();
-      if (params?.date) searchParams.set("date", params.date);
-      if (params?.page) searchParams.set("page", params.page.toString());
-      if (params?.limit) searchParams.set("limit", params.limit.toString());
+      if (params?.date) searchParams.set("date", String(params.date));
+      if (params?.page) searchParams.set("page", String(params.page));
+      if (params?.limit) searchParams.set("limit", String(params.limit));
 
       const response = await fetch(
         `/api/admin/attendance/missing?${searchParams}`,
@@ -408,16 +550,14 @@ export function useMissingAttendance(params?: {
       if (!response.ok) {
         throw new Error("Failed to fetch missing attendance");
       }
-      return response.json() as Promise<{
-        missingStaff: any[];
-        pagination: any;
-        totalMissing: number;
-      }>;
+      return response.json() as Promise<MissingStaffResponse>;
     },
   });
 }
 
-// Mutation: Mark attendance for missing staff
+/**
+ * Mark attendance for missing staff
+ */
 export function useMarkAttendance() {
   const queryClient = useQueryClient();
 
@@ -435,15 +575,8 @@ export function useMarkAttendance() {
     }) => {
       const response = await fetch("/api/admin/attendance/missing", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          userId,
-          date,
-          status,
-          reason: reason || "Manual attendance entry by admin",
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, date, status, reason }),
       });
 
       if (!response.ok) {
@@ -455,12 +588,14 @@ export function useMarkAttendance() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["attendance", "missing"] });
-      queryClient.invalidateQueries({ queryKey: ["attendance"] });
+      queryClient.invalidateQueries({ queryKey: ["attendance", "list"] });
     },
   });
 }
 
-// Query: Get manager attendance records
+/**
+ * Manager attendance query
+ */
 export function useManagerAttendance(params?: {
   page?: number;
   limit?: number;
@@ -469,14 +604,14 @@ export function useManagerAttendance(params?: {
   search?: string;
 }) {
   return useQuery({
-    queryKey: ["manager", "attendance", params],
+    queryKey: ["attendance", "manager", params] as const,
     queryFn: async () => {
       const searchParams = new URLSearchParams();
-      if (params?.page) searchParams.set("page", params.page.toString());
-      if (params?.limit) searchParams.set("limit", params.limit.toString());
-      if (params?.date) searchParams.set("date", params.date);
-      if (params?.status) searchParams.set("status", params.status);
-      if (params?.search) searchParams.set("search", params.search);
+      if (params?.page) searchParams.set("page", String(params.page));
+      if (params?.limit) searchParams.set("limit", String(params.limit));
+      if (params?.date) searchParams.set("date", String(params.date));
+      if (params?.status) searchParams.set("status", String(params.status));
+      if (params?.search) searchParams.set("search", String(params.search));
 
       const response = await fetch(`/api/manager/attendance?${searchParams}`);
       if (!response.ok) {
@@ -484,11 +619,13 @@ export function useManagerAttendance(params?: {
       }
       return response.json() as Promise<ManagerAttendanceResponse>;
     },
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: STALE_TIMES.LIST,
   });
 }
 
-// Mutation: Update attendance status (approve/reject)
+/**
+ * Update attendance status (approve/reject)
+ */
 export function useUpdateAttendanceStatus() {
   const queryClient = useQueryClient();
 
@@ -502,9 +639,7 @@ export function useUpdateAttendanceStatus() {
     }) => {
       const response = await fetch(`/api/attendance/${attendanceId}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
 
@@ -516,45 +651,42 @@ export function useUpdateAttendanceStatus() {
       return response.json();
     },
     onMutate: async ({ attendanceId, data }) => {
-      // Cancel any outgoing refetches
-      await queryClient.cancelQueries({ queryKey: ["manager", "attendance"] });
+      await queryClient.cancelQueries({ queryKey: ["attendance", "manager"] });
 
-      // Snapshot the previous value
       const previousAttendance = queryClient.getQueryData([
-        "manager",
         "attendance",
+        "manager",
       ]);
 
-      // Optimistically update to the new value
-      queryClient.setQueryData(["manager", "attendance"], (old: any) => {
-        if (!old?.records) return old;
-        return {
-          ...old,
-          records: old.records.map((record: any) =>
-            record.id === attendanceId
-              ? { ...record, status: data.status }
-              : record,
-          ),
-        };
-      });
+      queryClient.setQueryData(
+        ["attendance", "manager"],
+        (old: ManagerAttendanceResponse | undefined) => {
+          if (!old?.records) return old;
+          return {
+            ...old,
+            records: old.records.map((record) =>
+              record.id === attendanceId
+                ? { ...record, status: data.status }
+                : record,
+            ),
+          };
+        },
+      );
 
-      // Return a context object with the snapshotted value
       return { previousAttendance };
     },
     onError: (err, variables, context) => {
-      // If the mutation fails, use the context returned from onMutate to roll back
       if (context?.previousAttendance) {
         queryClient.setQueryData(
-          ["manager", "attendance"],
+          ["attendance", "manager"],
           context.previousAttendance,
         );
       }
       console.error("Failed to update attendance status:", err);
     },
     onSettled: () => {
-      // Always refetch after error or success
-      queryClient.invalidateQueries({ queryKey: ["manager", "attendance"] });
-      queryClient.invalidateQueries({ queryKey: ["attendance"] });
+      queryClient.invalidateQueries({ queryKey: ["attendance", "manager"] });
+      queryClient.invalidateQueries({ queryKey: ["attendance", "list"] });
     },
   });
 }

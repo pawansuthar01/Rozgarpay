@@ -3,6 +3,11 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 
+export const dynamic = "force-dynamic";
+
+// Cache for 1 minute
+const CACHE_CONTROL = "public, s-maxage=60, stale-while-revalidate=120";
+
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
@@ -21,23 +26,34 @@ export async function GET() {
       where: {
         userId,
       },
+      select: {
+        id: true,
+        title: true,
+        message: true,
+        channel: true,
+        status: true,
+        createdAt: true,
+        meta: true,
+      },
       orderBy: {
         createdAt: "desc",
       },
-      take: 50, // Last 50 notifications
+      take: 50,
     });
 
     const records = notifications.map((notification) => ({
       id: notification.id,
       title: notification.title,
       message: notification.message,
-      type: notification.channel === "EMAIL" ? "info" : "success", // Map to simple types
-      read: notification.status === "SENT", // Assuming SENT means read
+      type: notification.channel === "EMAIL" ? "info" : "success",
+      read: notification.status === "SENT",
       createdAt: notification.createdAt.toISOString(),
       meta: notification.meta,
     }));
 
-    return NextResponse.json(records);
+    const response = NextResponse.json(records);
+    response.headers.set("Cache-Control", CACHE_CONTROL);
+    return response;
   } catch (error) {
     console.error("Admin notifications error:", error);
     return NextResponse.json(
@@ -78,7 +94,7 @@ export async function PATCH(request: NextRequest) {
           userId,
         },
         data: {
-          status: "SENT", // Mark as read
+          status: "SENT",
         },
       });
 

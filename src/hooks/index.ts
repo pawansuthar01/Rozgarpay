@@ -4,6 +4,13 @@ export * from "./useUsers";
 // Staff hooks
 export * from "./useStaff";
 
+// Staff Attendance hooks - specific exports to avoid conflicts
+export {
+  useStaffAttendance,
+  useTodayAttendance,
+  useCompanySettings,
+} from "./useStaffAttendance";
+
 // Attendance hooks
 export * from "./useAttendance";
 

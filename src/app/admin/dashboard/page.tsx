@@ -1,8 +1,5 @@
 "use client";
 
-import { useSession } from "next-auth/react";
-import Loading from "@/components/ui/Loading";
-
 import Link from "next/link";
 import {
   Users,
@@ -22,81 +19,12 @@ import {
   CheckCircle2,
   IndianRupee,
 } from "lucide-react";
-import { useDashboardStats } from "@/hooks/useDashboard";
+import { useDashboardStats, useRecentActivity } from "@/hooks/useDashboard";
 
 export default function AdminDashboard() {
   const { data: dashboardData, isLoading, error } = useDashboardStats();
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-          {/* Skeleton Stats Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-6 sm:mb-8">
-            {Array.from({ length: 6 }).map((_, index) => (
-              <div
-                key={index}
-                className="bg-white p-4 rounded-xl border border-gray-200 animate-pulse"
-              >
-                <div className="flex flex-col items-center text-center space-y-2">
-                  <div className="w-8 h-8 bg-gray-200 rounded-lg"></div>
-                  <div className="w-full space-y-2">
-                    <div className="h-3 bg-gray-200 rounded w-3/4 mx-auto"></div>
-                    <div className="h-5 bg-gray-200 rounded w-1/2 mx-auto"></div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Skeleton Quick Actions */}
-          <div className="mb-8">
-            <div className="h-6 bg-gray-200 rounded w-32 mb-4 animate-pulse"></div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {Array.from({ length: 6 }).map((_, index) => (
-                <div
-                  key={index}
-                  className="bg-white p-4 rounded-xl border border-gray-200 animate-pulse"
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-gray-200 rounded-lg"></div>
-                    <div className="flex-1 space-y-2">
-                      <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-                      <div className="h-3 bg-gray-200 rounded w-3/4"></div>
-                    </div>
-                    <div className="w-4 h-4 bg-gray-200 rounded"></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Skeleton Recent Activity */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="p-4 sm:p-6 border-b border-gray-200">
-              <div className="h-6 bg-gray-200 rounded w-40 animate-pulse"></div>
-            </div>
-            <div className="divide-y divide-gray-200">
-              {Array.from({ length: 5 }).map((_, index) => (
-                <div key={index} className="p-4 animate-pulse">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
-                      <div className="space-y-2">
-                        <div className="h-4 bg-gray-200 rounded w-32"></div>
-                        <div className="h-3 bg-gray-200 rounded w-48"></div>
-                      </div>
-                    </div>
-                    <div className="w-16 h-5 bg-gray-200 rounded-full"></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const { data: recentActivity, isLoading: isRecentActivityLoading } =
+    useRecentActivity();
 
   if (error) {
     return (
@@ -147,19 +75,20 @@ export default function AdminDashboard() {
       </div>
     );
   }
+
   const dashboardCards = [
     {
       title: "Total Staff",
-      value: dashboardData?.totalStaff || 0,
+      value: dashboardData?.staffCount || 0,
       icon: Users,
       color: "bg-blue-500",
       bgColor: "bg-blue-50",
       textColor: "text-blue-700",
-      href: "/admin/staff",
+      href: "/admin/users",
     },
     {
       title: "Present Today",
-      value: dashboardData?.todaysAttendance.present || 0,
+      value: dashboardData?.attendance?.approved || 0,
       icon: UserCheck,
       color: "bg-green-500",
       bgColor: "bg-green-50",
@@ -168,7 +97,7 @@ export default function AdminDashboard() {
     },
     {
       title: "Absent Today",
-      value: dashboardData?.todaysAttendance.absent || 0,
+      value: dashboardData?.attendance?.absent || 0,
       icon: UserX,
       color: "bg-red-500",
       bgColor: "bg-red-50",
@@ -177,7 +106,7 @@ export default function AdminDashboard() {
     },
     {
       title: "Pending Approval",
-      value: dashboardData?.todaysAttendance.pending || 0,
+      value: dashboardData?.attendance?.pending || 0,
       icon: Clock,
       color: "bg-yellow-500",
       bgColor: "bg-yellow-50",
@@ -186,7 +115,7 @@ export default function AdminDashboard() {
     },
     {
       title: "Monthly Salary",
-      value: `₹${(dashboardData?.monthlySalarySummary.totalPaid || 0).toLocaleString()}`,
+      value: `₹${(dashboardData?.monthlySalaryTotal || 0).toLocaleString()}`,
       icon: IndianRupee,
       color: "bg-purple-500",
       bgColor: "bg-purple-50",
@@ -253,36 +182,58 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
         {/* Stats Grid - Mobile-first responsive */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-6 sm:mb-8">
-          {dashboardCards.map((card, index) => {
-            const Icon = card.icon;
-            return (
-              <Link key={index} href={card.href} className="block">
+
+        {isLoading ? (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-6 sm:mb-8">
+              {Array.from({ length: 6 }).map((_, index) => (
                 <div
-                  className={`${card.bgColor} p-4 rounded-xl border border-gray-200 hover:shadow-md transition-all duration-200 group`}
+                  key={index}
+                  className="bg-white p-4 rounded-xl border border-gray-200 animate-pulse"
                 >
                   <div className="flex flex-col items-center text-center space-y-2">
-                    <div
-                      className={`${card.color} p-2 rounded-lg group-hover:scale-110 transition-transform duration-200`}
-                    >
-                      <Icon className="h-5 w-5 text-white sm:h-6 sm:w-6" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-gray-600 sm:text-sm">
-                        {card.title}
-                      </p>
-                      <p
-                        className={`text-lg font-bold sm:text-xl ${card.textColor}`}
-                      >
-                        {card.value}
-                      </p>
+                    <div className="w-8 h-8 bg-gray-200 rounded-lg"></div>
+                    <div className="w-full space-y-2">
+                      <div className="h-3 bg-gray-200 rounded w-3/4 mx-auto"></div>
+                      <div className="h-5 bg-gray-200 rounded w-1/2 mx-auto"></div>
                     </div>
                   </div>
                 </div>
-              </Link>
-            );
-          })}
-        </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-6 sm:mb-8">
+            {dashboardCards.map((card, index) => {
+              const Icon = card.icon;
+              return (
+                <Link key={index} href={card.href} className="block">
+                  <div
+                    className={`${card.bgColor} p-4 rounded-xl border border-gray-200 hover:shadow-md transition-all duration-200 group`}
+                  >
+                    <div className="flex flex-col items-center text-center space-y-2">
+                      <div
+                        className={`${card.color} p-2 rounded-lg group-hover:scale-110 transition-transform duration-200`}
+                      >
+                        <Icon className="h-5 w-5 text-white sm:h-6 sm:w-6" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-gray-600 sm:text-sm">
+                          {card.title}
+                        </p>
+                        <p
+                          className={`text-lg font-bold sm:text-xl ${card.textColor}`}
+                        >
+                          {card.value}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
 
         {/* Quick Actions - Mobile-first grid */}
         <div className="mb-8">
@@ -333,43 +284,64 @@ export default function AdminDashboard() {
           </div>
 
           <div className="divide-y divide-gray-200">
-            {/* Recent audit logs */}
-            {dashboardData?.recentActivities?.slice(0, 10).map((log: any) => (
-              <div
-                key={log.id}
-                className="p-4 hover:bg-gray-50 transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                      <Activity className="h-4 w-4 text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">
-                        {log.action} {log.entity || ""}
-                      </p>
-                      <p className="text-xs text-gray-600">
-                        by {log.user} •{" "}
-                        {new Date(log.timestamp).toLocaleString()}
-                      </p>
+            {/* Recent Activity Loading Skeleton */}
+            {isRecentActivityLoading && (
+              <>
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <div key={index} className="p-4 animate-pulse">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
+                        <div className="space-y-2">
+                          <div className="h-4 bg-gray-200 rounded w-32"></div>
+                          <div className="h-3 bg-gray-200 rounded w-48"></div>
+                        </div>
+                      </div>
+                      <div className="w-16 h-5 bg-gray-200 rounded-full"></div>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-700">
-                      {log.entity || "Activity"}
-                    </span>
+                ))}
+              </>
+            )}
+
+            {/* Recent audit logs */}
+            {!isRecentActivityLoading &&
+              recentActivity?.slice(0, 10).map((log: any) => (
+                <div
+                  key={log.id}
+                  className="p-4 hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                        <Activity className="h-4 w-4 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">
+                          {log.action} {log.entity || ""}
+                        </p>
+                        <p className="text-xs text-gray-600">
+                          by {log.user} •{" "}
+                          {new Date(log.timestamp).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-700">
+                        {log.entity || "Activity"}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
 
-            {(!dashboardData?.recentActivities ||
-              dashboardData.recentActivities.length === 0) && (
-              <div className="p-8 text-center">
-                <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600">No recent activity</p>
-              </div>
-            )}
+            {!isRecentActivityLoading &&
+              (!recentActivity || recentActivity.length === 0) && (
+                <div className="p-8 text-center">
+                  <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">No recent activity</p>
+                </div>
+              )}
           </div>
         </div>
 

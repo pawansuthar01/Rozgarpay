@@ -2,9 +2,7 @@
 
 import { useSession } from "next-auth/react";
 
-import { useState } from "react";
-import Skeleton from "react-loading-skeleton";
-import "react-loading-skeleton/dist/skeleton.css";
+import { useState, useCallback, useRef } from "react";
 import { XCircle, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import AttendanceStatsCards from "@/components/admin/attendance/AttendanceStatsCards";
@@ -14,9 +12,11 @@ import AttendanceTable from "@/components/admin/attendance/AttendanceTable";
 import { useDebounce } from "@/lib/hooks";
 import { useAttendance, useUpdateAttendance, useUpdateStatus } from "@/hooks";
 import Loading from "@/components/ui/Loading";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function AdminAttendancePage() {
   const { data: session } = useSession();
+  const queryClient = useQueryClient();
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>("");
@@ -47,49 +47,117 @@ export default function AdminAttendancePage() {
     page: currentPage,
     limit: pageLimit,
     status: statusFilter || undefined,
-    date: startDate, // Using startDate as primary date filter
-    // Note: The API might need additional date range parameters
+    date: startDate,
   });
 
   const updateAttendanceMutation = useUpdateAttendance();
   const updateStatus = useUpdateStatus();
 
-  const handleAttendanceAction = (
-    attendanceId: string,
-    action: "APPROVE" | "REJECT" | "HALF_DAY" | "ABSENT" | "LEAVE",
-  ) => {
-    let status: "APPROVED" | "REJECTED" | "ABSENT" | "LEAVE";
-    switch (action) {
-      case "APPROVE":
-        status = "APPROVED";
-        break;
-      case "REJECT":
-        status = "REJECTED";
-        break;
-      case "ABSENT":
-        status = "ABSENT";
-        break;
-      case "LEAVE":
-        status = "LEAVE";
-        break;
-      default:
-        status = "APPROVED";
-    }
+  // Track loading state with ref and timeout - no re-renders needed
+  const loadingRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
-    updateStatus.mutate({
-      attendanceId,
-      data: { status },
-    });
-  };
+  // Check if a row is loading
+  const isRowLoading = useCallback((attendanceId: string) => {
+    return loadingRef.current.has(attendanceId);
+  }, []);
 
-  const handleMoreOptions = (attendanceId: string, updates?: any) => {
-    if (!updates) return;
+  // Force re-render only when needed (when loading state changes)
+  const [, forceUpdate] = useState(0);
+  const triggerUpdate = useCallback(() => {
+    forceUpdate((t) => t + 1);
+  }, []);
 
-    updateAttendanceMutation.mutate({
-      attendanceId,
-      data: updates,
-    });
-  };
+  const handleAttendanceAction = useCallback(
+    (
+      attendanceId: string,
+      action: "APPROVE" | "REJECT" | "HALF_DAY" | "ABSENT" | "LEAVE",
+    ) => {
+      let status: "APPROVED" | "REJECTED" | "ABSENT" | "LEAVE";
+
+      switch (action) {
+        case "APPROVE":
+          status = "APPROVED";
+          break;
+        case "REJECT":
+          status = "REJECTED";
+          break;
+        case "ABSENT":
+          status = "ABSENT";
+          break;
+        case "LEAVE":
+          status = "LEAVE";
+          break;
+        default:
+          status = "APPROVED";
+      }
+
+      // Set loading state - show loading on button
+      const existingTimeout = loadingRef.current.get(attendanceId);
+      if (existingTimeout) {
+        clearTimeout(existingTimeout);
+      }
+
+      loadingRef.current.set(
+        attendanceId,
+        setTimeout(() => {
+          loadingRef.current.delete(attendanceId);
+          triggerUpdate();
+        }, 5000),
+      );
+      triggerUpdate();
+
+      // Call API - status will update after response
+      updateStatus.mutate(
+        { attendanceId, data: { status } },
+        {
+          onSettled: () => {
+            const timeout = loadingRef.current.get(attendanceId);
+            if (timeout) {
+              clearTimeout(timeout);
+              loadingRef.current.delete(attendanceId);
+              triggerUpdate();
+            }
+          },
+        },
+      );
+    },
+    [updateStatus, triggerUpdate],
+  );
+
+  const handleMoreOptions = useCallback(
+    (attendanceId: string, updates?: Record<string, unknown>) => {
+      if (!updates) return;
+
+      const existingTimeout = loadingRef.current.get(attendanceId);
+      if (existingTimeout) {
+        clearTimeout(existingTimeout);
+      }
+
+      loadingRef.current.set(
+        attendanceId,
+        setTimeout(() => {
+          loadingRef.current.delete(attendanceId);
+          triggerUpdate();
+        }, 5000),
+      );
+      triggerUpdate();
+
+      updateAttendanceMutation.mutate(
+        { attendanceId, data: updates },
+        {
+          onSettled: () => {
+            const timeout = loadingRef.current.get(attendanceId);
+            if (timeout) {
+              clearTimeout(timeout);
+              loadingRef.current.delete(attendanceId);
+              triggerUpdate();
+            }
+          },
+        },
+      );
+    },
+    [updateAttendanceMutation, triggerUpdate],
+  );
 
   if (!session || session.user.role !== "ADMIN") {
     return <Loading />;
@@ -179,13 +247,7 @@ export default function AdminAttendancePage() {
             <AttendanceTable
               records={attendanceData?.records || []}
               loading={loading}
-              actionLoading={
-                updateStatus.isPending || updateAttendanceMutation.isPending
-                  ? updateStatus.variables?.attendanceId ||
-                    updateAttendanceMutation.variables?.attendanceId ||
-                    null
-                  : null
-              }
+              isRowLoading={isRowLoading}
               onAttendanceAction={handleAttendanceAction}
               onMoreOptions={handleMoreOptions}
               currentPage={currentPage}

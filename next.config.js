@@ -12,6 +12,11 @@ const withPWA = isProduction
 
 const nextConfig = {
   reactStrictMode: true,
+
+  // Performance optimizations
+  compress: isProduction, // Enable gzip compression in production
+  poweredByHeader: false, // Remove X-Powered-By header for security
+
   images: {
     // Production: allow only listed domains
     domains: ["rozgarpay.in", "another-allowed-domain.com"],
@@ -21,12 +26,34 @@ const nextConfig = {
       { protocol: "https", hostname: "**" },
       { protocol: "http", hostname: "**" },
     ],
+
+    // Performance: optimize images
+    formats: ["image/avif", "image/webp"],
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
   },
 
   experimental: {
     serverActions: {
       allowedOrigins: ["http://localhost:3000"],
     },
+  },
+
+  // Optimize production builds
+  swcMinify: isProduction,
+
+  // Enable webpack optimizations
+  webpack: (config, { isServer }) => {
+    // Enable persistent caching for faster rebuilds
+    if (!isServer) {
+      config.cache = {
+        type: "filesystem",
+        buildDependencies: {
+          config: [__filename],
+        },
+      };
+    }
+    return config;
   },
 
   typescript: {

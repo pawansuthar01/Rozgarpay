@@ -11,8 +11,7 @@ import SalaryStatsCards from "@/components/admin/salary/SalaryStatsCards";
 import SalaryChart from "@/components/admin/salary/SalaryChart";
 import SalaryFilters from "@/components/admin/salary/SalaryFilters";
 import SalaryTable from "@/components/admin/salary/SalaryTable";
-import { SalaryStats } from "@/types/salary";
-import { SalaryRecord } from "@/hooks";
+import { SalaryStats, SalaryRecord } from "@/types/salary";
 
 export default function ManagerSalaryPage() {
   const { data: session } = useSession();

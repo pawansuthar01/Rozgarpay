@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -23,6 +23,8 @@ import {
   Building2,
 } from "lucide-react";
 import NavbarProfile from "@/components/layout/NavbarProfile";
+import { useQueryClient } from "@tanstack/react-query";
+import { prefetchAdminDashboard } from "@/hooks/useDashboard";
 
 export default function AdminLayout({
   children,
@@ -31,6 +33,14 @@ export default function AdminLayout({
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
+  const queryClient = useQueryClient();
+
+  // Prefetch dashboard data for faster page transitions
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      prefetchAdminDashboard(queryClient);
+    }
+  }, [queryClient]);
 
   // Generate breadcrumbs from pathname
   const generateBreadcrumbs = () => {

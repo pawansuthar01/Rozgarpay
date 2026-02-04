@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import authOptions from "@/lib/auth";
 import { getDate } from "@/lib/attendanceUtils";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -14,8 +16,11 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const date = searchParams.get("date");
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "10");
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1") || 1);
+    let limit = Math.max(
+      1,
+      Math.min(parseInt(searchParams.get("limit") || "10") || 10, 100),
+    );
 
     if (!date) {
       return NextResponse.json(
@@ -24,13 +29,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get admin's company
+    // Get admin's company with minimal fields
     const admin = await prisma.user.findUnique({
       where: { id: session.user.id },
-      include: { company: true },
+      select: { companyId: true },
     });
 
-    if (!admin?.company) {
+    if (!admin?.companyId) {
       return NextResponse.json(
         { error: "Admin company not found" },
         { status: 400 },
@@ -41,42 +46,42 @@ export async function GET(request: NextRequest) {
     const startOfDay = getDate(new Date(`${date}T00:00:00`));
     const endOfDay = getDate(new Date(`${date}T23:59:59.999`));
 
-    // Get all staff in the company
-    const allStaff = await prisma.user.findMany({
-      where: {
-        companyId: admin.company.id,
-        role: "STAFF",
-        status: "ACTIVE",
-      },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-      },
-    });
-
-    // Get staff who have attendance records for the date
-    const staffWithAttendance = await prisma.attendance.findMany({
-      where: {
-        companyId: admin.company.id,
-        attendanceDate: {
-          gte: startOfDay,
-          lte: endOfDay,
+    // PARALLEL QUERIES: Fetch staff and attendance concurrently
+    const [allStaff, staffWithAttendance] = await Promise.all([
+      // Get all staff in the company
+      prisma.user.findMany({
+        where: {
+          companyId: admin.companyId,
+          role: "STAFF",
+          status: "ACTIVE",
         },
-      },
-      select: {
-        userId: true,
-      },
-    });
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+        },
+      }),
 
-    const attendedUserIds = new Set(
-      staffWithAttendance.map((a: any) => a.userId),
-    );
+      // Get staff who have attendance records for the date
+      prisma.attendance.findMany({
+        where: {
+          companyId: admin.companyId,
+          attendanceDate: {
+            gte: startOfDay,
+            lte: endOfDay,
+          },
+        },
+        select: {
+          userId: true,
+        },
+      }),
+    ]);
 
-    // Filter staff without attendance
+    // Find staff without attendance (client-side filtering for small datasets)
+    const attendedUserIds = new Set(staffWithAttendance.map((a) => a.userId));
     const missingAttendanceStaff = allStaff.filter(
-      (staff: any) => !attendedUserIds.has(staff.id),
+      (staff) => !attendedUserIds.has(staff.id),
     );
 
     // Apply pagination
@@ -85,7 +90,8 @@ export async function GET(request: NextRequest) {
     const endIndex = startIndex + limit;
     const paginatedStaff = missingAttendanceStaff.slice(startIndex, endIndex);
 
-    return NextResponse.json({
+    // Build response with caching headers
+    const response = NextResponse.json({
       date,
       missingStaff: paginatedStaff,
       pagination: {
@@ -96,6 +102,14 @@ export async function GET(request: NextRequest) {
       },
       totalMissing: total,
     });
+
+    // Cache for 5 minutes (data is date-based and doesn't change frequently)
+    response.headers.set(
+      "Cache-Control",
+      "public, s-maxage=300, stale-while-revalidate=600",
+    );
+
+    return response;
   } catch (error) {
     console.error("Missing attendance fetch error:", error);
     return NextResponse.json(
@@ -130,13 +144,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get admin's company
+    // Get admin's company with minimal fields
     const admin = await prisma.user.findUnique({
       where: { id: session.user.id },
-      include: { company: true },
+      select: {
+        companyId: true,
+        company: { select: { shiftStartTime: true, shiftEndTime: true } },
+      },
     });
 
-    if (!admin?.company) {
+    if (!admin?.companyId || !admin.company) {
       return NextResponse.json(
         { error: "Admin company not found" },
         { status: 400 },
@@ -146,9 +163,10 @@ export async function POST(request: NextRequest) {
     // Verify user belongs to admin's company
     const user = await prisma.user.findUnique({
       where: { id: userId },
+      select: { id: true, companyId: true },
     });
 
-    if (!user || user.companyId !== admin.company.id) {
+    if (!user || user.companyId !== admin.companyId) {
       return NextResponse.json(
         { error: "User not found in your company" },
         { status: 404 },
@@ -163,10 +181,11 @@ export async function POST(request: NextRequest) {
       where: {
         userId_companyId_attendanceDate: {
           userId,
-          companyId: admin.company.id,
+          companyId: admin.companyId,
           attendanceDate,
         },
       },
+      select: { id: true },
     });
 
     if (existingAttendance) {
@@ -178,28 +197,29 @@ export async function POST(request: NextRequest) {
 
     // Calculate working hours based on status
     let workingHours: number | undefined;
-    if (status === "APPROVED") {
-      // Calculate from shift start to end
-      if (admin.company.shiftStartTime && admin.company.shiftEndTime) {
-        const start = getDate(
-          new Date(`1970-01-01T${admin.company.shiftStartTime}:00`),
-        );
-        const end = getDate(
-          new Date(`1970-01-01T${admin.company.shiftEndTime}:00`),
-        );
-        let diffMs = end.getTime() - start.getTime();
-        if (diffMs < 0) diffMs += 24 * 60 * 60 * 1000;
-        workingHours = Math.max(0, diffMs / (1000 * 60 * 60)); // hours
-      }
+    if (
+      status === "APPROVED" &&
+      admin.company.shiftStartTime &&
+      admin.company.shiftEndTime
+    ) {
+      const start = getDate(
+        new Date(`1970-01-01T${admin.company.shiftStartTime}:00`),
+      );
+      const end = getDate(
+        new Date(`1970-01-01T${admin.company.shiftEndTime}:00`),
+      );
+      let diffMs = end.getTime() - start.getTime();
+      if (diffMs < 0) diffMs += 24 * 60 * 60 * 1000;
+      workingHours = Math.max(0, diffMs / (1000 * 60 * 60));
     } else if (status === "ABSENT" || status === "LEAVE") {
       workingHours = 0;
     }
 
-    // Create attendance record
+    // Create attendance record with minimal fields
     const attendance = await prisma.attendance.create({
       data: {
         userId,
-        companyId: admin.company.id,
+        companyId: admin.companyId,
         attendanceDate,
         punchIn: punchIn ? new Date(punchIn) : null,
         punchOut: punchOut ? new Date(punchOut) : null,
@@ -212,22 +232,30 @@ export async function POST(request: NextRequest) {
         approvedAt: status === "APPROVED" ? new Date() : undefined,
         approvalReason: reason || "Manual entry by admin",
       },
-    });
-
-    // Create audit log
-    await prisma.auditLog.create({
-      data: {
-        userId: session.user.id,
-        action: "CREATED",
-        entity: "Attendance",
-        entityId: attendance.id,
-        meta: {
-          reason: "Manual attendance entry for missing record",
-          targetUserId: userId,
-          date,
-        },
+      select: {
+        id: true,
+        attendanceDate: true,
+        status: true,
+        user: { select: { firstName: true, lastName: true } },
       },
     });
+
+    // Create audit log (fire-and-forget)
+    prisma.auditLog
+      .create({
+        data: {
+          userId: session.user.id,
+          action: "CREATED",
+          entity: "Attendance",
+          entityId: attendance.id,
+          meta: {
+            reason: "Manual attendance entry for missing record",
+            targetUserId: userId,
+            date,
+          },
+        },
+      })
+      .catch(console.error);
 
     return NextResponse.json({
       success: true,

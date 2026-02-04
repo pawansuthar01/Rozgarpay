@@ -1,16 +1,31 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  CashbookEntry,
-  CashbookApiResponse,
-  CashbookBalance,
-  CreateCashbookEntryRequest,
-  CashbookFilters,
-  CashbookStats,
-  CashbookReportData,
-} from "@/types/cashbook";
-import { getDate } from "@/lib/attendanceUtils";
+/**
+ * Optimized Cashbook Hook
+ *
+ * Performance optimizations:
+ * - Optimized stale times based on data volatility
+ * - Performance monitoring integration
+ * - Query deduplication
+ * - Placeholder data for smooth loading
+ */
 
-// Query: Get cashbook entries
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { performanceMonitor } from "@/lib/performanceMonitor";
+
+// ============================================================================
+// Stale Times (based on data volatility)
+// ============================================================================
+
+const STALE_TIMES = {
+  LIST: 1000 * 30, // 30 seconds - financial data changes frequently
+  DETAIL: 1000 * 60 * 2, // 2 minutes
+  BALANCE: 1000 * 30, // 30 seconds - needs to be fresh
+  REPORTS: 1000 * 60 * 5, // 5 minutes - expensive reports
+} as const;
+
+// ============================================================================
+// Hooks
+// ============================================================================
+
 export function useCashbook(params?: {
   page?: number;
   limit?: number;
@@ -24,202 +39,132 @@ export function useCashbook(params?: {
   search?: string;
 }) {
   return useQuery({
-    queryKey: ["cashbook", params],
+    queryKey: ["cashbook", "list", params] as const,
     queryFn: async () => {
       const searchParams = new URLSearchParams();
-      if (params?.page) searchParams.set("page", params.page.toString());
-      if (params?.limit) searchParams.set("limit", params.limit.toString());
-      if (params?.sortBy) searchParams.set("sortBy", params.sortBy);
-      if (params?.sortOrder) searchParams.set("sortOrder", params.sortOrder);
-      if (params?.startDate) searchParams.set("startDate", params.startDate);
-      if (params?.endDate) searchParams.set("endDate", params.endDate);
+      if (params?.page) searchParams.set("page", String(params.page));
+      if (params?.limit) searchParams.set("limit", String(params.limit));
+      if (params?.sortBy) searchParams.set("sortBy", String(params.sortBy));
+      if (params?.sortOrder)
+        searchParams.set("sortOrder", String(params.sortOrder));
+      if (params?.startDate)
+        searchParams.set("startDate", String(params.startDate));
+      if (params?.endDate) searchParams.set("endDate", String(params.endDate));
       if (params?.transactionType)
-        searchParams.set("transactionType", params.transactionType);
-      if (params?.direction) searchParams.set("direction", params.direction);
+        searchParams.set("transactionType", String(params.transactionType));
+      if (params?.direction)
+        searchParams.set("direction", String(params.direction));
       if (params?.paymentMode)
-        searchParams.set("paymentMode", params.paymentMode);
-      if (params?.search) searchParams.set("search", params.search);
+        searchParams.set("paymentMode", String(params.paymentMode));
+      if (params?.search) searchParams.set("search", String(params.search));
 
+      const startTime = performance.now();
       const response = await fetch(`/api/admin/cashbook?${searchParams}`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch cashbook entries");
-      }
-      return response.json() as Promise<CashbookApiResponse>;
+      if (!response.ok) throw new Error("Failed to fetch cashbook entries");
+
+      const data = await response.json();
+      performanceMonitor.recordQueryMetric({
+        queryKey: "cashbook.list",
+        duration: performance.now() - startTime,
+        status: "success",
+        isCacheHit: false,
+        timestamp: Date.now(),
+      });
+      return data;
     },
-    staleTime: 1000 * 30, // 30 seconds - shorter stale time for faster updates
-    refetchOnWindowFocus: true, // Refetch when window regains focus
+    staleTime: STALE_TIMES.LIST,
+    gcTime: 1000 * 60 * 5,
+    placeholderData: (previousData) => previousData,
+    refetchOnWindowFocus: true,
   });
 }
 
-// Query: Get cashbook balance
 export function useCashbookBalance() {
   return useQuery({
-    queryKey: ["cashbook", "balance"],
+    queryKey: ["cashbook", "balance"] as const,
     queryFn: async () => {
+      const startTime = performance.now();
       const response = await fetch("/api/admin/cashbook/balance");
-      if (!response.ok) {
-        throw new Error("Failed to fetch cashbook balance");
-      }
-      return response.json() as Promise<CashbookBalance>;
+      if (!response.ok) throw new Error("Failed to fetch cashbook balance");
+
+      const data = await response.json();
+      performanceMonitor.recordQueryMetric({
+        queryKey: "cashbook.balance",
+        duration: performance.now() - startTime,
+        status: "success",
+        isCacheHit: false,
+        timestamp: Date.now(),
+      });
+      return data;
     },
-    staleTime: 1000 * 30, // 30 seconds - shorter stale time for faster updates
-    refetchOnWindowFocus: true, // Refetch when window regains focus
+    staleTime: STALE_TIMES.BALANCE,
+    gcTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: true,
   });
 }
 
-// Mutation: Create cashbook entry
 export function useCreateCashbookEntry() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (data: CreateCashbookEntryRequest) => {
+    mutationFn: async (data: any) => {
       const response = await fetch("/api/admin/cashbook", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Failed to create cashbook entry");
       }
-
       return response.json();
     },
-    onSuccess: (newEntry) => {
-      // Update all cashbook queries by adding the new entry
-      queryClient.setQueriesData({ queryKey: ["cashbook"] }, (oldData: any) => {
-        if (!oldData) return oldData;
-
-        const updatedEntries = [newEntry.entry, ...oldData.entries];
-
-        // Recalculate stats based on all entries
-        const totalCredit = updatedEntries
-          .filter((entry) => entry.direction === "CREDIT" && !entry.isReversed)
-          .reduce((sum, entry) => sum + entry.amount, 0);
-
-        const totalDebit = updatedEntries
-          .filter((entry) => entry.direction === "DEBIT" && !entry.isReversed)
-          .reduce((sum, entry) => sum + entry.amount, 0);
-
-        const currentBalance = totalCredit - totalDebit;
-
-        return {
-          ...oldData,
-          entries: updatedEntries,
-          pagination: {
-            ...oldData.pagination,
-            total: oldData.pagination.total + 1,
-          },
-          stats: {
-            ...oldData.stats,
-            currentBalance,
-            totalCredit,
-            totalDebit,
-            transactionCount: oldData.stats.transactionCount + 1,
-          },
-        };
-      });
-
-      // Update balance
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["cashbook", "list"] });
       queryClient.invalidateQueries({ queryKey: ["cashbook", "balance"] });
     },
   });
 }
 
-// Query: Get cashbook entry by ID
 export function useCashbookEntry(entryId: string) {
   return useQuery({
-    queryKey: ["cashbook", entryId],
+    queryKey: ["cashbook", "detail", entryId] as const,
     queryFn: async () => {
       const response = await fetch(`/api/admin/cashbook/${entryId}`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch cashbook entry");
-      }
-      return response.json() as Promise<CashbookEntry>;
+      if (!response.ok) throw new Error("Failed to fetch cashbook entry");
+      return response.json();
     },
     enabled: !!entryId,
+    staleTime: STALE_TIMES.DETAIL,
   });
 }
 
-// Mutation: Update cashbook entry
 export function useUpdateCashbookEntry() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
-      entryId,
-      data,
-    }: {
-      entryId: string;
-      data: Partial<CreateCashbookEntryRequest>;
-    }) => {
+    mutationFn: async ({ entryId, data }: { entryId: string; data: any }) => {
       const response = await fetch(`/api/admin/cashbook/${entryId}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Failed to update cashbook entry");
       }
-
       return response.json();
     },
-    onSuccess: (updatedEntry, variables) => {
-      // Update all cashbook queries by replacing the updated entry
-      queryClient.setQueriesData({ queryKey: ["cashbook"] }, (oldData: any) => {
-        if (!oldData || !oldData.entries) return oldData;
-
-        const updatedEntries = oldData.entries.map((entry: any) =>
-          entry.id === variables.entryId ? updatedEntry.entry : entry,
-        );
-
-        // Recalculate stats based on all entries
-        const totalCredit = updatedEntries
-          .filter(
-            (entry: any) => entry.direction === "CREDIT" && !entry.isReversed,
-          )
-          .reduce((sum: number, entry: any) => sum + entry.amount, 0);
-
-        const totalDebit = updatedEntries
-          .filter(
-            (entry: any) => entry.direction === "DEBIT" && !entry.isReversed,
-          )
-          .reduce((sum: number, entry: any) => sum + entry.amount, 0);
-
-        const currentBalance = totalCredit - totalDebit;
-
-        return {
-          ...oldData,
-          entries: updatedEntries,
-          stats: {
-            ...oldData.stats,
-            currentBalance,
-            totalCredit,
-            totalDebit,
-          },
-        };
-      });
-
-      // Update the specific entry query
-      queryClient.setQueryData(
-        ["cashbook", variables.entryId],
-        updatedEntry.entry,
-      );
-
-      // Update balance
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["cashbook", "list"] });
       queryClient.invalidateQueries({ queryKey: ["cashbook", "balance"] });
+      queryClient.invalidateQueries({
+        queryKey: ["cashbook", "detail", variables.entryId],
+      });
     },
   });
 }
 
-// Mutation: Delete cashbook entry
 export function useDeleteCashbookEntry() {
   const queryClient = useQueryClient();
 
@@ -228,22 +173,19 @@ export function useDeleteCashbookEntry() {
       const response = await fetch(`/api/admin/cashbook/${entryId}`, {
         method: "DELETE",
       });
-
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Failed to delete cashbook entry");
       }
-
       return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cashbook"] });
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["cashbook", "list"] });
       queryClient.invalidateQueries({ queryKey: ["cashbook", "balance"] });
     },
   });
 }
 
-// Mutation: Reverse cashbook entry
 export function useReverseCashbookEntry() {
   const queryClient = useQueryClient();
 
@@ -257,105 +199,51 @@ export function useReverseCashbookEntry() {
     }) => {
       const response = await fetch(`/api/admin/cashbook/${entryId}/reverse`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason }),
       });
-
       if (!response.ok) {
-        const error = await response.json().catch(() => ({
-          error: "Failed to reverse entry",
-        }));
+        const error = await response
+          .json()
+          .catch(() => ({ error: "Failed to reverse entry" }));
         throw new Error(error.error || "Failed to reverse entry");
       }
-
       return response.json();
     },
-    onSuccess: (_reversedEntry, variables) => {
-      // Update all cashbook queries by marking the entry as reversed
-      queryClient.setQueriesData({ queryKey: ["cashbook"] }, (oldData: any) => {
-        if (!oldData || !oldData.entries) return oldData;
-
-        const updatedEntries = oldData.entries.map((entry: any) =>
-          entry.id === variables.entryId
-            ? { ...entry, isReversed: true }
-            : entry,
-        );
-
-        // Recalculate stats based on all entries (excluding reversed ones)
-        const totalCredit = updatedEntries
-          .filter(
-            (entry: any) => entry.direction === "CREDIT" && !entry.isReversed,
-          )
-          .reduce((sum: number, entry: any) => sum + entry.amount, 0);
-
-        const totalDebit = updatedEntries
-          .filter(
-            (entry: any) => entry.direction === "DEBIT" && !entry.isReversed,
-          )
-          .reduce((sum: number, entry: any) => sum + entry.amount, 0);
-
-        const currentBalance = totalCredit - totalDebit;
-
-        return {
-          ...oldData,
-          entries: updatedEntries,
-          stats: {
-            ...oldData.stats,
-            currentBalance,
-            totalCredit,
-            totalDebit,
-          },
-        };
-      });
-
-      // Update balance
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["cashbook", "list"] });
       queryClient.invalidateQueries({ queryKey: ["cashbook", "balance"] });
     },
   });
 }
 
-// Query: Get cashbook reports
 export function useCashbookReports(params?: {
   dateFrom?: string;
   dateTo?: string;
   type?: string;
 }) {
   return useQuery({
-    queryKey: ["cashbook", "reports", params],
+    queryKey: ["cashbook", "reports", params] as const,
     queryFn: async () => {
       const searchParams = new URLSearchParams();
-      if (params?.dateFrom) searchParams.set("dateFrom", params.dateFrom);
-      if (params?.dateTo) searchParams.set("dateTo", params.dateTo);
-      if (params?.type) searchParams.set("type", params.type);
-
+      if (params?.dateFrom)
+        searchParams.set("dateFrom", String(params.dateFrom));
+      if (params?.dateTo) searchParams.set("dateTo", String(params.dateTo));
+      if (params?.type) searchParams.set("type", String(params.type));
       const response = await fetch(
         `/api/admin/cashbook/reports?${searchParams}`,
       );
-      if (!response.ok) {
-        throw new Error("Failed to fetch cashbook reports");
-      }
-      return response.json() as Promise<CashbookReportData>;
+      if (!response.ok) throw new Error("Failed to fetch cashbook reports");
+      return response.json();
     },
+    staleTime: STALE_TIMES.REPORTS,
   });
 }
 
-// Mutation: Generate cashbook PDF
 export function useGenerateCashbookPDF() {
   return useMutation({
-    mutationFn: async (params: {
-      startDate?: string;
-      endDate?: string;
-      transactionType?: string;
-      direction?: string;
-      paymentMode?: string;
-      search?: string;
-    }) => {
-      const searchParams = new URLSearchParams({
-        format: "pdf",
-      });
-
+    mutationFn: async (params: any) => {
+      const searchParams = new URLSearchParams({ format: "pdf" });
       if (params.startDate) searchParams.set("startDate", params.startDate);
       if (params.endDate) searchParams.set("endDate", params.endDate);
       if (params.transactionType)
@@ -368,20 +256,17 @@ export function useGenerateCashbookPDF() {
       const response = await fetch(
         `/api/admin/cashbook/reports?${searchParams}`,
       );
-      if (!response.ok) {
-        throw new Error("Failed to generate PDF");
-      }
+      if (!response.ok) throw new Error("Failed to generate PDF");
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `cashbook-report-${getDate(new Date()).toISOString().split("T")[0]}.pdf`;
+      a.download = `cashbook-report-${new Date().toISOString().split("T")[0]}.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-
       return { success: true };
     },
   });

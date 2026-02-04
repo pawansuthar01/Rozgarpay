@@ -1,53 +1,69 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
-  Clock,
   Bell,
   CheckCircle,
   AlertCircle,
   Calendar,
-  DollarSign,
+  IndianRupee,
   FileText,
   Plus,
   ChevronRight,
   Building2,
-  User,
-  Clock3,
-  Play,
-  Square,
-  Camera,
-  IndianRupee,
   ClockAlert,
-  Settings,
 } from "lucide-react";
 import PunchModal from "@/components/PunchModal";
 import { useModal } from "@/components/ModalProvider";
-import { useStaffDashboard } from "@/hooks/useStaffDashboard";
 import {
-  usePunchAttendance,
+  useStaffDashboard,
+  prefetchStaffDashboard,
+} from "@/hooks/useStaffDashboard";
+import {
+  useStaffPunchAttendance,
   useTodayAttendance,
 } from "@/hooks/useStaffAttendance";
+import { useQueryClient } from "@tanstack/react-query";
+
+interface ValidationData {
+  valid: boolean;
+  error?: string;
+  punchType: "in" | "out";
+  attendanceId?: string;
+  lateMinutes?: number;
+  isLate?: boolean;
+}
 
 export default function StaffDashboardPage() {
   const { showMessage } = useModal();
   const [punchModalOpen, setPunchModalOpen] = useState(false);
   const [punchType, setPunchType] = useState<"in" | "out">("in");
+  const queryClient = useQueryClient();
+
+  // Prefetch dashboard data on mount for faster navigation
+  useEffect(() => {
+    prefetchStaffDashboard(queryClient);
+  }, [queryClient]);
 
   const { data: dashboardData, isLoading, error } = useStaffDashboard();
   const { data: todaysAttendance } = useTodayAttendance();
-  const punchMutation = usePunchAttendance();
+  const punchMutation = useStaffPunchAttendance();
+
   const handlePunch = (type: "in" | "out") => {
     setPunchType(type);
     setPunchModalOpen(true);
   };
 
-  const handlePunchConfirm = async (type: "in" | "out", imageData: string) => {
+  const handlePunchConfirm = async (
+    type: "in" | "out",
+    imageData: string,
+    validation: ValidationData,
+  ) => {
     setPunchModalOpen(false);
     try {
       await punchMutation.mutateAsync(
-        { type, imageData },
+        { type, imageData, validation },
         {
           onSuccess: () => {
             showMessage(
@@ -56,7 +72,7 @@ export default function StaffDashboardPage() {
               "Attendance recorded successfully!",
             );
           },
-          onError: (error) => {
+          onError: (error: Error) => {
             showMessage(
               "error",
               "Error",
@@ -66,7 +82,7 @@ export default function StaffDashboardPage() {
         },
       );
       return true;
-    } catch (error: any) {
+    } catch (error) {
       return false;
     }
   };

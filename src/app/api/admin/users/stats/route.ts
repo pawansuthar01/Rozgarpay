@@ -1,9 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+
 export const dynamic = "force-dynamic";
-export async function GET(request: NextRequest) {
+
+// Cache for 5 minutes (user stats don't change frequently)
+const CACHE_CONTROL = "public, s-maxage=300, stale-while-revalidate=600";
+
+export async function GET() {
   try {
     const session = await getServerSession(authOptions);
 
@@ -11,75 +16,91 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get admin's company
+    // Get admin's company with minimal fields
     const admin = await prisma.user.findUnique({
       where: { id: session.user.id },
-      include: { company: true },
+      select: { companyId: true },
     });
 
-    if (!admin?.company) {
+    if (!admin?.companyId) {
       return NextResponse.json(
         { error: "Admin company not found" },
         { status: 400 },
       );
     }
 
-    // Get user statistics
-    const totalUsers = await prisma.user.count({
-      where: { companyId: admin.company.id },
-    });
+    const companyId = admin.companyId;
 
-    const activeUsers = await prisma.user.count({
-      where: {
-        companyId: admin.company.id,
-        status: "ACTIVE",
-      },
-    });
+    // PARALLEL QUERIES: Run all count queries concurrently
+    const [
+      totalUsers,
+      activeUsers,
+      suspendedUsers,
+      deactivatedUsers,
+      roleStats,
+    ] = await Promise.all([
+      // Total users
+      prisma.user.count({
+        where: { companyId },
+      }),
 
-    const suspendedUsers = await prisma.user.count({
-      where: {
-        companyId: admin.company.id,
-        status: "SUSPENDED",
-      },
-    });
+      // Active users
+      prisma.user.count({
+        where: {
+          companyId,
+          status: "ACTIVE",
+        },
+      }),
 
-    const deactivatedUsers = await prisma.user.count({
-      where: {
-        companyId: admin.company.id,
-        status: "DEACTIVATED",
-      },
-    });
+      // Suspended users
+      prisma.user.count({
+        where: {
+          companyId,
+          status: "SUSPENDED",
+        },
+      }),
 
-    // Get role distribution
-    const roleStats = await prisma.user.groupBy({
-      by: ["role"],
-      where: { companyId: admin.company.id },
-      _count: true,
-    });
+      // Deactivated users
+      prisma.user.count({
+        where: {
+          companyId,
+          status: "DEACTIVATED",
+        },
+      }),
 
-    const roleDistribution = roleStats.reduce(
-      (acc, stat) => {
-        acc[stat.role] = stat._count;
-        return acc;
-      },
-      {} as Record<string, number>,
-    );
+      // Role distribution
+      prisma.user.groupBy({
+        by: ["role"],
+        where: { companyId },
+        _count: true,
+      }),
+    ]);
 
-    // Ensure all roles are present
-    const allRoles = ["ADMIN", "MANAGER", "ACCOUNTANT", "STAFF"];
-    allRoles.forEach((role) => {
-      if (!(role in roleDistribution)) {
-        roleDistribution[role] = 0;
+    // Process role distribution
+    const roleDistribution = {
+      ADMIN: 0,
+      MANAGER: 0,
+      ACCOUNTANT: 0,
+      STAFF: 0,
+    };
+
+    for (const stat of roleStats) {
+      if (stat.role in roleDistribution) {
+        roleDistribution[stat.role as keyof typeof roleDistribution] =
+          stat._count;
       }
-    });
+    }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       totalUsers,
       activeUsers,
       suspendedUsers,
       deactivatedUsers,
       roleDistribution,
     });
+
+    response.headers.set("Cache-Control", CACHE_CONTROL);
+    return response;
   } catch (error) {
     console.error("Users stats fetch error:", error);
     return NextResponse.json(

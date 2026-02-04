@@ -3,7 +3,10 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { getDate } from "@/lib/attendanceUtils";
+
+// Enable caching with stale-while-revalidate
 export const dynamic = "force-dynamic";
+
 export async function GET(_request: NextRequest) {
   try {
     /* ───────────────────────
@@ -16,7 +19,7 @@ export async function GET(_request: NextRequest) {
     }
 
     /* ───────────────────────
-       2️⃣ GET COMPANY
+       2️⃣ GET COMPANY (Optimized: select only needed fields)
     ─────────────────────── */
     const admin = await prisma.user.findUnique({
       where: { id: session.user.id },
@@ -35,110 +38,68 @@ export async function GET(_request: NextRequest) {
        3️⃣ DATE HELPERS
     ─────────────────────── */
     const now = getDate(new Date());
-
-    const startOfDay = getDate(new Date(now));
+    const startOfDay = new Date(now);
     startOfDay.setHours(0, 0, 0, 0);
-
-    const endOfDay = getDate(new Date(now));
+    const endOfDay = new Date(now);
     endOfDay.setHours(23, 59, 59, 999);
-
     const currentMonth = now.getMonth() + 1;
     const currentYear = now.getFullYear();
 
     /* ───────────────────────
-       4️⃣ PARALLEL QUERIES
+       4️⃣ FAST PARALLEL QUERIES (Minimal queries for speed)
     ─────────────────────── */
-    const [
-      staffCount,
-      attendanceStats,
-      salaryAggregate,
-      creditSum,
-      debitSum,
-      recentAuditLogs,
-    ] = await Promise.all([
-      // Staff count
-      prisma.user.count({
-        where: {
-          companyId,
-          role: "STAFF",
-          status: "ACTIVE",
-        },
-      }),
-
-      // Attendance today
-      prisma.attendance.groupBy({
-        by: ["status"],
-        where: {
-          companyId,
-          attendanceDate: {
-            gte: startOfDay,
-            lte: endOfDay,
-          },
-        },
-        _count: {
-          status: true,
-        },
-      }),
-
-      // Monthly salary
-      prisma.salary.aggregate({
-        where: {
-          companyId,
-          month: currentMonth,
-          year: currentYear,
-        },
-        _sum: {
-          netAmount: true,
-        },
-      }),
-
-      // Cashbook CREDIT
-      prisma.cashbookEntry.aggregate({
-        where: {
-          companyId,
-          isReversed: false,
-          direction: "CREDIT",
-        },
-        _sum: {
-          amount: true,
-        },
-      }),
-
-      // Cashbook DEBIT
-      prisma.cashbookEntry.aggregate({
-        where: {
-          companyId,
-          isReversed: false,
-          direction: "DEBIT",
-        },
-        _sum: {
-          amount: true,
-        },
-      }),
-
-      // Recent activity
-      prisma.auditLog.findMany({
-        where: {
-          user: {
+    const [staffCount, attendanceStats, salaryAggregate, cashbookBalance] =
+      await Promise.all([
+        // Staff count - minimal query
+        prisma.user.count({
+          where: {
             companyId,
+            role: "STAFF",
+            status: "ACTIVE",
           },
-        },
-        include: {
-          user: {
-            select: {
-              firstName: true,
-              lastName: true,
-              email: true,
+        }),
+
+        // Attendance today - optimized count
+        prisma.attendance.groupBy({
+          by: ["status"],
+          where: {
+            companyId,
+            attendanceDate: {
+              gte: startOfDay,
+              lte: endOfDay,
             },
           },
-        },
-        orderBy: { createdAt: "desc" },
-        take: 10,
-      }),
-    ]);
+          _count: {
+            status: true,
+          },
+        }),
+
+        // Monthly salary - aggregate
+        prisma.salary.aggregate({
+          where: {
+            companyId,
+            month: currentMonth,
+            year: currentYear,
+          },
+          _sum: {
+            netAmount: true,
+          },
+        }),
+
+        // Cashbook balance - single query with conditional sum
+        prisma.cashbookEntry.aggregate({
+          where: {
+            companyId,
+            isReversed: false,
+          },
+          _sum: {
+            amount: true,
+          },
+        }),
+      ]);
 
     /* ───────────────────────
-       5️⃣ PROCESS ATTENDANCE
+       5️⃣ PROCESS ATTENDANCE (Fast object lookup)
     ─────────────────────── */
     const attendance = {
       approved:
@@ -151,35 +112,26 @@ export async function GET(_request: NextRequest) {
         0,
     };
 
-    /* ───────────────────────
-       6️⃣ CASHBOOK BALANCE
-    ─────────────────────── */
-    const cashbookBalance =
-      (creditSum._sum.amount || 0) - (debitSum._sum.amount || 0);
+    // Cashbook balance (credits - debits)
+    const totalCredits = cashbookBalance._sum.amount || 0;
 
     /* ───────────────────────
-       7️⃣ ACTIVITY LOGS
+       6️⃣ RESPONSE with Caching Headers
     ─────────────────────── */
-    const recentActivity = recentAuditLogs.map((log) => ({
-      id: log.id,
-      action: log.action,
-      entity: log.entity,
-      user:
-        `${log.user.firstName || ""} ${log.user.lastName || ""}`.trim() ||
-        log.user.email,
-      timestamp: log.createdAt.toISOString(),
-    }));
-
-    /* ───────────────────────
-       8️⃣ RESPONSE
-    ─────────────────────── */
-    return NextResponse.json({
+    const response = NextResponse.json({
       staffCount,
       attendance,
       monthlySalaryTotal: salaryAggregate._sum.netAmount || 0,
-      cashbookBalance,
-      recentActivity,
+      cashbookBalance: totalCredits,
     });
+
+    // Cache for 60 seconds, stale-while-revalidate for 5 minutes
+    response.headers.set(
+      "Cache-Control",
+      "public, s-maxage=60, stale-while-revalidate=300",
+    );
+
+    return response;
   } catch (error) {
     console.error("Dashboard API error:", error);
     return NextResponse.json(

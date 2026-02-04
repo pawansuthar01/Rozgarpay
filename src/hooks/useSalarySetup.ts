@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { performanceMonitor } from "@/lib/performanceMonitor";
 
 interface StaffMember {
   id: string;
@@ -52,18 +53,41 @@ export function useSalarySetup(params?: {
   return useQuery({
     queryKey: ["salary-setup", params],
     queryFn: async () => {
+      const startTime = performance.now();
       const searchParams = new URLSearchParams();
       if (params?.page) searchParams.set("page", params.page.toString());
       if (params?.limit) searchParams.set("limit", params.limit.toString());
       if (params?.search) searchParams.set("search", params.search);
 
-      const response = await fetch(`/api/admin/salary-setup?${searchParams}`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch salary setup data");
+      try {
+        const response = await fetch(`/api/admin/salary-setup?${searchParams}`);
+        if (!response.ok) {
+          throw new Error("Failed to fetch salary setup data");
+        }
+        const data = (await response.json()) as SalarySetupResponse;
+
+        performanceMonitor.recordQueryMetric({
+          queryKey: "salary-setup.list",
+          duration: performance.now() - startTime,
+          status: "success",
+          isCacheHit: false,
+          timestamp: Date.now(),
+        });
+
+        return data;
+      } catch (error) {
+        performanceMonitor.recordQueryMetric({
+          queryKey: "salary-setup.list",
+          duration: performance.now() - startTime,
+          status: "error",
+          isCacheHit: false,
+          timestamp: Date.now(),
+        });
+        throw error;
       }
-      return response.json() as Promise<SalarySetupResponse>;
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 30, // 30 minutes cache
   });
 }
 

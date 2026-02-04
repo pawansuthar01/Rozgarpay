@@ -4,8 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { salaryService } from "@/lib/salaryService";
 import { authOptions } from "@/lib/auth";
 import { getApprovedWorkingHours, getDate } from "@/lib/attendanceUtils";
-import { toZonedTime } from "date-fns-tz";
 import { getCurrentTime } from "@/lib/utils";
+
+// Cache for 30 seconds
+export const dynamic = "force-dynamic";
 
 export async function GET(
   request: NextRequest,
@@ -20,26 +22,35 @@ export async function GET(
 
     const { attendanceId } = params;
 
-    // Get admin's company
+    // Get admin's company with minimal fields
     const admin = await prisma.user.findUnique({
       where: { id: session.user.id },
-      include: { company: true },
+      select: { companyId: true },
     });
 
-    if (!admin?.company) {
+    if (!admin?.companyId) {
       return NextResponse.json(
         { error: "Admin company not found" },
         { status: 400 },
       );
     }
 
-    // Fetch the attendance record
+    // Fetch the attendance record with selective fields
     const attendance = await prisma.attendance.findFirst({
       where: {
         id: attendanceId,
-        companyId: admin.company.id,
+        companyId: admin.companyId,
       },
-      include: {
+      select: {
+        id: true,
+        attendanceDate: true,
+        punchIn: true,
+        punchOut: true,
+        status: true,
+        workingHours: true,
+        isLate: true,
+        overtimeHours: true,
+        userId: true,
         user: {
           select: {
             id: true,
@@ -52,7 +63,6 @@ export async function GET(
           select: {
             firstName: true,
             lastName: true,
-            phone: true,
           },
         },
       },
@@ -65,17 +75,13 @@ export async function GET(
       );
     }
 
-    const nowUtc = new Date();
-    const fromDate = new Date(nowUtc);
-    fromDate.setDate(fromDate.getDate() - 30);
-
-    // Fetch user's attendance trends for chart (last 30 days)
-    const trends = await prisma.attendance.groupBy({
+    // Fetch user's attendance trends (last 30 days)
+    const userTrends = await prisma.attendance.groupBy({
       by: ["attendanceDate"],
       where: {
         userId: attendance.userId,
         attendanceDate: {
-          gte: getDate(fromDate),
+          gte: getDate(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)),
         },
       },
       _count: true,
@@ -84,20 +90,26 @@ export async function GET(
       },
     });
 
-    const attendanceTrends = trends.map((t: any) => ({
+    const attendanceTrends = userTrends.map((t) => ({
       date: t.attendanceDate.toISOString().split("T")[0],
       count: t._count,
     }));
 
-    const auditHistory = [attendance];
-
-    return NextResponse.json({
+    // Build response with caching headers
+    const response = NextResponse.json({
       attendance,
-      auditHistory,
       charts: {
         attendanceTrends,
       },
     });
+
+    // Cache for 30 seconds
+    response.headers.set(
+      "Cache-Control",
+      "public, s-maxage=30, stale-while-revalidate=60",
+    );
+
+    return response;
   } catch (error) {
     console.error("Attendance detail fetch error:", error);
     return NextResponse.json(
@@ -136,24 +148,33 @@ export async function PUT(request: NextRequest, { params }: any) {
       );
     }
 
-    // Cast to ValidStatus type after validation
     const validStatus = status as ValidStatus;
 
-    // Get admin's company
+    // Get admin's company with minimal fields
     const admin = await prisma.user.findUnique({
       where: { id: session.user.id },
-      include: { company: true },
+      select: {
+        companyId: true,
+        company: { select: { shiftStartTime: true, shiftEndTime: true } },
+      },
     });
 
-    if (!admin?.company || !admin.companyId) {
+    if (!admin?.companyId || !admin.company) {
       return NextResponse.json(
         { error: "Admin company not found" },
         { status: 400 },
       );
     }
 
+    // Get attendance
     const attendance = await prisma.attendance.findUnique({
       where: { id: attendanceId, companyId: admin.companyId },
+      select: {
+        status: true,
+        workingHours: true,
+        userId: true,
+        attendanceDate: true,
+      },
     });
 
     if (!attendance) {
@@ -162,6 +183,7 @@ export async function PUT(request: NextRequest, { params }: any) {
         { status: 404 },
       );
     }
+
     if (attendance.status === validStatus) {
       return NextResponse.json(
         { error: "Attendance already in this status" },
@@ -176,14 +198,15 @@ export async function PUT(request: NextRequest, { params }: any) {
         { status: 400 },
       );
     }
-    // Calculate working hours based on status
+
+    // Calculate working hours
     let workingHours =
       validStatus === "ABSENT" || validStatus === "LEAVE"
         ? 0
         : validStatus === "APPROVED"
-          ? getApprovedWorkingHours(attendance, admin.company)
+          ? getApprovedWorkingHours(attendance as any, admin.company)
           : (attendance.workingHours ?? 0);
-    // getCurrentTime  time retune same new Date() utc time
+
     // Update attendance status
     const updatedAttendance = await prisma.attendance.update({
       where: { id: attendanceId },
@@ -196,66 +219,70 @@ export async function PUT(request: NextRequest, { params }: any) {
             ? Math.round(workingHours * 100) / 100
             : undefined,
       },
-      include: {
-        user: {
-          select: {
-            firstName: true,
-            lastName: true,
-            phone: true,
-          },
-        },
+      select: {
+        id: true,
+        status: true,
+        workingHours: true,
+        userId: true,
+        attendanceDate: true,
+        user: { select: { firstName: true, lastName: true } },
       },
     });
 
-    // Create audit log
-    await prisma.auditLog.create({
-      data: {
-        userId: session.user.id,
-        action: "UPDATED",
-        entity: "Attendance",
-        entityId: attendanceId,
-        meta: {
-          statusUpdate: {
-            from: attendance.status,
-            to: validStatus,
+    // Create audit log (fire-and-forget)
+    prisma.auditLog
+      .create({
+        data: {
+          userId: session.user.id,
+          action: "UPDATED",
+          entity: "Attendance",
+          entityId: attendanceId,
+          meta: {
+            statusUpdate: {
+              from: attendance.status,
+              to: validStatus,
+            },
           },
         },
-      },
-    });
+      })
+      .catch(console.error);
 
-    // 🔥 Fire-and-forget salary recalculation (non-blocking, production-ready)
-    // Moved outside try-catch to ensure attendance response is sent immediately
+    // Fire-and-forget salary recalculation
     setImmediate(async () => {
-      const attendanceLocal = getDate(
-        new Date(updatedAttendance.attendanceDate),
-        "Asia/Kolkata",
-      );
-      const month = attendanceLocal.getMonth() + 1;
-      const year = attendanceLocal.getFullYear();
+      try {
+        const attendanceLocal = getDate(
+          new Date(updatedAttendance.attendanceDate),
+          "Asia/Kolkata",
+        );
+        const month = attendanceLocal.getMonth() + 1;
+        const year = attendanceLocal.getFullYear();
 
-      const existingSalary = await prisma.salary.findUnique({
-        where: {
-          userId_month_year: {
+        const existingSalary = await prisma.salary.findUnique({
+          where: {
+            userId_month_year: {
+              userId: updatedAttendance.userId,
+              month,
+              year,
+            },
+          },
+        });
+
+        if (
+          existingSalary &&
+          existingSalary.status === "PENDING" &&
+          !existingSalary.lockedAt
+        ) {
+          await salaryService.recalculateSalary(existingSalary.id);
+        } else if (!existingSalary && admin.companyId) {
+          await salaryService.generateSalary({
             userId: updatedAttendance.userId,
+            companyId: admin.companyId,
             month,
             year,
-          },
-        },
-      });
-
-      if (
-        existingSalary &&
-        existingSalary.status === "PENDING" &&
-        !existingSalary.lockedAt
-      ) {
-        await salaryService.recalculateSalary(existingSalary.id);
-      } else if (!existingSalary && admin?.companyId) {
-        await salaryService.generateSalary({
-          userId: updatedAttendance.userId,
-          companyId: admin.companyId,
-          month,
-          year,
-        });
+          });
+        }
+      } catch (error) {
+        console.error("Background salary recalculation failed:", error);
       }
     });
 

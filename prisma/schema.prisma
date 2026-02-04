@@ -168,6 +168,8 @@ model CompanyInvitation {
 
    company Company @relation(fields: [companyId], references: [id])
 
+   @@index([companyId])
+   @@index([email])
    @@map("company_invitations")
  }
 
@@ -210,7 +212,7 @@ model User {
   joiningDate          DateTime?     // Employee joining date
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
-salarySetupDone Boolean @default(false)
+ salarySetupDone Boolean @default(false)
 
   company           Company?          @relation(fields: [companyId], references: [id])
   attendances       Attendance[]
@@ -229,6 +231,9 @@ salarySetupDone Boolean @default(false)
   reviewedCorrections CorrectionRequest[] @relation("CorrectionReviewedBy")
 
   @@index([companyId, role])
+  @@index([companyId, status])
+  @@index([email])
+  @@index([phone])
   @@map("users")
 }
 model Attendance {
@@ -236,8 +241,8 @@ model Attendance {
    userId         String           @db.Uuid
    companyId      String           @db.Uuid
    attendanceDate DateTime
-  LateMinute Int? @default(0)
-     
+   LateMinute Int? @default(0)
+      
 
    punchIn        DateTime?
    punchOut       DateTime?
@@ -270,6 +275,9 @@ model Attendance {
    @@unique([userId, companyId, attendanceDate])
    @@index([companyId, attendanceDate])
    @@index([companyId, status])
+   @@index([userId, status, attendanceDate])
+   @@index([companyId, attendanceDate, status])
+   @@index([userId, companyId])
  }
 
 model CorrectionRequest {
@@ -297,8 +305,10 @@ model CorrectionRequest {
   audits          AuditLog[]
 
   @@index([companyId, status])
+  @@index([companyId, createdAt])
   @@index([userId, attendanceDate])
-}
+  @@index([userId, status])
+ }
 
 model Salary {
   id                String      @id @default(uuid()) @db.Uuid
@@ -356,6 +366,8 @@ model Salary {
   @@unique([userId, month, year])
   @@index([companyId, month, year])
   @@index([companyId, status])
+  @@index([userId, status])
+  @@index([companyId, year, month])
 }
 
 model SalaryBreakdown {
@@ -395,6 +407,7 @@ model SalaryLedger {
   @@index([userId])
   @@index([companyId])
   @@index([type])
+  @@index([createdAt])
   @@map("salary_ledgers")
 }
 
@@ -425,6 +438,8 @@ model CashbookEntry {
   @@index([companyId, direction])
   @@index([companyId, userId])
   @@index([reference])
+  @@index([createdAt])
+  @@index([companyId, transactionDate, direction])
   @@map("cashbook_entries")
 }
 
@@ -442,6 +457,8 @@ model Otp {
   deliveryChannels  Json?    // Array of channels used: ["SMS", "Email"]
   deliveryResults   Json?    // Detailed delivery results with retry info
   
+  @@index([phone, purpose])
+  @@index([email, purpose])
   @@map("Otp")
 }
 model Notification {
@@ -459,6 +476,8 @@ model Notification {
   company Company @relation(fields: [companyId], references: [id])
 
   @@index([userId, status])
+  @@index([companyId, createdAt])
+  @@index([userId, createdAt])
 }
 model PushSubscription {
   id        String   @id @default(uuid()) @db.Uuid
@@ -469,6 +488,8 @@ model PushSubscription {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
 }
 model Report {
   id        String     @id @default(uuid()) @db.Uuid
@@ -480,6 +501,9 @@ model Report {
   createdAt DateTime   @default(now())
 
   company Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId, type])
+  @@index([createdAt])
 }
 model AuditLog {
    id        String      @id @default(uuid()) @db.Uuid
@@ -500,10 +524,11 @@ model AuditLog {
 
    @@index([entity, entityId])
    @@index([userId])
-}
+   @@index([createdAt])
+ }
 
 
-// System Settings for Platform Management
+ // System Settings for Platform Management
 model SystemSetting {
    id          String   @id @default(cuid())
    category    String   // e.g., "platform", "security"
@@ -536,4 +561,3 @@ model NotificationLog {
   @@index([recipient])
   @@map("notification_logs")
 }
-

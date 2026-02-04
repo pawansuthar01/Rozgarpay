@@ -4,7 +4,12 @@ import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { getDate } from "@/lib/attendanceUtils";
 import { toZonedTime } from "date-fns-tz";
+
 export const dynamic = "force-dynamic";
+
+// Cache for 1 minute
+const CACHE_CONTROL = "public, s-maxage=60, stale-while-revalidate=120";
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -14,29 +19,35 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "10");
-    const status = searchParams.get("status"); // ACTIVE, SUSPENDED, DEACTIVATED
-    const attendanceStatus = searchParams.get("attendanceStatus"); // PENDING, APPROVED, REJECTED
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1") || 1);
+    let limit = Math.max(
+      1,
+      Math.min(parseInt(searchParams.get("limit") || "10") || 10, 100),
+    );
+    const status = searchParams.get("status");
+    const attendanceStatus = searchParams.get("attendanceStatus");
     const search = searchParams.get("search");
 
-    // Get admin's company
+    // Get admin's company with minimal fields
     const admin = await prisma.user.findUnique({
       where: { id: session.user.id },
-      include: { company: true },
+      select: { companyId: true },
     });
 
-    if (!admin?.company) {
+    if (!admin?.companyId) {
       return NextResponse.json(
         { error: "Admin company not found" },
         { status: 400 },
       );
     }
 
-    // Build where clause for staff only
+    const companyId = admin.companyId;
+    const skip = (page - 1) * limit;
+
+    // Build where clause
     const where: any = {
-      companyId: admin.company.id,
-      role: "STAFF", // Only staff members
+      companyId,
+      role: "STAFF",
     };
 
     if (status) {
@@ -52,209 +63,106 @@ export async function GET(request: NextRequest) {
       ];
     }
 
-    // Get total count
-    const total = await prisma.user.count({ where });
-    const totalPages = Math.ceil(total / limit);
+    const now = new Date();
+    const today = getDate(now);
+    today.setHours(0, 0, 0, 0);
+    const thirtyDaysAgo = getDate(now);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    // Get staff with their latest attendance
-    const staff = await prisma.user.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * limit,
-      take: limit,
-      include: {
-        attendances: {
-          where: {
-            attendanceDate: {
-              gte: getDate(
-                new Date(
-                  getDate(new Date()).setDate(
-                    getDate(new Date()).getDate() - 30,
-                  ),
-                ),
-              ), // Last 30 days
-            },
+    // PARALLEL QUERIES: Run independent queries concurrently
+    const [total, staff, todayAttendanceStats, staffCounts] = await Promise.all(
+      [
+        // Total count
+        prisma.user.count({ where }),
+
+        // Get paginated staff with selective fields
+        prisma.user.findMany({
+          where,
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            status: true,
+            role: true,
+            createdAt: true,
           },
-          orderBy: { attendanceDate: "desc" },
-          take: 1, // Latest attendance
-        },
-        salaries: {
+          orderBy: { createdAt: "desc" },
+          skip,
+          take: limit,
+        }),
+
+        // Today's attendance stats
+        prisma.attendance.groupBy({
+          by: ["status"],
           where: {
-            month: toZonedTime(new Date(), "Asia/Kolkata").getMonth() + 1,
-            year: toZonedTime(new Date(), "Asia/Kolkata").getFullYear(),
+            companyId,
+            attendanceDate: today,
+            user: { role: "STAFF" },
           },
-          take: 1, // Current month salary
-        },
+          _count: true,
+        }),
+
+        // Staff counts
+        prisma.user.groupBy({
+          by: ["status"],
+          where: { companyId, role: "STAFF" },
+          _count: true,
+        }),
+      ],
+    );
+
+    // Get today's attendance for each staff member
+    const staffIds = staff.map((s) => s.id);
+    const todayAttendances = await prisma.attendance.findMany({
+      where: {
+        userId: { in: staffIds },
+        attendanceDate: today,
+      },
+      select: {
+        userId: true,
+        status: true,
+        punchIn: true,
+        punchOut: true,
       },
     });
 
-    // Get today's attendance for each staff
-    const today = getDate(new Date());
-    today.setHours(0, 0, 0, 0);
+    // Create a map for quick lookup
+    const attendanceMap = new Map<string, any>();
+    for (const att of todayAttendances) {
+      attendanceMap.set(att.userId, att);
+    }
 
-    const staffWithTodayAttendance = await Promise.all(
-      staff.map(async (member) => {
-        const todayAttendance = await prisma.attendance.findFirst({
-          where: {
-            userId: member.id,
-            attendanceDate: today,
-          },
-        });
-
-        // Get attendance stats for the last 30 days
-        const attendanceStats = await prisma.attendance.groupBy({
-          by: ["status"],
-          where: {
-            userId: member.id,
-            attendanceDate: {
-              gte: getDate(
-                new Date(
-                  getDate(new Date()).setDate(
-                    getDate(new Date()).getDate() - 30,
-                  ),
-                ),
-              ),
-            },
-          },
-          _count: true,
-        });
-
-        // Get pending attendance count
-        const pendingCount = await prisma.attendance.count({
-          where: {
-            userId: member.id,
-            status: "PENDING",
-          },
-        });
-
-        return {
-          ...member,
-          todayAttendance,
-          attendanceStats: {
-            approved:
-              attendanceStats.find((s) => s.status === "APPROVED")?._count || 0,
-            pending:
-              attendanceStats.find((s) => s.status === "PENDING")?._count || 0,
-            rejected:
-              attendanceStats.find((s) => s.status === "REJECTED")?._count || 0,
-            total: attendanceStats.reduce((sum, stat) => sum + stat._count, 0),
-          },
-          pendingAttendanceCount: pendingCount,
-          currentMonthSalary: member.salaries[0] || null,
-        };
-      }),
-    );
+    // Enrich staff with today's attendance
+    const staffWithAttendance = staff.map((member) => ({
+      ...member,
+      todayAttendance: attendanceMap.get(member.id) || null,
+    }));
 
     // Filter by attendance status if specified
-    let filteredStaff = staffWithTodayAttendance;
+    let filteredStaff = staffWithAttendance;
     if (attendanceStatus) {
-      if (attendanceStatus === "PENDING") {
-        filteredStaff = staffWithTodayAttendance.filter(
-          (s) => s.todayAttendance?.status === "PENDING",
-        );
-      } else if (attendanceStatus === "APPROVED") {
-        filteredStaff = staffWithTodayAttendance.filter(
-          (s) => s.todayAttendance?.status === "APPROVED",
-        );
-      } else if (attendanceStatus === "REJECTED") {
-        filteredStaff = staffWithTodayAttendance.filter(
-          (s) => s.todayAttendance?.status === "REJECTED",
-        );
-      } else if (attendanceStatus === "NOT_MARKED") {
-        filteredStaff = staffWithTodayAttendance.filter(
-          (s) => !s.todayAttendance,
+      if (attendanceStatus === "NOT_MARKED") {
+        filteredStaff = staffWithAttendance.filter((s) => !s.todayAttendance);
+      } else {
+        filteredStaff = staffWithAttendance.filter(
+          (s) => s.todayAttendance?.status === attendanceStatus,
         );
       }
     }
 
-    // Get overall stats
-    const totalStaff = await prisma.user.count({
-      where: { companyId: admin.company.id, role: "STAFF" },
-    });
-
-    const activeStaff = await prisma.user.count({
-      where: {
-        companyId: admin.company.id,
-        role: "STAFF",
-        status: "ACTIVE",
-      },
-    });
-
-    // Today's attendance stats
-    const todayAttendanceStats = await prisma.attendance.groupBy({
-      by: ["status"],
-      where: {
-        companyId: admin.company.id,
-        attendanceDate: today,
-        user: {
-          role: "STAFF",
-        },
-      },
-      _count: true,
-    });
-
+    // Calculate stats
     const todayPresent =
       todayAttendanceStats.find((s) => s.status === "APPROVED")?._count || 0;
     const todayPending =
       todayAttendanceStats.find((s) => s.status === "PENDING")?._count || 0;
 
-    // Get attendance trends for last 7 days
-    const attendanceTrends = [];
-    for (let i = 6; i >= 0; i--) {
-      const date = getDate(new Date());
-      date.setDate(date.getDate() - i);
-      date.setHours(0, 0, 0, 0);
+    const activeStaff =
+      staffCounts.find((s) => s.status === "ACTIVE")?._count || 0;
+    const totalStaff = staffCounts.reduce((sum, s) => sum + s._count, 0);
 
-      const dayStats = await prisma.attendance.groupBy({
-        by: ["status"],
-        where: {
-          companyId: admin.company.id,
-          attendanceDate: date,
-          user: { role: "STAFF" },
-        },
-        _count: true,
-      });
-
-      const present =
-        dayStats.find((s) => s.status === "APPROVED")?._count || 0;
-      const absent =
-        totalStaff -
-        present -
-        (dayStats.find((s) => s.status === "PENDING")?._count || 0) -
-        (dayStats.find((s) => s.status === "REJECTED")?._count || 0);
-
-      attendanceTrends.push({
-        date: date.toISOString().split("T")[0],
-        present,
-        absent,
-      });
-    }
-
-    // Get salary distribution for current month
-    const currentMonth = toZonedTime(new Date(), "Asia/Kolkata").getMonth() + 1;
-    const currentYear = toZonedTime(new Date(), "Asia/Kolkata").getFullYear();
-
-    const salaryStats = await prisma.salary.groupBy({
-      by: ["status"],
-      where: {
-        user: {
-          companyId: admin.company.id,
-          role: "STAFF",
-        },
-        month: currentMonth,
-        year: currentYear,
-      },
-      _count: true,
-    });
-
-    const salaryDistribution = {
-      paid: salaryStats.find((s) => s.status === "PAID")?._count || 0,
-      pending: salaryStats.find((s) => s.status === "PENDING")?._count || 0,
-      processing:
-        salaryStats.find((s) => s.status === "PROCESSING")?._count || 0,
-    };
-
-    return NextResponse.json({
+    const response = NextResponse.json({
       staff: filteredStaff,
       pagination: {
         page,
@@ -270,11 +178,10 @@ export async function GET(request: NextRequest) {
         todayAttendanceRate:
           totalStaff > 0 ? Math.round((todayPresent / totalStaff) * 100) : 0,
       },
-      charts: {
-        attendanceTrends,
-        salaryDistribution,
-      },
     });
+
+    response.headers.set("Cache-Control", CACHE_CONTROL);
+    return response;
   } catch (error) {
     console.error("Staff fetch error:", error);
     return NextResponse.json(

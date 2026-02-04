@@ -13,7 +13,7 @@ import Link from "next/link";
 import { CheckCircle, Clock, FileText, XCircle } from "lucide-react";
 import MarkPaidModal from "@/components/admin/MarkPaidModal";
 import { formatCurrency } from "@/lib/utils";
-import { SalaryRecord } from "@/hooks";
+import { SalaryRecord } from "@/types/salary";
 
 interface SalaryTableProps {
   records: SalaryRecord[];
@@ -313,7 +313,7 @@ export default function SalaryTable({
                                 </div>
                               )}
                               {record.status === "APPROVED" &&
-                                record.netAmount > 0 && (
+                                (record.netAmount ?? 0) > 0 && (
                                   <button
                                     onClick={() =>
                                       handleOpenMarkPaidModal(record)
