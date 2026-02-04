@@ -10,6 +10,7 @@ import {
   getDate,
 } from "@/lib/attendanceUtils";
 import { toZonedTime } from "date-fns-tz";
+import { getCurrentTime } from "@/lib/utils";
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,7 +39,6 @@ export async function POST(request: NextRequest) {
 
     const settings = await getCompanySettings(companyId);
     const nowUtc = new Date();
-    const nowIst = toZonedTime(nowUtc, "Asia/Kolkata");
     const attendanceDate = getDate(nowUtc);
 
     // Check if user already has an active attendance session
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
 
       // Check punch-in allowed based on time
       const punchInCheck = isPunchInAllowed(
-        nowIst,
+        new Date(),
         settings.shiftStartTime,
         settings.shiftEndTime,
         settings.gracePeriodMinutes,
@@ -132,6 +132,7 @@ export async function POST(request: NextRequest) {
 
       // Check punch-out allowed based on time worked
       const punchOutCheck = isPunchOutAllowed(
+        new Date(),
         openAttendance.punchIn!,
         settings.minWorkingHours,
         settings.maxDailyHours,

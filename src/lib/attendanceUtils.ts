@@ -148,23 +148,32 @@ export function isPunchInAllowed(
   return { allowed: true, isLate: now.getTime() > startUtc.getTime() };
 }
 
-export function isPunchOutAllowed(punchIn: Date, min: number, max: number) {
-  const hours = (Date.now() - punchIn.getTime()) / 36e5;
+export function isPunchOutAllowed(
+  now: Date,
+  punchIn: Date,
+  min: number,
+  max: number,
+) {
+  const hours = (now.getTime() - punchIn.getTime()) / 36e5;
 
   if (hours < min) {
     const remainingMin = Math.ceil((min - hours) * 60);
 
     return {
       allowed: false,
-      reason: `Minimum working hours not met ,You can punch out after ${convertSeconds(remainingMin * 60)}`,
+      reason: `Minimum working hours not met. You can punch out after ${convertSeconds(
+        remainingMin * 60,
+      )}`,
     };
   }
-  if (hours > max)
+
+  if (hours > max) {
     return {
       allowed: true,
       requiresApproval: true,
       reason: "Exceeded maximum daily hours.",
     };
+  }
 
   return { allowed: true, requiresApproval: false };
 }

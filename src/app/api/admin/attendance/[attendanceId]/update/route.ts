@@ -105,7 +105,7 @@ export async function PUT(
 
     try {
       // Create audit log
-      await prisma.auditLog.create({
+      prisma.auditLog.create({
         data: {
           userId: session.user.id,
           action: "UPDATED",

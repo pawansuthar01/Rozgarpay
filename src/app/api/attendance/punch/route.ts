@@ -95,16 +95,17 @@ export async function POST(request: NextRequest) {
           overtimeHours,
         },
       });
-
-      await prisma.auditLog.create({
-        data: {
-          userId,
-          action: "UPDATED",
-          entity: "ATTENDANCE",
-          entityId: attendance.id,
-          meta: { type: "PUNCH_OUT" },
-        },
-      });
+      try {
+        prisma.auditLog.create({
+          data: {
+            userId,
+            action: "UPDATED",
+            entity: "ATTENDANCE",
+            entityId: attendance.id,
+            meta: { type: "PUNCH_OUT" },
+          },
+        });
+      } catch (_) {}
     }
     // PUNCH IN
     else if (validation.punchType === "in") {
@@ -145,16 +146,17 @@ export async function POST(request: NextRequest) {
           status: "PENDING",
         },
       });
-
-      await prisma.auditLog.create({
-        data: {
-          userId,
-          action: "CREATED",
-          entity: "ATTENDANCE",
-          entityId: attendance.id,
-          meta: { type: "PUNCH_IN" },
-        },
-      });
+      try {
+        prisma.auditLog.create({
+          data: {
+            userId,
+            action: "CREATED",
+            entity: "ATTENDANCE",
+            entityId: attendance.id,
+            meta: { type: "PUNCH_IN" },
+          },
+        });
+      } catch (_) {}
     } else {
       return NextResponse.json(
         { error: "Invalid punch type" },

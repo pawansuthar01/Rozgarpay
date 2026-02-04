@@ -88,7 +88,22 @@ export function useUpdateCompanySettings() {
 
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      // Immediately update the cache with new data for instant UI feedback
+      queryClient.setQueryData<CompanyResponse>(
+        queryKeys.company,
+        (oldData) => {
+          if (!oldData) return data;
+          return {
+            ...oldData,
+            company: {
+              ...oldData.company,
+              ...data.company,
+            },
+          };
+        },
+      );
+      // Also invalidate to ensure consistency
       queryClient.invalidateQueries({ queryKey: queryKeys.company });
     },
   });
