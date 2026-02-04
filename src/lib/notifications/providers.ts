@@ -156,6 +156,7 @@ function getWhatsAppTemplate(type: NotificationType): string {
     company_join_link:
       process.env.MSG91_WHATSAPP_TEMPLATE_COMPANY_JOIN_NAME ||
       "company_join_link",
+    staff_join: "staff_join",
     company_staff_join:
       process.env.MSG91_WHATSAPP_TEMPLATE_STAFF_JOIN_NAME ||
       "company_staff_join",
@@ -213,6 +214,16 @@ function buildWhatsAppComponents(notification: {
         },
       };
     case "company_staff_join":
+      return {
+        body_1: { type: "text", value: data?.staffName || "team member" },
+        body_2: { type: "text", value: data?.companyName || "team member" },
+        button_1: {
+          subtype: "url",
+          type: "text",
+          value: `/${data?.token}` || "#",
+        },
+      };
+    case "staff_join":
       return {
         body_1: { type: "text", value: data?.staffName || "team member" },
         body_2: { type: "text", value: data?.companyName || "team member" },

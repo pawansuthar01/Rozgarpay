@@ -96,7 +96,7 @@ export async function POST(
           phone,
           ["email", "whatsapp"],
           {
-            type: "invitation_company",
+            type: "company_join_link",
             role: "admin",
             companyName: company.name,
             token: token,

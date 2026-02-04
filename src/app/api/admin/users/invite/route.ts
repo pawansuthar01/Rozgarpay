@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
         phone,
         email ? ["email", "whatsapp"] : ["whatsapp"],
         {
-          type: "company_staff_join",
+          type: "staff_join",
           role: "staff",
 
           companyName: admin.company.name,

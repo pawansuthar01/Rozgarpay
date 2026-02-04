@@ -11,6 +11,7 @@ export type NotificationType =
   | "company_join_link"
   | "company_staff_join"
   | "salary_padding"
+  | "staff_join"
   | "salary_setup_pending"
   | "salary_setup_done"
   | "welcome_message"
