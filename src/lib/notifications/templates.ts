@@ -102,6 +102,23 @@ export const NOTIFICATION_TEMPLATES: Record<
       },
     ],
   },
+  staff_join: {
+    id: "staff_join",
+    type: "staff_join",
+    title: "You're Invited to Join RozgarPay",
+    message:
+      "You've been invited to join RozgarPay as a {{role}}. Click here to complete your registration.",
+    priority: "high",
+    channels: ["email", "whatsapp"],
+    variables: ["role", "invitationUrl", "expiresAt", "message"],
+    actions: [
+      {
+        label: "Accept Invitation",
+        action: "navigate",
+        params: { route: "{{invitationUrl}}" },
+      },
+    ],
+  },
   salary_padding: {
     id: "salary_padding",
     type: "salary_padding",
