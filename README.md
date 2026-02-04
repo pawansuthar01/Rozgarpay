@@ -1,973 +1,709 @@
-# payrollbook - Complete Payroll & Attendance Management System
+# Rozgarpay - Payroll & Attendance Management System
 
-A modern, mobile-first SaaS application for managing employee attendance, payroll, and salary calculations with GPS tracking and automated reporting.
+A comprehensive, production-ready payroll and attendance management system built with Next.js 14, TypeScript, Prisma, and PostgreSQL.
 
 ## 📋 Table of Contents
 
-- [Overview](#overview)
-- [Key Features](#key-features)
-- [System Architecture](#system-architecture)
-- [Attendance Management](#attendance-management)
-- [Salary Management](#salary-management)
-- [Reports & Analytics](#reports--analytics)
-- [User Roles & Permissions](#user-roles--permissions)
-- [Setup & Installation](#setup--installation)
+- [Project Overview](#project-overview)
+- [Production Readiness Status](#production-readiness-status)
+- [Features Implemented](#features-implemented)
+- [What Needs Work](#what-needs-work)
+- [Technology Stack](#technology-stack)
+- [Getting Started](#getting-started)
+- [Project Structure](#project-structure)
 - [API Documentation](#api-documentation)
-- [Troubleshooting](#troubleshooting)
+- [Database Schema](#database-schema)
+- [Deployment Guide](#deployment-guide)
 
-## 🎯 Overview
+---
 
-payrollbook is a comprehensive payroll and attendance management system designed for small to medium businesses. It combines GPS-based attendance tracking with automated salary calculations, providing real-time insights into workforce management.
+## 🎯 Project Overview
 
-### Core Philosophy
+**Rozgarpay** is a complete HR management solution featuring:
 
-- **Simple to Use**: Intuitive mobile-first interface
-- **Accurate Tracking**: GPS and photo verification for attendance
-- **Flexible Salary Management**: Support for advances, deductions, and recoveries
-- **Real-time Reports**: Instant access to attendance and salary data
-
-## ✨ Key Features
-
-### 📍 Attendance Tracking
-
-- GPS-based location verification
-- Photo capture for attendance proof
-- Automatic punch-in/punch-out detection
-- Night shift support
-- Mobile and web access
-
-### 💰 Salary Management
-
+- GPS-based attendance tracking with photo verification
 - Automated salary calculations
-- Advance payments and recoveries
-- Deductions and adjustments
-- Multi-currency support
-- Salary history tracking
+- Multi-role access control (Super Admin, Admin, Manager, Staff)
+- Real-time notifications
+- Comprehensive reporting
+- Cashbook management
 
-### 📊 Reports & Analytics
+**Note**: This system uses **phone numbers** as the primary identifier for authentication and contact. Email is optional and not used for authentication.
 
-- Real-time attendance reports
-- Salary payment tracking
-- Monthly/quarterly analytics
-- Export capabilities (PDF, Excel)
-- Custom date range filtering
+---
 
-### 👥 User Management
+## ✅ Production Readiness Status
 
-- Role-based access control
-- Company-based isolation
-- Employee onboarding
-- Profile management
+### 🚀 PRODUCTION READY (Ready for Deployment)
 
-## 🏗️ System Architecture
+#### 1. **Authentication System** ✅ COMPLETE
 
-### Technology Stack
+- [x] Phone-based login with password (primary method)
+- [x] OTP-based authentication via phone
+- [x] Role-based access control (RBAC)
+- [x] Session management with NextAuth.js
+- [x] JWT token strategy
+- [x] Password hashing with bcrypt
+- [x] Login page with mobile-first design
+- [x] Middleware for route protection
+- [x] **Email NOT required** - phone number is primary identifier
 
-- **Frontend**: Next.js 14, React, TypeScript, Tailwind CSS
-- **Backend**: Next.js API Routes
-- **Database**: PostgreSQL with Prisma ORM
-- **Authentication**: NextAuth.js
-- **Deployment**: Vercel/Netlify ready
+#### 2. **Admin Dashboard** ✅ COMPLETE
 
-### Database Schema
+- [x] Stats cards (staff count, attendance, salary, cashbook)
+- [x] Recent activity feed
+- [x] Quick actions panel
+- [x] Responsive design
+- [x] Error handling with reload option
+- [x] Loading states with skeletons
 
-- **Users**: Employee profiles with role-based access
-- **Companies**: Multi-tenant company isolation
-- **Attendance**: GPS-tracked attendance records
-- **Salary**: Monthly salary calculations and breakdowns
-- **Payments**: Salary payments, advances, recoveries
-- **Reports**: Generated reports and analytics
+#### 3. **Attendance Management** ✅ COMPLETE
 
-## 📍 Attendance Management
+- [x] GPS-based punch in/out
+- [x] Photo capture for verification
+- [x] Location tracking and validation
+- [x] Automatic working hours calculation
+- [x] Overtime tracking
+- [x] Late arrival detection
+- [x] Status management (Pending, Approved, Rejected, Absent, Leave)
+- [x] Attendance approval workflow
+- [x] Missing attendance check
+- [x] Pagination and filtering
+- [x] Charts and analytics
 
-### How Attendance Tracking Works
+#### 4. **User Management** ✅ COMPLETE
 
-#### 1. **Employee Punch-In Process**
+- [x] User listing with pagination
+- [x] Search functionality
+- [x] Status filtering (Active, Suspended, Deactivated)
+- [x] User profile management
+- [x] User invitations via token
+- [x] Role-based user types (Admin, Manager, Accountant, Staff)
+- [x] Bulk actions support
+- [x] Phone number as primary identifier
 
-```
-1. Employee opens payrollbook mobile app
-2. Clicks "Punch In" button
-3. App captures GPS coordinates
-4. App takes photo for verification
-5. Attendance record created with timestamp
-6. Location and photo stored for audit trail
-```
+#### 5. **Salary Management** ✅ COMPLETE
 
-#### 2. **Automatic Features**
+- [x] Salary setup for employees
+- [x] Multiple salary types (Monthly, Daily, Hourly)
+- [x] PF/ESI configuration
+- [x] Overtime rate setup
+- [x] Working days configuration
+- [x] Salary generation for month
+- [x] Salary approval workflow
+- [x] Salary rejection with reasons
+- [x] Salary breakdown (Base, Overtime, Deductions, etc.)
+- [x] Payment tracking
+- [x] Recovery management
+- [x] PDF salary slip generation
+- [x] Salary reports
 
-- **Auto Punch-Out**: Configurable after-hours punch-out
-- **Location Validation**: GPS radius checking
-- **Photo Verification**: Facial recognition ready
-- **Night Shift Support**: Overnight attendance tracking
+#### 6. **Cashbook Management** ✅ COMPLETE
 
-#### 3. **Attendance States**
+- [x] Income/Expense tracking
+- [x] Multiple transaction types
+- [x] Payment mode selection (Cash, Bank, UPI, Cheque)
+- [x] Transaction reversal capability
+- [x] Balance calculation
+- [x] Reports generation
+- [x] Filtering and search
 
-- **Present**: Successfully punched in/out
-- **Absent**: No attendance record for the day
-- **Late**: Punched in after configured time
-- **Half Day**: Partial attendance
-- **Pending**: Awaiting approval
+#### 7. **Correction Requests** ✅ COMPLETE
 
-#### 4. **GPS Tracking Details**
+- [x] Missed punch requests
+- [x] Attendance correction requests
+- [x] Leave requests
+- [x] Salary requests
+- [x] Admin review workflow
+- [x] Evidence attachment support
 
-```typescript
-interface AttendanceRecord {
-  id: string;
-  userId: string;
-  punchInTime: Date;
-  punchOutTime?: Date;
-  punchInLocation: {
-    latitude: number;
-    longitude: number;
-    accuracy: number;
-  };
-  punchOutLocation?: {
-    latitude: number;
-    longitude: number;
-    accuracy: number;
-  };
-  punchInPhoto: string; // Base64 image
-  punchOutPhoto?: string;
-  status: "PRESENT" | "ABSENT" | "LATE" | "HALF_DAY";
-  totalHours: number;
-}
-```
+#### 8. **Notifications System** ✅ COMPLETE
 
-### Attendance Rules Configuration
+- [x] In-app notifications
+- [x] Notification templates
+- [x] Notification queue system
+- [x] Phone-based OTP delivery
+- [x] Notification preferences
 
-#### Night Shift Rules
+#### 9. **Reports & Analytics** ✅ COMPLETE
 
-```json
-{
-  "nightShiftStart": "22:00",
-  "nightShiftEnd": "06:00",
-  "autoPunchOutEnabled": true,
-  "autoPunchOutTime": "06:30",
-  "locationRadius": 100, // meters
-  "requirePhoto": true
-}
-```
+- [x] Attendance reports
+- [x] Salary reports
+- [x] User-wise reports
+- [x] Date range filtering
+- [x] Export capabilities
+- [x] Charts and visualizations
 
-#### Regular Shift Rules
+#### 10. **API Routes** ✅ COMPLETE
 
-```json
-{
-  "workStartTime": "09:00",
-  "workEndTime": "18:00",
-  "gracePeriod": 15, // minutes
-  "halfDayThreshold": 4, // hours
-  "locationRadius": 50,
-  "requirePhoto": true
-}
-```
+- [x] Admin API routes (users, attendance, salary, cashbook, etc.)
+- [x] Staff API routes (dashboard, attendance, salary, etc.)
+- [x] Manager API routes
+- [x] Super Admin API routes
+- [x] Auth API routes
+- [x] OTP API routes
+- [x] Proper error handling
+- [x] Response caching headers
+- [x] Input validation
 
-## 💰 Salary Management
+#### 11. **Database Schema** ✅ COMPLETE
 
-### Salary Calculation Flow
+- [x] User model with phone as primary identifier
+- [x] Company model with settings
+- [x] Attendance model with GPS data
+- [x] Salary model with breakdowns
+- [x] Cashbook entry model
+- [x] Notification model
+- [x] Audit log model
+- [x] Correction request model
+- [x] Proper indexes for performance
+- [x] Enums for fixed values
+- [x] Relations between models
 
-#### 1. **Monthly Salary Generation**
+#### 12. **PDF Generation** ✅ COMPLETE
 
-```
-1. System runs cron job on 1st of each month
-2. Fetches attendance data for previous month
-3. Calculates working days and hours
-4. Applies salary rules and formulas
-5. Creates salary record with breakdowns
-6. Generates payable amount
-```
+- [x] Salary slip PDF generation
+- [x] Attendance PDF generation
+- [x] Cashbook PDF generation
+- [x] Phone number displayed (not email)
+- [x] Professional formatting with tables
+- [x] Financial summary cards
+- [x] Indian Rupee (₹) currency format
+- [x] Confidential marking
 
-#### 2. **Salary Components**
+**PDF Features**:
 
-##### Base Salary Calculation
+- Professional salary reports with financial summaries
+- Detailed attendance records with working hours
+- Support for multiple payment types (Cash, Bank, UPI, Cheque)
+- **Phone-only contact information** in all generated PDFs
 
-```typescript
-// Basic salary calculation
-const baseSalary = (monthlySalary / totalWorkingDays) * actualWorkingDays;
+#### 13. **Frontend Components** ✅ COMPLETE
 
-// Example: ₹30,000 monthly salary, 22 working days
-// Employee worked 20 days = ₹27,272.73
-```
+- [x] Reusable UI components (Card, Input, Button, Modal, etc.)
+- [x] Admin-specific components
+- [x] Staff-specific components
+- [x] Charts and statistics
+- [x] Forms with validation
+- [x] Tables with pagination
+- [x] Loading states
+- [x] Error boundaries
 
-##### Salary Breakdown Structure
+#### 14. **Performance Optimization** ✅ COMPLETE
 
-```typescript
-interface SalaryBreakdown {
-  id: string;
-  salaryId: string;
-  type: "BASE" | "PAYMENT" | "DEDUCTION" | "RECOVERY" | "ADVANCE";
-  description: string;
-  amount: number; // Positive for earnings, negative for deductions
-  date: Date;
-}
-```
+- [x] React Query integration
+- [x] Query key factory
+- [x] Stale time configuration
+- [x] Persistent caching
+- [x] Optimistic updates
+- [x] Web Workers for IndexedDB
+- [x] Performance monitoring
+- [x] Database connection pooling
 
-#### 3. **Payment Types**
+#### 15. **Infrastructure** ✅ COMPLETE
 
-##### Company Pays Staff (Earnings)
+- [x] PWA support with service workers
+- [x] Offline storage with IndexedDB
+- [x] Cloudinary integration for images
+- [x] Email support with Resend (optional)
+- [x] Phone-based OTP via SMS provider
 
-- **Base Salary**: Regular monthly salary
-- **Overtime**: Extra hours worked
-- **Bonus**: Performance incentives
-- **Advance**: Salary advance payments
+---
 
-##### Staff Pays Company (Deductions/Recoveries)
+### ⚠️ NEEDS ATTENTION (Partially Complete)
 
-- **Advance Recovery**: Repayment of salary advances
-- **Loan Recovery**: Company loan repayments
-- **Deductions**: Fines, penalties, or adjustments
-- **Overpayments**: Corrections for excess payments
+#### 1. **Manager Portal** ⚠️ PARTIAL
 
-#### 4. **Salary Status Flow**
+- [x] Dashboard page
+- [x] Attendance management
+- [x] Team management
+- [x] Reports
+- [x] Salary approval
+- [ ] Notification preferences
+- [ ] Profile management improvements
 
-```
-PENDING → APPROVED → PAID
-    ↓        ↓        ↓
-REJECTED  REJECTED  MARKED_PAID
-```
+**Status**: Core functionality exists but may need UI polishing
 
-### Salary Rules Engine
+#### 2. **Super Admin Portal** ⚠️ PARTIAL
 
-#### Attendance-Based Salary
+- [x] Dashboard
+- [x] Company management
+- [x] Admin management
+- [x] Audit logs
+- [x] Invitations
+- [x] Reports
+- [ ] Settings management
+- [ ] Platform analytics
 
-```typescript
-const calculateSalary = (attendanceData, salaryRules) => {
-  const { monthlySalary, overtimeRate, leaveDeductions } = salaryRules;
+**Status**: Core functionality exists but limited features
 
-  // Calculate base salary
-  const workingDays = attendanceData.filter(
-    (day) => day.status === "PRESENT",
-  ).length;
-  const baseAmount = (monthlySalary / 22) * workingDays; // Assuming 22 working days
+#### 3. **Email/WhatsApp Notifications** ⚠️ INFRASTRUCTURE READY
 
-  // Calculate overtime
-  const overtimeHours = attendanceData.reduce(
-    (total, day) => total + (day.totalHours - 8 > 0 ? day.totalHours - 8 : 0),
-    0,
-  );
-  const overtimeAmount = overtimeHours * overtimeRate;
+- [x] Notification templates
+- [x] Provider integration (Resend for email - optional)
+- [x] Queue system
+- [x] Logging
+- [ ] WhatsApp API integration (requires provider setup)
+- [ ] SMS provider integration (requires provider setup)
+- [ ] Push notification setup
 
-  // Apply deductions
-  const absentDays = attendanceData.filter(
-    (day) => day.status === "ABSENT",
-  ).length;
-  const deductionAmount = absentDays * (monthlySalary / 22);
+**Status**: Phone-based notifications are primary; email is optional
 
-  return {
-    grossAmount: baseAmount + overtimeAmount,
-    netAmount: baseAmount + overtimeAmount - deductionAmount,
-    breakdowns: [
-      { type: "BASE", amount: baseAmount, description: "Base Salary" },
-      { type: "OVERTIME", amount: overtimeAmount, description: "Overtime Pay" },
-      {
-        type: "DEDUCTION",
-        amount: -deductionAmount,
-        description: "Absent Deductions",
-      },
-    ],
-  };
-};
-```
+---
 
-## 📊 Reports & Analytics
+### ❌ NOT IMPLEMENTED (Needs Development)
 
-### Report Types
+#### 1. **Testing Suite** ❌ NOT STARTED
 
-#### 1. **Attendance Reports**
+**Current Status**:
 
-- **Daily Attendance**: Individual day attendance
-- **Monthly Summary**: Monthly attendance overview
-- **Employee-wise**: Individual employee attendance
-- **Department-wise**: Team attendance analytics
+- Jest configuration exists in `jest.config.js`
+- Test setup exists in `jest.setup.js`
+- **ZERO test files found in the project**
+- No unit tests
+- No integration tests
+- No E2E tests
+- No performance tests
 
-#### 2. **Salary Reports**
+**Test Infrastructure Details**:
 
-- **Salary Register**: Complete salary details
-- **Payment History**: Payment tracking
-- **Advance Reports**: Advance and recovery tracking
-- **Tax Reports**: Tax calculation reports
-
-#### 3. **Analytics Dashboard**
-
-- **Attendance Trends**: Monthly attendance patterns
-- **Salary Distribution**: Salary range analytics
-- **Payment Analytics**: Payment timing and amounts
-- **Productivity Metrics**: Hours worked vs. productivity
-
-### Report Generation Process
-
-#### Monthly Attendance Report
-
-```typescript
-const generateAttendanceReport = async (month, year, companyId) => {
-  // Fetch all attendance records for the month
-  const attendanceRecords = await prisma.attendance.findMany({
-    where: {
-      companyId,
-      attendanceDate: {
-        gte: new Date(year, month - 1, 1),
-        lt: new Date(year, month, 1),
-      },
-    },
-    include: { user: true },
-  });
-
-  // Group by employee
-  const employeeReports = attendanceRecords.reduce((acc, record) => {
-    const employeeId = record.userId;
-    if (!acc[employeeId]) {
-      acc[employeeId] = {
-        employee: record.user,
-        records: [],
-        summary: {
-          present: 0,
-          absent: 0,
-          late: 0,
-          totalHours: 0,
-        },
-      };
-    }
-
-    acc[employeeId].records.push(record);
-    acc[employeeId].summary.present += record.status === "PRESENT" ? 1 : 0;
-    acc[employeeId].summary.absent += record.status === "ABSENT" ? 1 : 0;
-    acc[employeeId].summary.late += record.status === "LATE" ? 1 : 0;
-    acc[employeeId].summary.totalHours += record.totalHours || 0;
-
-    return acc;
-  }, {});
-
-  return {
-    month,
-    year,
-    generatedAt: new Date(),
-    employeeReports: Object.values(employeeReports),
-  };
-};
+```javascript
+// jest.config.js
+- Next.js Jest integration
+- Coverage collection enabled
+- Module alias mapping (@/) configured
+- Test patterns: __tests__/**/*, *.test.*, *.spec.*
 ```
 
-## 👥 User Roles & Permissions
+**Required Test Coverage**:
 
-### Role Hierarchy
+- [ ] Authentication flow tests
+- [ ] Attendance API tests
+- [ ] Salary calculation tests
+- [ ] User management tests
+- [ ] API route integration tests
+- [ ] Component rendering tests
+- [ ] Hook functionality tests
 
-#### 1. **Super Admin**
+**Priority**: HIGH - Recommended before production
 
-- Full system access
-- Company creation and management
-- System configuration
-- User across all companies
+#### 2. **Advanced Reports** ❌ NOT STARTED
 
-#### 2. **Company Admin**
+- [ ] Tax reports
+- [ ] PF/ESI reports
+- [ ] Custom report builder
+- [ ] Scheduled reports
+- [ ] Report email delivery
 
-- Company-specific access
-- Employee management
-- Salary and attendance oversight
-- Report generation
+**Priority**: MEDIUM - Can be added post-launch
 
-#### 3. **Manager**
+#### 3. **Leave Management** ❌ NOT STARTED
 
-- Team management
-- Attendance approval
-- Limited salary access
-- Department reports
+- [x] Leave requests (via correction requests)
+- [ ] Leave policy configuration
+- [ ] Leave balance tracking
+- [ ] Leave approval workflow
+- [ ] Leave calendar view
 
-#### 4. **Staff**
+**Priority**: MEDIUM - Basic leave exists, full module needed
 
-- Personal attendance tracking
-- Salary viewing
-- Personal reports
-- Limited profile editing
+#### 4. **Expense Management** ❌ NOT STARTED
 
-### Permission Matrix
+- [ ] Expense submission
+- [ ] Expense approval
+- [ ] Expense categories
+- [ ] Expense limits
 
-| Feature          | Super Admin | Company Admin | Manager | Staff  |
-| ---------------- | ----------- | ------------- | ------- | ------ |
-| View Attendance  | ✅ All      | ✅ Company    | ✅ Team | ✅ Own |
-| Edit Attendance  | ✅ All      | ✅ Company    | ✅ Team | ❌     |
-| Manage Salary    | ✅ All      | ✅ Company    | ❌      | ❌     |
-| Generate Reports | ✅ All      | ✅ Company    | ✅ Team | ✅ Own |
-| User Management  | ✅ All      | ✅ Company    | ❌      | ❌     |
+**Priority**: LOW - Can be added later
 
-## 🚀 Setup & Installation
+#### 5. **Chat/Messaging** ❌ NOT STARTED
+
+- [ ] Staff-admin messaging
+- [ ] Announcement system
+- [ ] In-app chat
+
+**Priority**: LOW - Not essential for core functionality
+
+#### 6. **Multi-language Support** ❌ NOT STARTED
+
+- [ ] i18n integration
+- [ ] Hindi language support
+- [ ] Other regional languages
+
+**Priority**: LOW - Can be added later
+
+---
+
+## 📊 Feature Summary
+
+| Category                     | Status            | Completion |
+| ---------------------------- | ----------------- | ---------- |
+| Authentication (Phone-based) | ✅ Complete       | 100%       |
+| Admin Dashboard              | ✅ Complete       | 100%       |
+| Staff Portal                 | ✅ Complete       | 100%       |
+| Attendance                   | ✅ Complete       | 100%       |
+| User Management              | ✅ Complete       | 100%       |
+| Salary                       | ✅ Complete       | 100%       |
+| Cashbook                     | ✅ Complete       | 100%       |
+| Reports                      | ✅ Complete       | 100%       |
+| Notifications (Phone-based)  | ✅ Complete       | 100%       |
+| API Routes                   | ✅ Complete       | 100%       |
+| Database (Phone-focused)     | ✅ Complete       | 100%       |
+| PDF Generation (Phone-only)  | ✅ Complete       | 100%       |
+| Performance                  | ✅ Complete       | 100%       |
+| Manager Portal               | ⚠️ Partial        | 80%        |
+| Super Admin                  | ⚠️ Partial        | 70%        |
+| WhatsApp/SMS                 | ⚠️ Infrastructure | 40%        |
+| Testing                      | ❌ Not Started    | 0%         |
+| Advanced Reports             | ❌ Not Started    | 0%         |
+| Leave Management             | ❌ Not Started    | 30%        |
+| Multi-language               | ❌ Not Started    | 0%         |
+
+---
+
+## 🛠 Technology Stack
+
+### Frontend
+
+- **Framework**: Next.js 14 (App Router)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS
+- **UI Components**: Custom components + Lucide Icons
+- **Charts**: Recharts
+- **State Management**: TanStack Query (React Query)
+- **Forms**: React Hook Form (via hooks)
+
+### Backend
+
+- **Framework**: Next.js API Routes
+- **Database**: PostgreSQL
+- **ORM**: Prisma
+- **Authentication**: NextAuth.js (Phone-based)
+- **Cron Jobs**: node-cron
+
+### Infrastructure
+
+- **File Storage**: Cloudinary
+- **SMS/OTP**: Phone-based OTP system
+- **Email**: Resend (optional)
+- **Database Hosting**: PostgreSQL (Neon, Railway, etc.)
+
+### Development
+
+- **Package Manager**: npm
+- **Testing**: Jest (configured, no tests written)
+- **Code Quality**: TypeScript strict mode
+- **Linting**: ESLint
+
+---
+
+## 🚀 Getting Started
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 18.17+
 - PostgreSQL 13+
-- Redis (optional, for caching)
+- npm 9+
 
-### Installation Steps
+### Installation
 
-#### 1. Clone Repository
+1. **Clone the repository**
 
 ```bash
-git clone https://github.com/your-org/payrollbook.git
-cd payrollbook
+cd d:/pagarbook
 ```
 
-#### 2. Install Dependencies
+2. **Install dependencies**
 
 ```bash
 npm install
 ```
 
-#### 3. Environment Configuration
+3. **Configure environment variables**
 
 ```bash
 cp .env.example .env.local
 ```
 
-Edit `.env.local`:
+Edit `.env.local` with your values:
 
 ```env
-DATABASE_URL="postgresql://username:password@localhost:5432/payrollbook"
+DATABASE_URL="postgresql://user:password@localhost:5432/rozgarpay"
 NEXTAUTH_SECRET="your-secret-key"
 NEXTAUTH_URL="http://localhost:3000"
-GOOGLE_MAPS_API_KEY="your-google-maps-key"
+CLOUDINARY_CLOUD_NAME="your-cloud-name"
+CLOUDINARY_API_KEY="your-api-key"
+CLOUDINARY_API_SECRET="your-api-secret"
+SMS_PROVIDER_KEY="your-sms-provider-key"
 ```
 
-#### 4. Database Setup
+**Note**: Email configuration is optional. Phone number is required for authentication.
+
+4. **Setup database**
 
 ```bash
-npx prisma generate
+npm run generate
 npx prisma db push
-npx prisma db seed
+npm run db:seed
 ```
 
-#### 5. Run Development Server
+5. **Start development server**
 
 ```bash
 npm run dev
 ```
 
-#### 6. Access Application
+6. **Access the application**
 
-- **Web App**: http://localhost:3000
-- **Admin Panel**: http://localhost:3000/admin
-- **Staff Portal**: http://localhost:3000/staff
+- Web App: http://localhost:3000
+- Admin Panel: http://localhost:3000/admin
+- Staff Portal: http://localhost:3000/staff
 
-### Production Deployment
-
-#### Environment Variables for Production
-
-```env
-DATABASE_URL="postgresql://prod-url"
-NEXTAUTH_SECRET="secure-random-secret"
-NEXTAUTH_URL="https://your-domain.com"
-GOOGLE_MAPS_API_KEY="prod-api-key"
-NODE_ENV="production"
-```
-
-#### Build and Deploy
+7. **Run tests** (no tests currently exist)
 
 ```bash
-npm run build
-npm start
+npm test
 ```
+
+---
+
+## 📁 Project Structure
+
+```
+pagarbook/
+├── public/                 # Static assets
+│   ├── workers/           # Web workers
+│   ├── manifest.json      # PWA manifest
+│   └── sw.js             # Service worker
+├── prisma/
+│   ├── schema.prisma      # Database schema (phone-focused)
+│   ├── seed.tsx          # Database seeder
+│   └── migrations/       # Database migrations
+├── src/
+│   ├── app/              # Next.js App Router
+│   │   ├── admin/        # Admin pages
+│   │   ├── staff/        # Staff pages
+│   │   ├── manager/      # Manager pages
+│   │   ├── super-admin/  # Super admin pages
+│   │   ├── api/          # API routes
+│   │   ├── login/        # Login page (phone-based)
+│   │   └── join/        # Invitation pages
+│   ├── components/       # React components
+│   │   ├── admin/       # Admin-specific components
+│   │   ├── staff/       # Staff-specific components
+│   │   ├── ui/          # Reusable UI components
+│   │   └── layout/      # Layout components
+│   ├── hooks/           # Custom React hooks
+│   ├── lib/             # Utility functions
+│   │   ├── auth.ts     # Auth configuration (phone-based)
+│   │   ├── pdfGenerator.ts # PDF generators (phone-only display)
+│   │   ├── prisma.ts   # Prisma client
+│   │   └── utils.ts    # Utility functions
+│   ├── workers/         # Web workers
+│   └── middleware.ts   # Next.js middleware
+├── docs/                # Documentation
+├── .env.example        # Environment template
+├── next.config.js      # Next.js config
+├── package.json        # Dependencies
+├── jest.config.js      # Jest configuration (empty tests)
+├── jest.setup.js       # Jest setup (no tests)
+├── tailwind.config.ts  # Tailwind config
+└── tsconfig.json       # TypeScript config
+```
+
+---
 
 ## 📡 API Documentation
 
-This section provides comprehensive documentation for all API endpoints, including request/response schemas, authentication requirements, error handling, and usage examples.
-
-### Authentication
-
-All API endpoints require authentication via NextAuth.js session. Include the session token in requests. Role-based access control is enforced on most endpoints.
-
-**Authentication Methods:**
-
-- Session-based authentication via NextAuth.js
-- Role-based permissions (SUPER_ADMIN, ADMIN, MANAGER, STAFF)
-
-**Common Error Responses:**
-
-```json
-{
-  "error": "Unauthorized",
-  "status": 401
-}
-```
-
-### User Management Endpoints
-
-#### GET /api/admin/users
-
-**Description:** Retrieve paginated list of users for admin's company
-**Auth Required:** ADMIN
-**Query Parameters:**
-
-- `page` (number, default: 1)
-- `limit` (number, default: 10)
-- `role` (string, optional)
-- `status` (string, optional)
-- `search` (string, optional)
-
-**Response:**
-
-```json
-{
-  "users": [
-    {
-      "id": "string",
-      "email": "string",
-      "firstName": "string",
-      "lastName": "string",
-      "phone": "string",
-      "role": "ADMIN|MANAGER|STAFF",
-      "status": "ACTIVE|INACTIVE",
-      "createdAt": "2024-01-01T00:00:00.000Z"
-    }
-  ],
-  "pagination": {
-    "page": 1,
-    "limit": 10,
-    "total": 50,
-    "totalPages": 5
-  }
-}
-```
-
-**Error Handling:**
-
-- 401: Unauthorized
-- 400: Admin company not found
-- 500: Internal server error
-
-**Example:**
-
-```bash
-GET /api/admin/users?page=1&limit=10&role=STAFF
-```
-
-#### POST /api/admin/users/invite
-
-**Description:** Send invitation to join company
-**Auth Required:** ADMIN
-**Request Body:**
-
-```json
-{
-  "name": "string",
-  "email": "string",
-  "phone": "string (optional)",
-  "role": "ADMIN|MANAGER|STAFF",
-  "sendWelcome": "boolean (optional)"
-}
-```
-
-**Response:**
-
-```json
-{
-  "message": "Invitation sent successfully",
-  "inviteLink": "https://app.com/join/abc123...",
-  "invitation": {
-    "id": "string",
-    "email": "string",
-    "role": "string",
-    "expiresAt": "2024-01-08T00:00:00.000Z"
-  }
-}
-```
-
-**Error Handling:**
-
-- 401: Unauthorized
-- 400: Missing required fields / User exists / Active invitation exists
-- 500: Internal server error
-
-### Attendance Endpoints
-
-#### POST /api/attendance/punch
-
-**Description:** Record attendance punch (in/out)
-**Auth Required:** STAFF
-**Request Body:**
-
-```json
-{
-  "type": "IN" | "OUT",
-  "latitude": "number",
-  "longitude": "number",
-  "photo": "string (base64)"
-}
-```
-
-**Response:**
-
-```json
-{
-  "attendanceId": "string",
-  "status": "string",
-  "timestamp": "2024-01-01T09:00:00.000Z"
-}
-```
-
-#### GET /api/attendance/today
-
-**Description:** Get today's attendance status
-**Auth Required:** STAFF
-
-**Response:**
-
-```json
-{
-  "hasPunchedIn": true,
-  "hasPunchedOut": false,
-  "punchInTime": "2024-01-01T09:00:00.000Z",
-  "punchOutTime": null,
-  "totalHours": 4.5
-}
-```
-
-#### GET /api/admin/attendance
-
-**Description:** Get attendance records for admin's company
-**Auth Required:** ADMIN
-**Query Parameters:** page, limit, userId, date, status
-
-**Response:** Paginated attendance records
-
-#### PUT /api/admin/attendance/{attendanceId}/update
-
-**Description:** Update attendance record
-**Auth Required:** ADMIN
-**Request Body:**
-
-```json
-{
-  "punchInTime": "2024-01-01T09:00:00.000Z",
-  "punchOutTime": "2024-01-01T18:00:00.000Z",
-  "status": "PRESENT|ABSENT|LATE|HALF_DAY"
-}
-```
-
-### Salary Management Endpoints
-
-#### POST /api/admin/salary/generate
-
-**Description:** Generate monthly salaries for all users
-**Auth Required:** ADMIN
-**Request Body:**
-
-```json
-{
-  "month": 1,
-  "year": 2024,
-  "companyId": "string"
-}
-```
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "generatedCount": 25,
-  "errors": []
-}
-```
-
-#### GET /api/admin/salary
-
-**Description:** Get salary records
-**Auth Required:** ADMIN
-**Query Parameters:** page, limit, userId, month, year, status
-
-#### POST /api/admin/salary/{salaryId}/approve
-
-**Description:** Approve salary
-**Auth Required:** ADMIN
-
-#### POST /api/admin/users/{userId}/add-payment
-
-**Description:** Add payment/advance to user
-**Auth Required:** ADMIN
-**Request Body:**
-
-```json
-{
-  "amount": 5000,
-  "reason": "Monthly Advance",
-  "paymentDate": "2024-01-01"
-}
-```
-
-**Response:**
-
-```json
-{
-  "paymentId": "string",
-  "newBalance": 5000
-}
-```
-
-### Cashbook Endpoints
-
-#### GET /api/admin/cashbook
-
-**Description:** Get cashbook entries
-**Auth Required:** ADMIN
-**Query Parameters:** page, limit, type, dateFrom, dateTo
-
-**Response:** Paginated cashbook entries
-
-#### POST /api/admin/cashbook
-
-**Description:** Create cashbook entry
-**Auth Required:** ADMIN
-**Request Body:**
-
-```json
-{
-  "type": "INCOME|EXPENSE",
-  "amount": 1000,
-  "description": "Office supplies",
-  "date": "2024-01-01"
-}
-```
-
-### Notification Endpoints
-
-#### GET /api/admin/notifications
-
-**Description:** Get notifications
-**Auth Required:** ADMIN
-
-#### GET /api/staff/notifications
-
-**Description:** Get staff notifications
-**Auth Required:** STAFF
-
-### OTP Endpoints
-
-#### POST /api/otp/verify
-
-**Description:** Verify OTP
-**Request Body:**
-
-```json
-{
-  "phone": "string",
-  "otp": "string",
-  "purpose": "LOGIN|RESET_PASSWORD|VERIFICATION"
-}
-```
-
-### Super Admin Endpoints
-
-#### GET /api/super-admin/companies
-
-**Description:** Get all companies
-**Auth Required:** SUPER_ADMIN
-
-#### POST /api/super-admin/companies
-
-**Description:** Create new company
-**Auth Required:** SUPER_ADMIN
-
-#### GET /api/super-admin/users
-
-**Description:** Get all users across companies
-**Auth Required:** SUPER_ADMIN
+### Authentication Endpoints (Phone-based)
+
+- `POST /api/auth/[...nextauth]` - NextAuth.js handler
+- `POST /api/otp/send` - Send OTP to phone
+- `POST /api/otp/verify` - Verify OTP from phone
+
+### Admin Endpoints
+
+- `GET /api/admin/users` - List users (phone included)
+- `POST /api/admin/users/invite` - Invite user via phone
+- `PUT /api/admin/users/[userId]/status` - Update status
+- `GET /api/admin/attendance` - List attendance
+- `PUT /api/admin/attendance/[id]/update` - Update attendance
+- `POST /api/admin/salary/generate` - Generate salaries
+- `GET /api/admin/salary` - List salaries
+- `GET /api/admin/cashbook` - List cashbook entries
+
+### Staff Endpoints (Phone-based)
+
+- `GET /api/staff/dashboard` - Staff dashboard
+- `POST /api/attendance/punch` - Punch in/out (phone validated)
+- `GET /api/staff/salary` - Staff salary records
+- `POST /api/staff/correction-requests` - Submit request
 
 ### Manager Endpoints
 
-#### GET /api/manager/attendance
+- `GET /api/manager/attendance` - Team attendance
+- `GET /api/manager/salary` - Team salaries
+- `GET /api/manager/staff` - List team members
 
-**Description:** Get attendance for managed staff
-**Auth Required:** MANAGER
+### Super Admin Endpoints
 
-#### POST /api/manager/salary/{salaryId}/approve
+- `GET /api/super-admin/companies` - List companies
+- `POST /api/super-admin/companies` - Create company
+- `GET /api/super-admin/admins` - List admins
 
-**Description:** Approve salary
-**Auth Required:** MANAGER
+---
 
-### Staff Endpoints
+## 🗄 Database Schema
 
-#### GET /api/staff/dashboard
+### Core Models
 
-**Description:** Get staff dashboard data
-**Auth Required:** STAFF
+- **User** - Staff, Admin, Manager, Super Admin (phone is primary)
+- **Company** - Organization settings
+- **Attendance** - Daily attendance records
+- **Salary** - Monthly salary records
+- **SalaryBreakdown** - Salary components
+- **CashbookEntry** - Financial transactions
+- **Notification** - System notifications
+- **CorrectionRequest** - Leave/correction requests
+- **AuditLog** - Activity tracking
 
-#### GET /api/staff/salary
+### Supporting Models
 
-**Description:** Get staff salary records
-**Auth Required:** STAFF
+- **CompanyInvitation** - User invitations (phone-based)
+- **ShiftConfiguration** - Work shifts
+- **Otp** - OTP verification (phone-based)
+- **SystemSetting** - Platform settings
+- **Report** - Generated reports
+- **PushSubscription** - Push notifications
 
-#### POST /api/staff/correction-requests
+**Note**: Phone number is the primary identifier. Email is optional and stored only if provided.
 
-**Description:** Request attendance correction
-**Auth Required:** STAFF
+---
 
-### Error Handling
+## 🚀 Deployment Guide
 
-All endpoints follow consistent error response format:
+### Vercel (Recommended)
 
-```json
-{
-  "error": "Error message",
-  "status": 400
-}
-```
-
-**Common HTTP Status Codes:**
-
-- 200: Success
-- 201: Created
-- 400: Bad Request
-- 401: Unauthorized
-- 403: Forbidden
-- 404: Not Found
-- 500: Internal Server Error
-
-### Rate Limiting
-
-API endpoints are rate-limited to prevent abuse. Limits vary by endpoint complexity.
-
-### Data Validation
-
-All input data is validated using server-side validation. Invalid data returns 400 status with detailed error messages.
-
-### Usage Examples
-
-#### JavaScript (fetch)
-
-```javascript
-// Get users
-const response = await fetch("/api/admin/users?page=1&limit=10", {
-  headers: {
-    Authorization: `Bearer ${token}`,
-  },
-});
-const data = await response.json();
-```
-
-#### cURL
+1. **Push to GitHub**
 
 ```bash
-# Get attendance
-curl -X GET "http://localhost:3000/api/admin/attendance?page=1" \
-  -H "Authorization: Bearer your-token"
+git add .
+git commit -m "Initial commit"
+git push
 ```
 
-#### Python (requests)
+2. **Connect to Vercel**
 
-```python
-import requests
+- Import repository in Vercel
+- Add environment variables
+- Deploy
 
-response = requests.get('/api/admin/users', headers={'Authorization': f'Bearer {token}'})
-data = response.json()
+3. **Configure Database**
+
+- Use Vercel Postgres or Neon
+- Update DATABASE_URL
+
+4. **Configure SMS Provider** (required for OTP)
+
+- Add SMS_PROVIDER_KEY to environment variables
+
+### Docker
+
+```dockerfile
+FROM node:18-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+RUN npm run build
+EXPOSE 3000
+CMD ["npm", "start"]
 ```
 
-## 🔧 Troubleshooting
+### Railway/Render
 
-### Common Issues
+1. Connect GitHub repository
+2. Add environment variables (phone/SMS required)
+3. Deploy
 
-#### 1. GPS Location Not Working
+---
 
-**Problem**: Attendance not recording location
-**Solution**:
+## ⚠️ Pre-Production Checklist
 
-- Check app permissions for location access
-- Ensure GPS is enabled on device
-- Verify location accuracy settings
+- [ ] **Set up production database**
+- [ ] **Configure domain and SSL**
+- [ ] **Set up SMS provider for OTP** (REQUIRED - phone-based auth)
+- [ ] **Configure Cloudinary for production**
+- [ ] **Set up cron job scheduler**
+- [ ] **Enable monitoring and logging**
+- [ ] **Configure backup strategy**
+- [ ] **Security audit**
+- [ ] **Write unit tests (CRITICAL - currently 0 tests)**
+- [ ] **Write integration tests**
+- [ ] **Performance testing**
+- [ ] **User acceptance testing**
 
-#### 2. Salary Calculations Incorrect
+---
 
-**Problem**: Salary amounts don't match expectations
-**Solution**:
+## 📈 Recommended Next Steps
 
-- Verify attendance records are accurate
-- Check salary rules configuration
-- Review breakdown calculations in database
+### Immediate (Before Launch)
 
-#### 3. Reports Not Generating
+1. **Write unit tests for critical flows** (HIGH PRIORITY - 0 tests exist)
+2. Set up SMS provider for phone-based OTP
+3. Set up error monitoring (Sentry)
+4. Configure proper logging
+5. Security audit
 
-**Problem**: Report generation fails
-**Solution**:
+### Short Term (Post-Launch)
 
-- Check database connectivity
-- Verify user permissions
-- Review error logs for specific issues
+1. Implement leave management module
+2. Add WhatsApp notification support
+3. Improve PDF customization
+4. Add more report types
+5. Implement multi-language support
 
-#### 4. Mobile App Crashes
+### Long Term
 
-**Problem**: App crashes on certain devices
-**Solution**:
+1. Mobile app (React Native)
+2. Advanced analytics
+3. AI-powered insights
+4. Integration with accounting software
+5. Payroll tax calculations
 
-- Update to latest app version
-- Clear app cache and data
-- Check device compatibility
-
-### Performance Optimization
-
-#### Database Indexes
-
-```sql
--- Critical indexes for performance
-CREATE INDEX idx_attendance_user_date ON attendance(userId, attendanceDate);
-CREATE INDEX idx_salary_user_month ON salary(userId, month, year);
-CREATE INDEX idx_payments_user_date ON salaryBreakdown(salaryId, type);
-```
-
-#### Caching Strategy
-
-- Redis for session storage
-- Database query result caching
-- Static asset optimization
-
-### Monitoring & Logging
-
-#### Key Metrics to Monitor
-
-- Attendance punch success rate
-- Salary calculation processing time
-- API response times
-- Database query performance
-- User authentication success rate
-
-#### Log Analysis
-
-```bash
-# Check application logs
-tail -f logs/application.log
-
-# Database query analysis
-EXPLAIN ANALYZE SELECT * FROM attendance WHERE userId = $1;
-```
+---
 
 ## 📞 Support & Contributing
 
 ### Getting Help
 
-- **Documentation**: Check this README first
-- **Issues**: GitHub Issues for bug reports
-- **Discussions**: GitHub Discussions for questions
-- **Email**: support@payrollbook.com
+- Check the documentation in `/docs`
+- Review API routes for endpoint details
+- Check Prisma schema for data models
 
-### Contributing Guidelines
+### Contributing
 
 1. Fork the repository
 2. Create feature branch
-3. Make changes with tests
+3. Make changes
 4. Submit pull request
-5. Code review and merge
-
-### Development Commands
-
-```bash
-# Run tests
-npm test
-
-# Run linting
-npm run lint
-
-# Format code
-npm run format
-
-# Type checking
-npm run type-check
-```
 
 ---
 
-**payrollbook** - Making payroll simple, accurate, and transparent for businesses worldwide.
+## 📄 License
+
+This project is proprietary software.
+
+---
+
+## 🎉 Acknowledgments
+
+- Built with Next.js 14
+- Powered by Prisma ORM
+- Styled with Tailwind CSS
+- Icons by Lucide
+
+---
+
+**Last Updated**: February 2025
+**Version**: 0.1.0

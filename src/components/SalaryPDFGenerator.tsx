@@ -1,9 +1,7 @@
 "use client";
 
-import { getCurrentTime } from "@/lib/utils";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { User } from "next-auth";
 
 interface SalaryTransaction {
   id: string;
@@ -14,7 +12,11 @@ interface SalaryTransaction {
 }
 
 interface SalaryReportData {
-  user: User | null;
+  user: {
+    firstName: string | null;
+    lastName: string | null;
+    phone?: string | null;
+  } | null;
   month: number;
   year: number;
   grossAmount: number;
@@ -32,209 +34,346 @@ interface SalaryPDFGeneratorProps {
   companyName?: string;
 }
 
+type Color = [number, number, number];
+
+const COLORS: Record<string, Color> = {
+  primary: [30, 58, 138], // Deep Blue
+  primaryLight: [59, 130, 246], // Bright Blue
+  success: [22, 163, 74], // Green
+  danger: [220, 38, 38], // Red
+  warning: [217, 119, 6], // Amber
+  secondary: [31, 41, 55], // Dark Gray
+  light: [249, 250, 251], // Very Light Gray
+  border: [229, 231, 235], // Light Border
+  white: [255, 255, 255],
+  accent: [99, 102, 241], // Indigo
+};
+
+const formatCurrency = (amount: number): string => {
+  return `₹${Number(amount.toString().replace(/[^\d.-]/g, "")).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
 export const generateSalaryPDF = ({
   data,
-  companyName = "Company",
+  companyName = "Rozgarpay",
 }: SalaryPDFGeneratorProps) => {
-  const doc = new jsPDF();
-
-  // Colors
-  const primaryColor = [41, 128, 185]; // Blue
-  const secondaryColor = [52, 73, 94]; // Dark Gray
-  const successColor = [46, 204, 113]; // Green
-  const dangerColor = [231, 76, 60]; // Red
-
-  // Header
-  doc.setFontSize(16);
-  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-  doc.text(`${companyName || "PayRollBook"} - Salary Report`, 20, 20);
-
-  // Employee Info - Compact SaaS style
-  doc.setFontSize(9);
-  doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
-
-  // Create a compact info box
-  doc.setFillColor(288, 289, 280);
-  doc.rect(20, 25, 170, 15, "F");
-  doc.setDrawColor(222, 226, 230);
-  doc.setLineWidth(0.5);
-  doc.rect(20, 25, 170, 22);
-
-  doc.text(
-    `Employee: ${data?.user?.firstName} ${data?.user?.lastName}`,
-    25,
-    32,
-  );
-  doc.text(`Phone: ${data?.user?.phone}`, 25, 38);
-  doc.text(
-    `Period: ${new Date(data.year, data.month - 1).toLocaleString("default", { month: "long" })} ${data.year}`,
-    25,
-    44,
-  );
-
-  // Summary Section
-  doc.setFontSize(12);
-  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-  doc.text("Salary Summary", 20, 52);
-
-  // Summary boxes - Better layout with 2 columns
-  const summaryData = [
-    {
-      label: "Gross Amount",
-      value: data.grossAmount,
-      color: primaryColor,
-    },
-    {
-      label: "Net Amount",
-      value: data.netAmount,
-      color: successColor,
-    },
-    {
-      label: "Total Paid",
-      value: data.totalPaid,
-      color: successColor,
-    },
-    {
-      label: "Total Recovered",
-      value: data.totalRecovered,
-      color: dangerColor,
-    },
-    {
-      label: "Balance Amount",
-      value: data.balanceAmount,
-      color: primaryColor,
-    },
-  ];
-
-  let yPos = 60;
-  summaryData.forEach((item, index) => {
-    const xPos = 20 + (index % 2) * 85;
-    if (index % 2 === 0 && index > 0) yPos += 18;
-
-    // Background box
-    doc.setFillColor(248, 249, 250);
-    doc.rect(xPos, yPos - 2, 75, 14, "F");
-
-    // Border
-    doc.setDrawColor(222, 226, 230);
-    doc.setLineWidth(0.5);
-    doc.rect(xPos, yPos - 2, 75, 14);
-
-    // Text
-    doc.setFontSize(6);
-    doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
-    doc.text(item.label, xPos + 2, yPos + 3);
-
-    doc.setFontSize(8);
-    doc.setTextColor(item.color[0], item.color[1], item.color[2]);
-    doc.text(
-      `Rs. ${Number(item.value.toString().replace(/[^\d.-]/g, "")).toFixed(2)}`,
-      xPos + 2,
-      yPos + 9,
-    );
+  const doc = new jsPDF({
+    orientation: "portrait",
+    unit: "mm",
+    format: "a4",
   });
 
-  // Payments Section
-  if (data.payments.length > 0) {
-    const paymentsTableData = data.payments.map((payment) => [
-      `${data?.user?.firstName} ${data?.user?.lastName}`,
-      new Date(payment.date).toLocaleDateString(),
-      payment.description,
-      payment.type,
-      `Rs. ${Math.abs(Number(payment.amount.toString().replace(/[^\d.-]/g, ""))).toFixed(2)}`,
-    ]);
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 15;
+  const contentWidth = pageWidth - margin * 2;
+
+  // Helper Functions
+  const addHeader = (title: string, subtitle: string) => {
+    // Header Background
+    doc.setFillColor(...COLORS.primary);
+    doc.rect(0, 0, pageWidth, 45, "F");
+
+    // Company Name
+    doc.setTextColor(...COLORS.white);
+    doc.setFontSize(22);
+    doc.setFont("helvetica", "bold");
+    doc.text(companyName || "Rozgarpay", margin, 20);
+
+    // Title
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "normal");
+    doc.text(title, margin, 30);
+
+    // Subtitle
+    doc.setFontSize(10);
+    doc.text(subtitle, margin, 38);
+
+    // Decorative line
+    doc.setFillColor(...COLORS.primaryLight);
+    doc.rect(0, 43, pageWidth, 2, "F");
+  };
+
+  const addEmployeeCard = (yPos: number): number => {
+    // Card Background
+    doc.setFillColor(...COLORS.light);
+    doc.roundedRect(margin, yPos, contentWidth, 28, 3, 3, "F");
+
+    // Left border accent
+    doc.setFillColor(...COLORS.accent);
+    doc.rect(margin, yPos, 4, 28, "F");
+
+    // Employee Name
+    const employeeName =
+      `${data?.user?.firstName || ""} ${data?.user?.lastName || ""}`.trim() ||
+      "N/A";
+    doc.setTextColor(...COLORS.secondary);
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text(employeeName, margin + 12, yPos + 10);
+
+    // Phone
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...COLORS.secondary);
+    doc.text(`📱 ${data?.user?.phone || "N/A"}`, margin + 12, yPos + 18);
+
+    // Period
+    const monthName = new Date(data.year, data.month - 1).toLocaleString(
+      "default",
+      { month: "long" },
+    );
+    doc.setTextColor(...COLORS.primary);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.text(`${monthName} ${data.year}`, pageWidth - margin, yPos + 12, {
+      align: "right",
+    });
+
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...COLORS.secondary);
+    doc.text("Pay Period", pageWidth - margin, yPos + 20, { align: "right" });
+
+    return yPos + 38;
+  };
+
+  const addSummaryCards = (yPos: number): number => {
+    // Section Title
+    doc.setTextColor(...COLORS.secondary);
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text("Salary Summary", margin, yPos);
+
+    const summaryItems = [
+      {
+        label: "Gross Salary",
+        value: data.grossAmount,
+        color: COLORS.primary,
+        icon: "💰",
+      },
+      {
+        label: "Net Salary",
+        value: data.netAmount,
+        color: COLORS.success,
+        icon: "✅",
+      },
+      {
+        label: "Total Paid",
+        value: data.totalPaid,
+        color: COLORS.primaryLight,
+        icon: "💵",
+      },
+      {
+        label: "Deductions",
+        value: data.totalRecovered,
+        color: COLORS.danger,
+        icon: "📉",
+      },
+      {
+        label: "Balance",
+        value: data.balanceAmount,
+        color: COLORS.warning,
+        icon: "⚖️",
+      },
+    ];
+
+    const cardWidth = (contentWidth - 10) / 3;
+    const cardHeight = 22;
+
+    summaryItems.forEach((item, index) => {
+      const row = Math.floor(index / 3);
+      const col = index % 3;
+      const xPos = margin + col * (cardWidth + 5);
+      const cardY = yPos + 8 + row * (cardHeight + 4);
+
+      // Card background
+      doc.setFillColor(...COLORS.white);
+      doc.roundedRect(xPos, cardY, cardWidth, cardHeight, 2, 2, "F");
+
+      // Card border
+      doc.setDrawColor(...COLORS.border);
+      doc.setLineWidth(0.5);
+      doc.roundedRect(xPos, cardY, cardWidth, cardHeight, 2, 2, "S");
+
+      // Colored top border
+      doc.setFillColor(...item.color);
+      doc.rect(xPos, cardY, cardWidth, 2, "F");
+
+      // Label
+      doc.setFontSize(8);
+      doc.setTextColor(...COLORS.secondary);
+      doc.text(item.label, xPos + 4, cardY + 8);
+
+      // Value
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...item.color);
+      doc.text(formatCurrency(item.value), xPos + 4, cardY + 16);
+    });
+
+    return yPos + 8 + Math.ceil(summaryItems.length / 3) * (cardHeight + 4) + 5;
+  };
+
+  const addTable = (
+    title: string,
+    tableData: any[],
+    columns: { header: string; key: string }[],
+    startY: number,
+    color: Color,
+  ): number => {
+    if (tableData.length === 0) return startY;
+
+    // Section title
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...color);
+    doc.text(title, margin, startY);
+
+    const formattedData = tableData.map((item) =>
+      columns.map((col) => {
+        if (col.key === "amount" || col.key === "value") {
+          return formatCurrency(item[col.key] || 0);
+        }
+        if (col.key === "date") {
+          return new Date(item[col.key]).toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          });
+        }
+        return item[col.key] || "N/A";
+      }),
+    );
 
     autoTable(doc, {
-      head: [["Staff Name", "Date", "Description", "Type", "Amount"]],
-      body: paymentsTableData,
-      startY: yPos + 25,
+      head: [columns.map((col) => col.header)],
+      body: formattedData,
+      startY: startY + 3,
+      theme: "striped",
       styles: {
         fontSize: 8,
         cellPadding: 3,
+        lineColor: COLORS.border,
+        lineWidth: 0.3,
       },
       headStyles: {
-        fillColor: [successColor[0], successColor[1], successColor[2]],
-        textColor: [255, 255, 255],
+        fillColor: color,
+        textColor: COLORS.white,
         fontStyle: "bold",
         fontSize: 9,
       },
       alternateRowStyles: {
-        fillColor: [248, 249, 250],
+        fillColor: COLORS.light,
       },
-      margin: { top: 20 },
-      didDrawPage: function (data) {
-        // Add section title
-        doc.setFontSize(12);
-        doc.setTextColor(successColor[0], successColor[1], successColor[2]);
-        doc.text("Payments Made to Employee", 20, data.settings.startY - 5);
-      },
+      margin: { left: margin, right: margin },
     });
-  }
 
-  // Deductions & Recoveries Section
-  const combinedDeductions = [
+    return (doc as any).lastAutoTable?.finalY || startY + 20;
+  };
+
+  const addFooter = () => {
+    const footerY = pageHeight - 20;
+
+    // Footer background
+    doc.setFillColor(...COLORS.light);
+    doc.rect(0, footerY - 5, pageWidth, 25, "F");
+
+    // Footer line
+    doc.setDrawColor(...COLORS.primary);
+    doc.setLineWidth(0.5);
+    doc.line(margin, footerY - 3, pageWidth - margin, footerY - 3);
+
+    // Footer text
+    doc.setFontSize(8);
+    doc.setTextColor(...COLORS.secondary);
+    doc.setFont("helvetica", "normal");
+
+    doc.text(
+      `${companyName || "Rozgarpay"} - Payroll Management System`,
+      margin,
+      footerY + 5,
+    );
+    doc.text("Generated by Rozgarpay", pageWidth / 2, footerY + 5, {
+      align: "center",
+    });
+    doc.text(
+      new Date().toLocaleDateString("en-IN"),
+      pageWidth - margin,
+      footerY + 5,
+      { align: "right" },
+    );
+
+    // Confidentiality
+    doc.setFontSize(7);
+    doc.setTextColor(...COLORS.danger);
+    doc.text(
+      "CONFIDENTIAL - For authorized personnel only",
+      pageWidth / 2,
+      footerY + 13,
+      { align: "center" },
+    );
+  };
+
+  // Build PDF
+  addHeader("SALARY SLIP", "Detailed Salary Report");
+
+  let yPos = 55;
+  yPos = addEmployeeCard(yPos);
+  yPos = addSummaryCards(yPos);
+
+  // Payments Table
+  yPos = addTable(
+    "💵 Payments Received",
+    data.payments,
+    [
+      { header: "Date", key: "date" },
+      { header: "Description", key: "description" },
+      { header: "Type", key: "type" },
+      { header: "Amount", key: "amount" },
+    ],
+    yPos + 10,
+    COLORS.success,
+  );
+
+  // Deductions Table
+  const allDeductions = [
     ...data.deductions.map((d) => ({ ...d, category: "Deduction" })),
     ...data.recoveries.map((r) => ({ ...r, category: "Recovery" })),
   ];
 
-  if (combinedDeductions.length > 0) {
-    const deductionsTableData = combinedDeductions.map((item) => [
-      `${data?.user?.firstName} ${data?.user?.lastName}`,
-      new Date(item.date).toLocaleDateString(),
-      item.description,
-      item.category,
-      item.type,
-      `Rs. ${Math.abs(Number(item.amount.toString().replace(/[^\d.-]/g, ""))).toFixed(2)}`,
-    ]);
-
-    // Calculate start position based on whether payments table exists
-    const startY =
-      data.payments.length > 0
-        ? (doc as any).lastAutoTable.finalY + 15
-        : yPos + 25;
-
-    autoTable(doc, {
-      head: [
-        ["Staff Name", "Date", "Description", "Category", "Type", "Amount"],
+  if (allDeductions.length > 0) {
+    yPos = addTable(
+      "📉 Deductions & Recoveries",
+      allDeductions,
+      [
+        { header: "Date", key: "date" },
+        { header: "Description", key: "description" },
+        { header: "Category", key: "category" },
+        { header: "Type", key: "type" },
+        { header: "Amount", key: "amount" },
       ],
-      body: deductionsTableData,
-      startY: startY,
-      styles: {
-        fontSize: 8,
-        cellPadding: 3,
-      },
-      headStyles: {
-        fillColor: [dangerColor[0], dangerColor[1], dangerColor[2]],
-        textColor: [255, 255, 255],
-        fontStyle: "bold",
-        fontSize: 9,
-      },
-      alternateRowStyles: {
-        fillColor: [248, 249, 250],
-      },
-      margin: { top: 20 },
-      didDrawPage: function (data) {
-        // Add section title
-        doc.setFontSize(12);
-        doc.setTextColor(dangerColor[0], dangerColor[1], dangerColor[2]);
-        doc.text("Deductions & Recoveries", 20, data.settings.startY - 5);
-      },
+      yPos + 10,
+      COLORS.danger,
+    );
+  }
+
+  // Add footer
+  addFooter();
+
+  // Add page numbers
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(128, 128, 128);
+    doc.text(`Page ${i} of ${pageCount}`, pageWidth / 2, pageHeight - 10, {
+      align: "center",
     });
   }
 
-  // Footer
-  const pageHeight = doc.internal.pageSize.height;
-  doc.setFontSize(8);
-  doc.setTextColor(128, 128, 128);
-  doc.text(
-    `Generated on ${getCurrentTime().toLocaleString()}`,
-    20,
-    pageHeight - 20,
-  );
-  doc.text("PayRollBook - Salary Management System", 20, pageHeight - 10);
-
   // Save the PDF
-  const fileName = `${data?.user?.firstName}_${data?.user?.lastName}_salary_${data.month}_${data.year}.pdf`;
+  const fileName = `${data?.user?.firstName || "staff"}_salary_${data.month}_${data.year}.pdf`;
   doc.save(fileName);
 };
 

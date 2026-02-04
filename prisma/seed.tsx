@@ -43,6 +43,86 @@ async function deleteAllDataInDB() {
   await prisma.company.deleteMany();
   await prisma.systemSetting.deleteMany();
 }
+
+async function createKGSDoorsCompany() {
+  console.log("🏢 Creating KGS Doors company...");
+
+  // Create company
+  const company = await prisma.company.create({
+    data: {
+      name: "KGS Doors",
+      description: "KGS Doors - Premium Door Manufacturing Company",
+      status: "ACTIVE" as AccountStatus,
+      shiftStartTime: "09:00",
+      shiftEndTime: "18:00",
+      gracePeriodMinutes: 15,
+      minWorkingHours: 4.0,
+      maxDailyHours: 12.0,
+      autoPunchOutBufferMinutes: 30,
+
+      overtimeThresholdHours: 2.0,
+      nightPunchInWindowHours: 2.0,
+      defaultSalaryType: "MONTHLY" as SalaryType,
+      overtimeMultiplier: 1.5,
+      enableLatePenalty: false,
+      enableAbsentPenalty: false,
+      halfDayThresholdHours: 4.0,
+      pfPercentage: 12.0,
+      esiPercentage: 0.75,
+    },
+  });
+
+  console.log(`✅ Created company: ${company.name} (${company.id})`);
+
+  // Create admin user
+  const adminPassword = await bcrypt.hash("99503528", 10);
+  const admin = await prisma.user.create({
+    data: {
+      email: "kgsdoors123@gmail.com",
+      phone: "+919950352887",
+      password: adminPassword,
+      role: "ADMIN" as Role,
+      status: "ACTIVE" as AccountStatus,
+      firstName: "krishan",
+      lastName: "lal",
+      companyId: company.id,
+      onboardingCompleted: true,
+      joiningDate: new Date("2024-01-01"),
+    },
+  });
+
+  console.log(`✅ Created admin user: ${admin.email} / admin@123`);
+
+  // Create staff user
+  const staffPassword = await bcrypt.hash("Hari7014", 10);
+  const staff = await prisma.user.create({
+    data: {
+      phone: "+917014618048",
+      password: staffPassword,
+      role: "STAFF" as Role,
+      status: "ACTIVE" as AccountStatus,
+      firstName: "harikant",
+      lastName: "",
+      companyId: company.id,
+      onboardingCompleted: true,
+      joiningDate: new Date("2024-06-01"),
+    },
+  });
+
+  console.log(`✅ Created staff user: ${staff.email} / staff@123`);
+
+  return { company, admin, staff };
+}
+
+// Run KGS Doors seed
+getKGSDoorsData();
+async function getKGSDoorsData() {
+  await deleteAllDataInDB();
+  await createKGSDoorsCompany();
+  await AddSuperAdmin();
+
+  console.log("🎉 KGS Doors seeding completed!");
+}
 async function AddSuperAdmin() {
   await prisma.user.create({
     data: {
@@ -57,7 +137,6 @@ async function AddSuperAdmin() {
     },
   });
 }
-AddSuperAdmin();
 
 // main();
 // async function main() {

@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
-import { getDate } from "@/lib/attendanceUtils";
 import { toZonedTime } from "date-fns-tz";
+
 export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -13,6 +14,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const userId = session.user.id;
     const { searchParams } = new URL(request.url);
     const month = searchParams.get("month")
       ? parseInt(searchParams.get("month")!)
@@ -23,7 +25,7 @@ export async function GET(request: NextRequest) {
 
     // Build where clause
     const where: any = {
-      userId: session.user.id,
+      userId,
     };
 
     if (month !== null) {
@@ -34,14 +36,40 @@ export async function GET(request: NextRequest) {
       where.year = year;
     }
 
-    // Get salaries
+    // Optimized: Only include ledger when needed (not for list view)
+    const includeLedger = month !== null && year !== null;
+
+    // Get salaries with minimal data for list view
     const salaries = await prisma.salary.findMany({
       where,
-      include: {
-        breakdowns: true,
-        ledger: {
-          orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        month: true,
+        year: true,
+        netAmount: true,
+        grossAmount: true,
+        status: true,
+        paidAt: true,
+        createdAt: true,
+        breakdowns: {
+          select: {
+            type: true,
+            amount: true,
+          },
         },
+        // Only include ledger when filtering by specific month/year
+        ledger: includeLedger
+          ? {
+              select: {
+                id: true,
+                type: true,
+                amount: true,
+                reason: true,
+                createdAt: true,
+              },
+              orderBy: { createdAt: "desc" },
+            }
+          : false,
         approvedByUser: {
           select: {
             firstName: true,
@@ -68,25 +96,49 @@ export async function GET(request: NextRequest) {
       (s) => s.month === currentMonth && s.year === currentYear,
     );
 
-    // Calculate summary stats
-    const stats = {
+    // Calculate summary stats efficiently
+    let stats = {
       totalSalaries: salaries.length,
-      pending: salaries.filter((s) => s.status === "PENDING").length,
-      approved: salaries.filter((s) => s.status === "APPROVED").length,
-      paid: salaries.filter((s) => s.status === "PAID").length,
-      rejected: salaries.filter((s) => s.status === "REJECTED").length,
-      totalEarned: salaries
-        .filter((s) => s.status === "PAID")
-        .reduce((sum, s) => sum + s.netAmount, 0),
+      pending: 0,
+      approved: 0,
+      paid: 0,
+      rejected: 0,
+      totalEarned: 0,
     };
 
-    return NextResponse.json({
-      salaries,
-      currentSalary,
-      stats,
-      currentMonth,
-      currentYear,
-    });
+    for (const s of salaries) {
+      switch (s.status) {
+        case "PENDING":
+          stats.pending++;
+          break;
+        case "APPROVED":
+          stats.approved++;
+          break;
+        case "PAID":
+          stats.paid++;
+          stats.totalEarned += s.netAmount;
+          break;
+        case "REJECTED":
+          stats.rejected++;
+          break;
+      }
+    }
+
+    // Cache for 5 minutes
+    return NextResponse.json(
+      {
+        salaries,
+        currentSalary,
+        stats,
+        currentMonth,
+        currentYear,
+      },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=300, stale-while-revalidate=300",
+        },
+      },
+    );
   } catch (error) {
     console.error("Staff salary fetch error:", error);
     return NextResponse.json(

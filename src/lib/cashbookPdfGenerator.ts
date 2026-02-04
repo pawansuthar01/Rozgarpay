@@ -531,7 +531,7 @@ export const generateCashbookPDFBuffer = (data: CashbookReportData): Buffer => {
           fillColor: [250, 250, 250],
         },
         margin: { left: 20, right: 20 },
-        didDrawPage: (data) => {
+        didDrawPage: (_data) => {
           const pageCount = (doc as any).internal.getNumberOfPages();
           const currentPage = (doc as any).internal.getCurrentPageInfo()
             .pageNumber;

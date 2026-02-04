@@ -82,7 +82,9 @@ export function ErrorBoundary({
 }: ErrorBoundaryProps) {
   const handleError = (error: Error, errorInfo: React.ErrorInfo) => {
     // Log error to monitoring service
-    console.error("Error Boundary caught an error:", error, errorInfo);
+    if (process.env.NODE_ENV !== "production") {
+      console.error(error);
+    }
 
     // Call custom error handler if provided
     if (onError) {

@@ -19,7 +19,7 @@ interface SalaryReportData {
     user: {
       firstName: string | null;
       lastName: string | null;
-      phone: string;
+      phone?: string | null;
     };
     totalAmount: number;
   }>;
@@ -440,7 +440,7 @@ export const generateSalaryReportPDFBuffer = (
         return [
           (index + 1).toString(),
           staffName,
-          staff.user.phone,
+          staff.user.phone || "N/A",
           `₹${staff.totalAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
           percentage,
         ];
@@ -487,16 +487,16 @@ export const generateSalaryReportPDFBuffer = (
           4: { cellWidth: 20, halign: "center" },
         },
         margin: { left: 10, right: 10 },
-        didDrawPage: (data) => {
+        didDrawPage: (_data) => {
           // If table spans multiple pages, add page numbers
-          if (data.pageNumber > 1) {
+          if (_data.pageNumber > 1) {
             doc.setFontSize(8);
             doc.setTextColor(
               colors.darkGray[0],
               colors.darkGray[1],
               colors.darkGray[2],
             );
-            doc.text(`Page ${data.pageNumber}`, pageWidth - 20, 10, {
+            doc.text(`Page ${_data.pageNumber}`, pageWidth - 20, 10, {
               align: "right",
             });
           }

@@ -17,6 +17,12 @@ const nextConfig = {
   compress: isProduction, // Enable gzip compression in production
   poweredByHeader: false, // Remove X-Powered-By header for security
 
+  // Server timeout for long-running API requests
+  serverRuntimeConfig: {
+    // Increase server timeout for heavy operations (in milliseconds)
+    requestTimeout: 60000, // 60 seconds
+  },
+
   images: {
     // Production: allow only listed domains
     domains: ["rozgarpay.in", "another-allowed-domain.com"],

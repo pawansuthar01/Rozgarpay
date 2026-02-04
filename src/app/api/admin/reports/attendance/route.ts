@@ -44,6 +44,14 @@ export async function GET(request: NextRequest) {
           }
         : {};
 
+    // Parse dates for raw SQL query
+    const startDateFilter = startDate
+      ? new Date(startDate).toISOString().split("T")[0]
+      : null;
+    const endDateFilter = endDate
+      ? new Date(endDate).toISOString().split("T")[0]
+      : null;
+
     // Total records
     const totalRecords = await prisma.attendance.count({
       where: {
@@ -53,85 +61,127 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Status counts
-    const statusCounts = await prisma.attendance.groupBy({
-      by: ["status"],
-      where: {
-        companyId: admin.company.id,
-        user: { role: "STAFF" },
-        ...dateFilter,
-      },
-      _count: true,
-    });
+    // Status counts - OPTIMIZED: Combined into single query
+    const statusCountsRaw = await prisma.$queryRaw<
+      Array<{ status: string; count: bigint }>
+    >`
+      SELECT 
+        status,
+        COUNT(*) as count
+      FROM "attendances"
+      WHERE "companyId" = ${admin.company.id}
+        AND "userId" IN (SELECT id FROM "users" WHERE role = 'STAFF')
+        AND "attendanceDate" >= ${startDateFilter}::date 
+        AND "attendanceDate" <= ${endDateFilter}::date
+      GROUP BY status
+    `;
+
+    const statusCounts = statusCountsRaw.map((s) => ({
+      status: s.status,
+      count: Number(s.count),
+    }));
 
     const present =
-      statusCounts.find((s) => s.status === "APPROVED")?._count || 0;
+      statusCounts.find((s) => s.status === "APPROVED")?.count || 0;
     const absent =
-      statusCounts.find((s) => s.status === "REJECTED")?._count || 0;
-    const late = statusCounts.find((s) => s.status === "PENDING")?._count || 0; // Assuming late is pending
+      statusCounts.find((s) => s.status === "REJECTED")?.count || 0;
+    const late = statusCounts.find((s) => s.status === "PENDING")?.count || 0;
 
-    // Daily trends
-    const trends = await prisma.attendance.groupBy({
-      by: ["attendanceDate", "status"],
-      where: {
-        companyId: admin.company.id,
-        user: { role: "STAFF" },
-        ...dateFilter,
-      },
-      _count: true,
-      orderBy: {
-        attendanceDate: "asc",
-      },
-    });
+    // Daily trends - OPTIMIZED: Raw SQL for faster processing
+    const trendsRaw = await prisma.$queryRaw<
+      Array<{ date: Date; status: string; count: bigint }>
+    >`
+      SELECT 
+        "attendanceDate"::date as date,
+        status,
+        COUNT(*) as count
+      FROM "attendances"
+      WHERE "companyId" = ${admin.company.id}
+        AND "userId" IN (SELECT id FROM "users" WHERE role = 'STAFF')
+        AND "attendanceDate" >= ${startDateFilter}::date 
+        AND "attendanceDate" <= ${endDateFilter}::date
+      GROUP BY "attendanceDate"::date, status
+      ORDER BY date ASC
+    `;
 
-    const trendsMap = new Map();
-    trends.forEach((t) => {
-      const date = t.attendanceDate.toISOString().split("T")[0];
-      if (!trendsMap.has(date)) {
-        trendsMap.set(date, { date, present: 0, absent: 0, late: 0 });
+    const trendsMap = new Map<
+      string,
+      {
+        date: string;
+        present: number;
+        absent: number;
+        late: number;
       }
-      const day = trendsMap.get(date);
-      if (t.status === "APPROVED") day.present = t._count;
-      else if (t.status === "REJECTED") day.absent = t._count;
-      else if (t.status === "PENDING") day.late = t._count;
+    >();
+    trendsRaw.forEach((t) => {
+      const dateStr = t.date.toISOString().split("T")[0];
+      if (!trendsMap.has(dateStr)) {
+        trendsMap.set(dateStr, {
+          date: dateStr,
+          present: 0,
+          absent: 0,
+          late: 0,
+        });
+      }
+      const day = trendsMap.get(dateStr)!;
+      if (t.status === "APPROVED") day.present = Number(t.count);
+      else if (t.status === "REJECTED") day.absent = Number(t.count);
+      else if (t.status === "PENDING") day.late = Number(t.count);
     });
 
     const trendsData = Array.from(trendsMap.values());
 
-    // Staff summary
-    const staff = await prisma.user.findMany({
+    // Staff summary - OPTIMIZED: Single query with aggregation instead of N+1
+    const staffStatsRaw = await prisma.$queryRaw<
+      Array<{
+        userId: string;
+        firstName: string | null;
+        lastName: string | null;
+        email: string | null;
+        present: bigint;
+        absent: bigint;
+        late: bigint;
+      }>
+    >`
+      SELECT 
+        u.id as "userId",
+        u."firstName",
+        u."lastName",
+        u.email,
+        COUNT(a.id) FILTER (WHERE a.status = 'APPROVED') as present,
+        COUNT(a.id) FILTER (WHERE a.status = 'REJECTED') as absent,
+        COUNT(a.id) FILTER (WHERE a.status = 'PENDING') as late
+      FROM "users" u
+      LEFT JOIN "attendances" a ON u.id = a."userId" 
+        AND a."attendanceDate" >= ${startDateFilter}::date 
+        AND a."attendanceDate" <= ${endDateFilter}::date
+      WHERE u."companyId" = ${admin.company.id} 
+        AND u.role = 'STAFF'
+      GROUP BY u.id, u."firstName", u."lastName", u.email
+      ORDER BY u."firstName" ASC
+      LIMIT ${limit} OFFSET ${0}
+    `;
+
+    // Get total count for pagination
+    const totalStaff = await prisma.user.count({
       where: {
         companyId: admin.company.id,
         role: "STAFF",
       },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-      },
     });
 
-    const staffSummary = await Promise.all(
-      staff.map(async (user) => {
-        const userStats = await prisma.attendance.groupBy({
-          by: ["status"],
-          where: {
-            userId: user.id,
-            ...dateFilter,
-          },
-          _count: true,
-        });
-
-        return {
-          userId: user.id,
-          user,
-          present: userStats.find((s) => s.status === "APPROVED")?._count || 0,
-          absent: userStats.find((s) => s.status === "REJECTED")?._count || 0,
-          late: userStats.find((s) => s.status === "PENDING")?._count || 0,
-        };
-      }),
-    );
+    const staffSummary = staffStatsRaw.map((s) => ({
+      userId: s.userId,
+      user: {
+        id: s.userId,
+        firstName: s.firstName,
+        lastName: s.lastName,
+        email: s.email,
+      },
+      present: Number(s.present) || 0,
+      absent: Number(s.absent) || 0,
+      late: Number(s.late) || 0,
+    }));
 
     if (format === "pdf") {
       // Generate PDF report

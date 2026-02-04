@@ -15,7 +15,7 @@ interface SalaryReportData {
     firstName: string | null;
     lastName: string | null;
     email: string;
-    phone?: string;
+    phone?: string | null;
   } | null;
   month: number;
   year: number;
@@ -159,10 +159,12 @@ export const generateSalaryPDFBuffer = ({
       colors.darkGray[1],
       colors.darkGray[2],
     );
-    doc.text(`📧 ${data?.user?.email || "N/A"}`, 35, yPos + 14);
 
+    // Show phone instead of email
     if (data?.user?.phone) {
-      doc.text(`📱 ${data.user.phone}`, 35, yPos + 20);
+      doc.text(`📱 ${data.user.phone}`, 35, yPos + 14);
+    } else {
+      doc.text(`📱 N/A`, 35, yPos + 14);
     }
 
     // Period information on right
@@ -339,7 +341,7 @@ export const generateSalaryPDFBuffer = ({
           3: { halign: "right", fontStyle: "bold" },
         },
         margin: { left: 15, right: 15 },
-        didDrawPage: function (data) {
+        didDrawPage: function (_data) {
           // Section header
           doc.setFontSize(11);
           doc.setFont("helvetica", "bold");
@@ -348,7 +350,7 @@ export const generateSalaryPDFBuffer = ({
             colors.success[1],
             colors.success[2],
           );
-          doc.text("💵 Payments Made", 15, data.settings.startY - 3);
+          doc.text("💵 Payments Made", 15, _data.settings.startY - 3);
         },
       });
     }
@@ -404,7 +406,7 @@ export const generateSalaryPDFBuffer = ({
           4: { halign: "right", fontStyle: "bold" },
         },
         margin: { left: 15, right: 15 },
-        didDrawPage: function (data) {
+        didDrawPage: function (_data) {
           doc.setFontSize(11);
           doc.setFont("helvetica", "bold");
           doc.setTextColor(
@@ -412,7 +414,7 @@ export const generateSalaryPDFBuffer = ({
             colors.danger[1],
             colors.danger[2],
           );
-          doc.text("💸 Deductions & Recoveries", 15, data.settings.startY - 3);
+          doc.text("💸 Deductions & Recoveries", 15, _data.settings.startY - 3);
         },
       });
     }
@@ -460,7 +462,7 @@ export const generateSalaryPDFBuffer = ({
           3: { halign: "right", fontStyle: "bold" },
         },
         margin: { left: 15, right: 15 },
-        didDrawPage: function (data) {
+        didDrawPage: function (_data) {
           doc.setFontSize(11);
           doc.setFont("helvetica", "bold");
           doc.setTextColor(
@@ -468,7 +470,7 @@ export const generateSalaryPDFBuffer = ({
             colors.primary[1],
             colors.primary[2],
           );
-          doc.text("📋 Recent Transactions", 15, data.settings.startY - 3);
+          doc.text("📋 Recent Transactions", 15, _data.settings.startY - 3);
         },
       });
     }

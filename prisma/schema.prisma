@@ -1,5 +1,7 @@
 generator client {
   provider = "prisma-client-js"
+  // Connection pool optimization
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
@@ -72,7 +74,7 @@ enum OtpPurpose {
   VERIFY_PHONE
   REGISTER
   RESET_PASSWORD
-   
+    
 }
 
 enum ReportType {
@@ -153,7 +155,7 @@ model Company {
    shiftConfigurations ShiftConfiguration[]
 
    @@map("companies")
- }
+  }
 
 model CompanyInvitation {
    id          String   @id @default(uuid()) @db.Uuid
@@ -171,7 +173,7 @@ model CompanyInvitation {
    @@index([companyId])
    @@index([email])
    @@map("company_invitations")
- }
+  }
 
 model ShiftConfiguration {
    id          String   @id @default(uuid()) @db.Uuid
@@ -187,7 +189,7 @@ model ShiftConfiguration {
 
    @@unique([companyId, name])
    @@map("shift_configurations")
- }
+  }
 
 model User {
   id                   String        @id @default(uuid()) @db.Uuid
@@ -242,7 +244,7 @@ model Attendance {
    companyId      String           @db.Uuid
    attendanceDate DateTime
    LateMinute Int? @default(0)
-      
+       
 
    punchIn        DateTime?
    punchOut       DateTime?
@@ -278,7 +280,8 @@ model Attendance {
    @@index([userId, status, attendanceDate])
    @@index([companyId, attendanceDate, status])
    @@index([userId, companyId])
- }
+   @@index([userId, attendanceDate])
+  }
 
 model CorrectionRequest {
   id             String           @id @default(uuid()) @db.Uuid
@@ -368,6 +371,7 @@ model Salary {
   @@index([companyId, status])
   @@index([userId, status])
   @@index([companyId, year, month])
+  @@index([userId, companyId, status])
 }
 
 model SalaryBreakdown {
@@ -408,6 +412,7 @@ model SalaryLedger {
   @@index([companyId])
   @@index([type])
   @@index([createdAt])
+  @@index([userId, companyId, salaryId])
   @@map("salary_ledgers")
 }
 

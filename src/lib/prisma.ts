@@ -16,3 +16,13 @@ if (process.env.NODE_ENV === "production") {
 }
 
 export { prisma };
+
+// Warm up connection pool on startup (for production)
+if (typeof window === "undefined" && process.env.NODE_ENV === "production") {
+  prisma
+    .$connect()
+    .then(() => {
+      console.log("Prisma connection pool warmed up");
+    })
+    .catch(console.error);
+}
