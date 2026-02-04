@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
       details: log.meta,
     }));
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       logs,
       pagination: {
         page,
@@ -75,6 +75,14 @@ export async function GET(request: NextRequest) {
         totalPages,
       },
     });
+
+    // Cache for 2 minutes, stale-while-revalidate for 10 minutes
+    response.headers.set(
+      "Cache-Control",
+      "public, s-maxage=120, stale-while-revalidate=600",
+    );
+
+    return response;
   } catch (error) {
     console.error(error);
     return NextResponse.json(

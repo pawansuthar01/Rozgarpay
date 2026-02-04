@@ -5,8 +5,8 @@ import { authOptions } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-// Cache for 1 minute
-const CACHE_CONTROL = "public, s-maxage=60, stale-while-revalidate=120";
+// Cache for 2 minutes
+const CACHE_CONTROL = "public, s-maxage=120, stale-while-revalidate=600";
 
 export async function GET() {
   try {

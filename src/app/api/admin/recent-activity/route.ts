@@ -73,10 +73,10 @@ export async function GET(_request: NextRequest) {
       logs,
     });
 
-    // Cache for 30 seconds, stale-while-revalidate for 2 minutes
+    // Cache for 2 minutes, stale-while-revalidate for 10 minutes
     response.headers.set(
       "Cache-Control",
-      "public, s-maxage=30, stale-while-revalidate=120",
+      "public, s-maxage=120, stale-while-revalidate=600",
     );
 
     return response;

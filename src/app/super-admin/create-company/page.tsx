@@ -126,7 +126,6 @@ export default function CreateCompanyPage() {
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
   };
-
   if (success && invitation) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -179,7 +178,7 @@ export default function CreateCompanyPage() {
                     </span>
                     <div className="flex items-center space-x-2">
                       <code className="text-sm bg-white px-2 py-1 rounded border">
-                        {invitation.joinLink}
+                        {`${invitation.joinLink}`}
                       </code>
                       <button
                         onClick={() => copyToClipboard(invitation.joinLink)}

@@ -7,7 +7,7 @@ import { toZonedTime } from "date-fns-tz";
 export const dynamic = "force-dynamic";
 
 // Cache for 2 minutes
-const CACHE_CONTROL = "public, s-maxage=120, stale-while-revalidate=300";
+const CACHE_CONTROL = "public, s-maxage=120, stale-while-revalidate=600";
 
 export async function GET(request: NextRequest) {
   try {

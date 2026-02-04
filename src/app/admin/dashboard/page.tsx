@@ -6,7 +6,6 @@ import {
   UserCheck,
   UserX,
   Clock,
-  DollarSign,
   Wallet,
   FileText,
   TrendingUp,
@@ -151,7 +150,7 @@ export default function AdminDashboard() {
     {
       title: "Generate Salary",
       description: "Process monthly payroll",
-      icon: DollarSign,
+      icon: IndianRupee,
       href: "/admin/salary/generate",
       color: "bg-purple-500",
     },

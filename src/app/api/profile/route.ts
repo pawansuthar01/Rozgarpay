@@ -3,6 +3,9 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 
+// Cache for 5 minutes
+const CACHE_CONTROL = "public, s-maxage=300, stale-while-revalidate=600";
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -27,9 +30,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       profile: user,
     });
+    response.headers.set("Cache-Control", CACHE_CONTROL);
+    return response;
   } catch (error) {
     console.error("Profile fetch error:", error);
     return NextResponse.json(

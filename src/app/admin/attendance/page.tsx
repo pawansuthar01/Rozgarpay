@@ -12,11 +12,9 @@ import AttendanceTable from "@/components/admin/attendance/AttendanceTable";
 import { useDebounce } from "@/lib/hooks";
 import { useAttendance, useUpdateAttendance, useUpdateStatus } from "@/hooks";
 import Loading from "@/components/ui/Loading";
-import { useQueryClient } from "@tanstack/react-query";
 
 export default function AdminAttendancePage() {
   const { data: session } = useSession();
-  const queryClient = useQueryClient();
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>("");
@@ -133,12 +131,13 @@ export default function AdminAttendancePage() {
         clearTimeout(existingTimeout);
       }
 
+      // Short timeout as fallback for slow API responses
       loadingRef.current.set(
         attendanceId,
         setTimeout(() => {
           loadingRef.current.delete(attendanceId);
           triggerUpdate();
-        }, 5000),
+        }, 500),
       );
       triggerUpdate();
 

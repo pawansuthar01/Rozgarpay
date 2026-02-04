@@ -36,8 +36,8 @@ export async function GET(request: NextRequest) {
       where.year = year;
     }
 
-    // Optimized: Only include ledger when needed (not for list view)
-    const includeLedger = month !== null && year !== null;
+    // Always include ledger data for salary history view
+    const includeLedger = true;
 
     // Get salaries with minimal data for list view
     const salaries = await prisma.salary.findMany({

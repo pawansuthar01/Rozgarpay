@@ -20,7 +20,7 @@ import {
   Cell,
 } from "recharts";
 import {
-  DollarSign,
+  IndianRupee,
   Users,
   TrendingUp,
   ChevronLeft,
@@ -143,7 +143,7 @@ export default function AdminSalaryReportsPage() {
                 </p>
               )}
             </div>
-            <DollarSign className="h-8 w-8 text-green-600" />
+            <IndianRupee className="h-8 w-8 text-green-600" />
           </div>
         </div>
 

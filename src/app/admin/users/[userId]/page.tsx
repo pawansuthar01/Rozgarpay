@@ -18,14 +18,13 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  DollarSign,
+  IndianRupee,
   UserCheck,
   UserX,
   AlertTriangle,
   ChevronLeft,
   ChevronRight,
   RotateCcw,
-  IndianRupee,
   Plus,
 } from "lucide-react";
 import SalaryActionModal from "@/components/admin/SalaryActionModal";

@@ -8,7 +8,7 @@ import {
   Image as ImageIcon,
   MoreVertical,
   Clock as ClockIcon,
-  DollarSign,
+  IndianRupee,
   AlertTriangle,
   Loader2,
 } from "lucide-react";
@@ -53,7 +53,7 @@ export default function AttendanceTable({
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedAttendance, setSelectedAttendance] =
     useState<AttendanceRecord | null>(null);
-  console.log(records);
+
   const getStatusInfo = (status: string) => {
     switch (status) {
       case "APPROVED":

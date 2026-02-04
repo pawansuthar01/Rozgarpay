@@ -5,6 +5,9 @@ import { salaryService } from "@/lib/salaryService";
 import { authOptions } from "@/lib/auth";
 import { getDate } from "@/lib/attendanceUtils";
 
+// Cache for 2 minutes
+const CACHE_CONTROL = "public, s-maxage=120, stale-while-revalidate=600";
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { userId: string } },
@@ -40,25 +43,29 @@ export async function GET(
 
     // Get salary record for the specified month
     const salary = await prisma.salary.findFirst({
-      where: {
-        userId,
-        companyId,
-        month,
-        year,
-      },
-      include: {
-        ledger: {
-          orderBy: {
-            createdAt: "desc",
-          },
-          take: 100, // Limit ledger entries for performance
-        },
+      where: { userId, companyId, month, year },
+      select: {
+        id: true,
+        grossAmount: true,
+        netAmount: true,
+        pdfUrl: true,
         breakdowns: true,
+        ledger: {
+          select: {
+            id: true,
+            type: true,
+            amount: true,
+            reason: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: "desc" },
+          take: 50,
+        },
       },
     });
 
     if (!salary) {
-      return NextResponse.json({
+      const response = NextResponse.json({
         month,
         year,
         grossAmount: 0,
@@ -70,6 +77,8 @@ export async function GET(
         deductions: [],
         recoveries: [],
       });
+      response.headers.set("Cache-Control", CACHE_CONTROL);
+      return response;
     }
 
     // Get ledger entries for calculations
@@ -124,7 +133,7 @@ export async function GET(
         date: entry.createdAt.toISOString().split("T")[0],
       }));
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       month,
       year,
       grossAmount: salary.grossAmount,
@@ -139,6 +148,8 @@ export async function GET(
       pdfUrl: salary.pdfUrl,
       breakdowns: salary.breakdowns,
     });
+    response.headers.set("Cache-Control", CACHE_CONTROL);
+    return response;
   } catch (error) {
     console.error("Admin user salary GET error:", error);
     return NextResponse.json(

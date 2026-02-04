@@ -27,7 +27,7 @@ export default function Loading({ h = null, message = "loading" }: any) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}
       >
-        Rozagrpay
+        rozgarpay
       </motion.h1>
 
       {/* Loading Text */}

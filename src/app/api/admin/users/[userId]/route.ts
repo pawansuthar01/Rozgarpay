@@ -4,6 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { getDate } from "@/lib/attendanceUtils";
 
+// Cache for 2 minutes
+const CACHE_CONTROL = "public, s-maxage=120, stale-while-revalidate=600";
+
 export async function GET(request: NextRequest, { params }: any) {
   try {
     const session = await getServerSession(authOptions);
@@ -18,82 +21,94 @@ export async function GET(request: NextRequest, { params }: any) {
     const salaryPage = parseInt(searchParams.get("salaryPage") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
 
-    // Get admin's company
+    // Get admin's company with minimal fields
     const admin = await prisma.user.findUnique({
       where: { id: session.user.id },
-      include: { company: true },
+      select: { companyId: true },
     });
 
-    if (!admin?.company) {
+    if (!admin?.companyId) {
       return NextResponse.json(
         { error: "Admin company not found" },
         { status: 400 },
       );
     }
 
-    // Get user details
-    const user = await prisma.user.findFirst({
-      where: {
-        id: userId,
-        companyId: admin.company.id,
-      },
-    });
+    const companyId = admin.companyId;
+    const skip = (attendancePage - 1) * limit;
+    const salarySkip = (salaryPage - 1) * limit;
+
+    // PARALLEL QUERIES: Run all queries concurrently
+    const [
+      user,
+      attendanceStats,
+      totalAttendance,
+      attendanceRecords,
+      salaryStats,
+      salaryRecords,
+    ] = await Promise.all([
+      // Get user details
+      prisma.user.findFirst({
+        where: { id: userId, companyId },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phone: true,
+          role: true,
+          status: true,
+          createdAt: true,
+          onboardingCompleted: true,
+        },
+      }),
+
+      // Get attendance stats
+      prisma.attendance.groupBy({
+        by: ["status"],
+        where: { userId, companyId },
+        _count: true,
+      }),
+
+      // Count total attendance
+      prisma.attendance.count({ where: { userId, companyId } }),
+
+      // Get attendance records (paginated)
+      prisma.attendance.findMany({
+        where: { userId, companyId },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+      }),
+
+      // Get salary stats
+      prisma.salary.aggregate({
+        where: { userId, companyId },
+        _count: true,
+        _sum: { grossAmount: true, netAmount: true },
+      }),
+
+      // Get salary records (paginated)
+      prisma.salary.findMany({
+        where: { userId, companyId },
+        orderBy: { createdAt: "desc" },
+        skip: salarySkip,
+        take: limit,
+        select: {
+          id: true,
+          month: true,
+          year: true,
+          grossAmount: true,
+          netAmount: true,
+          status: true,
+          createdAt: true,
+        },
+      }),
+    ]);
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
-
-    // Get attendance summary
-    const attendanceStats = await prisma.attendance.groupBy({
-      by: ["status"],
-      where: {
-        userId,
-        companyId: admin.company.id,
-      },
-      _count: true,
-    });
-
-    const totalAttendance = await prisma.attendance.count({
-      where: {
-        userId,
-        companyId: admin.company.id,
-      },
-    });
-
-    // Get recent attendance records
-    const attendanceRecords = await prisma.attendance.findMany({
-      where: {
-        userId,
-        companyId: admin.company.id,
-      },
-      orderBy: { createdAt: "desc" },
-      skip: (attendancePage - 1) * limit,
-      take: limit,
-    });
-
-    // Get salary summary
-    const salaryStats = await prisma.salary.aggregate({
-      where: {
-        userId,
-        companyId: admin.company.id,
-      },
-      _count: true,
-      _sum: {
-        grossAmount: true,
-        netAmount: true,
-      },
-    });
-
-    // Get recent salary records
-    const salaryRecords = await prisma.salary.findMany({
-      where: {
-        userId,
-        companyId: admin.company.id,
-      },
-      orderBy: { createdAt: "desc" },
-      skip: (salaryPage - 1) * limit,
-      take: limit,
-    });
 
     // Calculate attendance status distribution
     const attendanceStatusData = attendanceStats.map((stat) => ({
@@ -107,63 +122,41 @@ export async function GET(request: NextRequest, { params }: any) {
             : "#EF4444",
     }));
 
-    // Calculate monthly attendance trend (last 6 months) - simplified approach
+    // Calculate monthly attendance trend (last 6 months) - limited data
     const sixMonthsAgo = getDate(new Date());
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
-    // Get attendance records for trend calculation
     const attendanceTrendData = await prisma.attendance.findMany({
       where: {
         userId,
-        companyId: admin.company.id,
-        attendanceDate: {
-          gte: sixMonthsAgo,
-        },
+        companyId,
+        attendanceDate: { gte: sixMonthsAgo },
       },
-      select: {
-        attendanceDate: true,
-      },
-      orderBy: {
-        attendanceDate: "asc",
-      },
+      select: { attendanceDate: true },
+      orderBy: { attendanceDate: "asc" },
     });
 
     // Group by month manually
     const monthlyAttendance = attendanceTrendData.reduce(
       (acc: any[], record) => {
-        const monthKey = record.attendanceDate.toISOString().substring(0, 7); // YYYY-MM format
+        const monthKey = record.attendanceDate.toISOString().substring(0, 7);
         const existing = acc.find((item) => item.month === monthKey);
-        if (existing) {
-          existing.count += 1;
-        } else {
-          acc.push({ month: monthKey, count: 1 });
-        }
+        if (existing) existing.count += 1;
+        else acc.push({ month: monthKey, count: 1 });
         return acc;
       },
       [],
     );
 
-    // Calculate salary trend (last 6 months) - simplified approach
+    // Calculate salary trend (last 6 months)
     const salaryTrendData = await prisma.salary.findMany({
-      where: {
-        userId,
-        companyId: admin.company.id,
-        // For simplicity, get all salaries and filter in JS
-      },
-      select: {
-        year: true,
-        month: true,
-        grossAmount: true,
-        netAmount: true,
-      },
+      where: { userId, companyId },
+      select: { year: true, month: true, grossAmount: true, netAmount: true },
       orderBy: [{ year: "asc" }, { month: "asc" }],
     });
 
-    // Group salaries by month
     const monthlySalary = salaryTrendData.reduce((acc: any[], record) => {
-      const periodKey = `${record.year}-${record.month
-        .toString()
-        .padStart(2, "0")}`;
+      const periodKey = `${record.year}-${record.month.toString().padStart(2, "0")}`;
       const existing = acc.find((item) => item.period === periodKey);
       if (existing) {
         existing.totalGross += record.grossAmount;
@@ -178,7 +171,7 @@ export async function GET(request: NextRequest, { params }: any) {
       return acc;
     }, []);
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       user: {
         id: user.id,
         firstName: user.firstName,
@@ -226,6 +219,9 @@ export async function GET(request: NextRequest, { params }: any) {
         },
       },
     });
+
+    response.headers.set("Cache-Control", CACHE_CONTROL);
+    return response;
   } catch (error) {
     console.error("User details fetch error:", error);
     return NextResponse.json(

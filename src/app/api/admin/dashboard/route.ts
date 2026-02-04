@@ -125,10 +125,10 @@ export async function GET(_request: NextRequest) {
       cashbookBalance: totalCredits,
     });
 
-    // Cache for 60 seconds, stale-while-revalidate for 5 minutes
+    // Cache for 2 minutes, stale-while-revalidate for 10 minutes
     response.headers.set(
       "Cache-Control",
-      "public, s-maxage=60, stale-while-revalidate=300",
+      "public, s-maxage=120, stale-while-revalidate=600",
     );
 
     return response;

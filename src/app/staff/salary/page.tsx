@@ -3,31 +3,24 @@
 import { useSession } from "next-auth/react";
 import Loading from "@/components/ui/Loading";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import {
-  Eye,
   Download,
   Calendar,
-  DollarSign,
   Clock,
   CheckCircle,
   XCircle,
-  BookDown,
-  ArrowDownZaIcon,
   ArrowUp,
   ArrowDown,
   TrendingUp,
   TrendingDown,
-  FileText,
   Receipt,
   AlertCircle,
   Check,
-  ClockAlert,
 } from "lucide-react";
-import { formatDate, formatTime, formatCurrency } from "@/lib/utils";
+import { formatDate, formatCurrency } from "@/lib/utils";
 import {
   useGenerateSalaryReport,
   useStaffSalaries,
@@ -43,21 +36,50 @@ interface SalaryTransaction {
 }
 
 interface SalaryOverview {
-  totalOwed: number; // Amount company owes to staff
-  totalOwe: number; // Amount staff owes to company
-  pendingAmount: number; // Net pending amount
+  totalOwed: number;
+  totalOwe: number;
+  totalGross: number;
+  totalPaid: number;
+  totalDeductions: number;
+  pendingAmount: number;
   monthlyBreakdown: Array<{
     month: number;
     year: number;
-    given: number; // Amount received from company
-    taken: number; // Amount paid to company
+    gross: number;
+    deductions: number;
+    paid: number;
+    balance: number;
     net: number;
+    status: string;
   }>;
   recentTransactions: SalaryTransaction[];
   currentMonth: {
+    gross: number;
+    deductions: number;
+    paid: number;
+    balance: number;
     owed: number;
     owe: number;
     net: number;
+    earnings: Array<{
+      type: string;
+      amount: number;
+      description: string;
+    }>;
+    payments: Array<{
+      id: string;
+      type: string;
+      amount: number;
+      reason: string;
+      createdAt: string;
+    }>;
+    extraDeductions: Array<{
+      id: string;
+      type: string;
+      amount: number;
+      reason: string;
+      createdAt: string;
+    }>;
   };
 }
 
@@ -70,24 +92,35 @@ export default function StaffSalaryOverviewPage() {
   const [activeTab, setActiveTab] = useState<"overview" | "history">(
     "overview",
   );
+  const [hasLoadedHistory, setHasLoadedHistory] = useState(false);
 
-  const {
-    data: salariesData,
-    isLoading: salariesLoading,
-    error: salariesError,
-  } = useStaffSalaries();
-
+  // Only fetch overview on initial load - always enabled
   const {
     data: overview,
     isLoading: overviewLoading,
     error: overviewError,
   } = useStaffSalaryOverview();
 
-  const generateReportMutation = useGenerateSalaryReport();
+  // Fetch salaries only when history tab is clicked - disabled by default
+  const {
+    data: salariesData,
+    isLoading: salariesLoading,
+    error: salariesError,
+  } = useStaffSalaries(undefined, { enabled: hasLoadedHistory });
+  const handleTabChange = (tab: "overview" | "history") => {
+    setActiveTab(tab);
+    if (tab === "history" && !hasLoadedHistory) {
+      setHasLoadedHistory(true);
+    }
+  };
 
-  const loading = salariesLoading || overviewLoading;
+  // Compute loading state based on active tab
+  const isOverviewLoading = overviewLoading;
+  const isSalariesLoading = hasLoadedHistory ? salariesLoading : false;
+  const loading = isOverviewLoading || isSalariesLoading;
   const error = salariesError?.message || overviewError?.message || null;
   const salaries = salariesData?.salaries || [];
+  const generateReportMutation = useGenerateSalaryReport();
 
   const generateReport = async () => {
     try {
@@ -143,7 +176,7 @@ export default function StaffSalaryOverviewPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* Header */}
-      <div className="bg-white/80 backdrop-blur-sm border-b border-gray-200/50 px-4 py-6 md:px-8 md:py-8 ">
+      <div className="bg-white/80 backdrop-blur-sm border-b border-gray-200/50 px-4 py-6 md:px-8 md:py-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">
@@ -167,7 +200,7 @@ export default function StaffSalaryOverviewPage() {
       <div className="bg-white/80 backdrop-blur-sm border-b border-gray-200/50 px-4 md:px-8">
         <div className="flex space-x-8">
           <button
-            onClick={() => setActiveTab("overview")}
+            onClick={() => handleTabChange("overview")}
             className={`py-4 px-2 border-b-2 font-medium text-sm transition-colors ${
               activeTab === "overview"
                 ? "border-blue-600 text-blue-600"
@@ -177,7 +210,7 @@ export default function StaffSalaryOverviewPage() {
             Overview
           </button>
           <button
-            onClick={() => setActiveTab("history")}
+            onClick={() => handleTabChange("history")}
             className={`py-4 px-2 border-b-2 font-medium text-sm transition-colors ${
               activeTab === "history"
                 ? "border-blue-600 text-blue-600"
@@ -200,40 +233,88 @@ export default function StaffSalaryOverviewPage() {
         {/* Overview Tab */}
         {activeTab === "overview" && (
           <div className="space-y-6">
-            {overview?.currentMonth && (
-              <div className="bg-white/90 backdrop-blur-sm rounded-xl p-6 border border-gray-200/50 ">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Current Month Summary
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="text-center p-4 bg-green-50 rounded-lg">
-                    <p className="text-sm text-green-700 font-medium">
-                      To Receive
-                    </p>
-                    <p className="text-2xl font-bold text-green-600">
-                      ₹{formatCurrency(overview?.currentMonth?.owed || 0)}
-                    </p>
+            {isOverviewLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {[1, 2, 3, 4].map((i) => (
+                  <div
+                    key={i}
+                    className="bg-white/90 rounded-xl p-6 border border-gray-200/50"
+                  >
+                    <Skeleton height={16} width={100} className="mb-2" />
+                    <Skeleton height={32} width={120} />
                   </div>
-                  <div className="text-center p-4 bg-red-50 rounded-lg">
-                    <p className="text-sm text-red-700 font-medium">To Pay</p>
-                    <p className="text-2xl font-bold text-red-600">
-                      ₹{formatCurrency(overview?.currentMonth?.owe || 0)}
-                    </p>
-                  </div>
-                  <div className="text-center p-4 bg-green-50 rounded-lg">
-                    <p className="text-sm text-green-700 font-medium">
-                      Net Amount
-                    </p>
-                    <p className="text-2xl font-bold text-green-600">
-                      ₹{formatCurrency(overview?.currentMonth?.net || 0)}
-                    </p>
+                ))}
+              </div>
+            ) : (
+              overview?.currentMonth && (
+                <div className="bg-white/90 backdrop-blur-sm rounded-xl p-6 border border-gray-200/50">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                    Current Month Summary
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="text-center p-4 bg-green-50 rounded-lg">
+                      <p className="text-sm text-green-700 font-medium">
+                        Gross Salary
+                      </p>
+                      <p className="text-2xl font-bold text-green-600">
+                        ₹{formatCurrency(overview?.currentMonth?.gross || 0)}
+                      </p>
+                    </div>
+                    <div className="text-center p-4 bg-red-50 rounded-lg">
+                      <p className="text-sm text-red-700 font-medium">
+                        Total Deductions
+                      </p>
+                      <p className="text-2xl font-bold text-red-600">
+                        ₹
+                        {formatCurrency(
+                          overview?.currentMonth?.deductions || 0,
+                        )}
+                      </p>
+                    </div>
+                    <div className="text-center p-4 bg-blue-50 rounded-lg">
+                      <p className="text-sm text-blue-700 font-medium">
+                        Payments Received
+                      </p>
+                      <p className="text-2xl font-bold text-blue-600">
+                        ₹{formatCurrency(overview?.currentMonth?.paid || 0)}
+                      </p>
+                    </div>
+                    <div
+                      className={`text-center p-4 rounded-lg ${
+                        (overview?.currentMonth?.balance || 0) >= 0
+                          ? "bg-green-50"
+                          : "bg-red-50"
+                      }`}
+                    >
+                      <p
+                        className={`text-sm font-medium ${
+                          (overview?.currentMonth?.balance || 0) >= 0
+                            ? "text-green-700"
+                            : "text-red-700"
+                        }`}
+                      >
+                        Balance
+                      </p>
+                      <p
+                        className={`text-2xl font-bold ${
+                          (overview?.currentMonth?.balance || 0) >= 0
+                            ? "text-green-600"
+                            : "text-red-600"
+                        }`}
+                      >
+                        ₹
+                        {formatCurrency(
+                          Math.abs(overview?.currentMonth?.balance || 0),
+                        )}
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )
             )}
 
             {/* Monthly Breakdown */}
-            <div className="bg-white/90 backdrop-blur-sm rounded-xl p-6 border border-gray-200/50 ">
+            <div className="bg-white/90 backdrop-blur-sm rounded-xl p-6 border border-gray-200/50">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
                 Monthly Breakdown
               </h3>
@@ -245,22 +326,28 @@ export default function StaffSalaryOverviewPage() {
                         Month
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Amount Given
+                        Gross
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Amount Taken
+                        Deductions
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Net Amount
+                        Paid
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Balance
                       </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {loading
+                    {isOverviewLoading
                       ? Array.from({ length: 6 }).map((_, i) => (
                           <tr key={i}>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <Skeleton height={16} width={80} />
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <Skeleton height={16} width={60} />
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <Skeleton height={16} width={60} />
@@ -288,21 +375,24 @@ export default function StaffSalaryOverviewPage() {
                               })}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
-                              +₹{formatCurrency(month.given)}
+                              ₹{formatCurrency(month.gross)}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium">
-                              -₹{formatCurrency(month.taken)}
+                              ₹{formatCurrency(month.deductions)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600 font-medium">
+                              ₹{formatCurrency(month.paid)}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                               <span
                                 className={
-                                  month.net >= 0
+                                  month.balance >= 0
                                     ? "text-green-600"
                                     : "text-red-600"
                                 }
                               >
-                                {month.net >= 0 ? "+" : ""}₹
-                                {formatCurrency(month.net)}
+                                {month.balance >= 0 ? "Receivable" : "Payable"}:
+                                ₹{formatCurrency(Math.abs(month.balance))}
                               </span>
                             </td>
                           </tr>
@@ -313,12 +403,12 @@ export default function StaffSalaryOverviewPage() {
             </div>
 
             {/* Recent Transactions */}
-            <div className="bg-white/90 backdrop-blur-sm rounded-xl p-6 border border-gray-200/50 ">
+            <div className="bg-white/90 backdrop-blur-sm rounded-xl p-6 border border-gray-200/50">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
                 Recent Transactions
               </h3>
               <div className="space-y-3">
-                {loading
+                {isOverviewLoading
                   ? Array.from({ length: 5 }).map((_, i) => (
                       <div
                         key={i}
@@ -383,7 +473,7 @@ export default function StaffSalaryOverviewPage() {
                     ))}
                 {(!overview?.recentTransactions ||
                   overview.recentTransactions.length === 0) &&
-                  !loading && (
+                  !isOverviewLoading && (
                     <div className="text-center py-8 text-gray-500">
                       <Receipt className="h-12 w-12 mx-auto mb-3 text-gray-400" />
                       <p>No recent transactions</p>
@@ -430,12 +520,13 @@ export default function StaffSalaryOverviewPage() {
               </select>
             </div>
 
-            {loading ? (
+            {/* Loading state for history */}
+            {isSalariesLoading ? (
               <div className="space-y-6">
                 {Array.from({ length: 3 }).map((_, i) => (
                   <div
                     key={i}
-                    className="bg-white/90 backdrop-blur-sm rounded-xl p-4 border border-gray-200/50 "
+                    className="bg-white/90 backdrop-blur-sm rounded-xl p-4 border border-gray-200/50"
                   >
                     <Skeleton height={24} className="mb-2" />
                     <Skeleton height={20} />
@@ -469,17 +560,20 @@ export default function StaffSalaryOverviewPage() {
                   )
                   .map((salary: any) => {
                     const isExpanded = expandedId === salary.id;
-                    const earnings = salary.breakdowns.filter((b: any) =>
-                      ["BASE_SALARY", "OVERTIME"].includes(b.type),
-                    );
-                    const deductions = salary.breakdowns.filter((b: any) =>
-                      [
-                        "PF_DEDUCTION",
-                        "ESI_DEDUCTION",
-                        "LATE_PENALTY",
-                        "ABSENCE_DEDUCTION",
-                      ].includes(b.type),
-                    );
+                    const earnings =
+                      salary.breakdowns?.filter((b: any) =>
+                        ["BASE_SALARY", "OVERTIME"].includes(b.type),
+                      ) || [];
+                    const deductions =
+                      salary.breakdowns?.filter((b: any) =>
+                        [
+                          "PF_DEDUCTION",
+                          "ESI_DEDUCTION",
+                          "LATE_PENALTY",
+                          "ABSENCE_DEDUCTION",
+                        ].includes(b.type),
+                      ) || [];
+
                     // Get ledger deductions and recoveries with dates
                     const ledgerDeductions =
                       salary.ledger?.filter(
@@ -494,16 +588,42 @@ export default function StaffSalaryOverviewPage() {
                         (l: any) =>
                           l.type === "PAYMENT" || l.type === "EARNING",
                       ) || [];
-                    const payments = salary.paidAt
-                      ? [{ amount: salary.netAmount, date: salary.paidAt }]
-                      : [];
-                    const closingBalance =
-                      salary.status === "PAID" ? 0 : salary.netAmount;
+
+                    // Calculate full salary details
+                    const grossEarnings = earnings.reduce(
+                      (sum: number, e: any) => sum + (e.amount || 0),
+                      0,
+                    );
+                    const totalDeductions = deductions.reduce(
+                      (sum: number, d: any) => sum + Math.abs(d.amount || 0),
+                      0,
+                    );
+                    const totalLedgerDeductions = ledgerDeductions.reduce(
+                      (sum: number, d: any) => sum + Math.abs(d.amount || 0),
+                      0,
+                    );
+                    const totalRecoveries = ledgerRecoveries.reduce(
+                      (sum: number, r: any) => sum + Math.abs(r.amount || 0),
+                      0,
+                    );
+                    const totalPayments = ledgerPayments.reduce(
+                      (sum: number, p: any) => sum + (p.amount || 0),
+                      0,
+                    );
+                    const totalDeductionsAll =
+                      totalDeductions + totalLedgerDeductions + totalRecoveries;
+
+                    // What company owes (gross earnings)
+                    const companyOwes = grossEarnings;
+                    // What employee owes (deductions + recoveries)
+                    const employeeOwes = totalDeductionsAll;
+                    // Net balance = netAmount - payments
+                    const netPayable = salary.netAmount - totalPayments;
 
                     return (
                       <div
                         key={salary.id}
-                        className="bg-white/90 backdrop-blur-sm rounded-xl border border-gray-200/50 overflow-hidden  hover:shadow-xl transition-all duration-200"
+                        className="bg-white/90 backdrop-blur-sm rounded-xl border border-gray-200/50 overflow-hidden hover:shadow-xl transition-all duration-200"
                       >
                         <div
                           className="p-4 cursor-pointer hover:bg-gray-50 transition-colors"
@@ -520,15 +640,23 @@ export default function StaffSalaryOverviewPage() {
                                 )}
                               </p>
                               <p className="text-sm text-gray-600">
-                                {!isExpanded ? <ArrowDown /> : <ArrowUp />}{" "}
+                                {isExpanded ? <ArrowUp /> : <ArrowDown />}
                               </p>
                             </div>
                             <div className="text-right">
-                              <p className="text-xl font-bold text-green-600">
-                                ₹{formatCurrency(salary.netAmount)}
+                              <p
+                                className={`text-xl font-bold ${
+                                  netPayable >= 0
+                                    ? "text-green-600"
+                                    : "text-red-600"
+                                }`}
+                              >
+                                ₹{formatCurrency(Math.abs(netPayable))}
                               </p>
                               <p className="text-sm text-gray-600">
-                                Net Receivable
+                                {netPayable >= 0
+                                  ? "Net Receivable"
+                                  : "Net Payable"}
                               </p>
                             </div>
                           </div>
@@ -541,38 +669,73 @@ export default function StaffSalaryOverviewPage() {
                           }`}
                         >
                           <div className="p-6 border-t border-gray-200/50 bg-gradient-to-r from-gray-50 to-blue-50/50">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                              <div>
-                                <p className="text-sm text-gray-600">
-                                  Due Amount
+                            {/* Full Salary Summary */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                              <div className="text-center p-4 bg-green-50 rounded-lg">
+                                <p className="text-sm text-green-700 font-medium">
+                                  Company Owes (Gross)
                                 </p>
-                                <p className="text-lg font-semibold">
-                                  ₹{formatCurrency(salary.netAmount)}
+                                <p className="text-xl font-bold text-green-600">
+                                  ₹{formatCurrency(companyOwes)}
                                 </p>
                               </div>
+                              <div className="text-center p-4 bg-red-50 rounded-lg">
+                                <p className="text-sm text-red-700 font-medium">
+                                  Employee Owes (Deductions)
+                                </p>
+                                <p className="text-xl font-bold text-red-600">
+                                  ₹{formatCurrency(employeeOwes)}
+                                </p>
+                              </div>
+                              <div className="text-center p-4 bg-blue-50 rounded-lg">
+                                <p className="text-sm text-blue-700 font-medium">
+                                  Payments Received
+                                </p>
+                                <p className="text-xl font-bold text-blue-600">
+                                  ₹{formatCurrency(totalPayments)}
+                                </p>
+                              </div>
+                              <div
+                                className={`text-center p-4 rounded-lg ${
+                                  netPayable >= 0 ? "bg-green-50" : "bg-red-50"
+                                }`}
+                              >
+                                <p
+                                  className={`text-sm font-medium ${
+                                    netPayable >= 0
+                                      ? "text-green-700"
+                                      : "text-red-700"
+                                  }`}
+                                >
+                                  Net{" "}
+                                  {netPayable >= 0 ? "Receivable" : "Payable"}
+                                </p>
+                                <p
+                                  className={`text-xl font-bold ${
+                                    netPayable >= 0
+                                      ? "text-green-600"
+                                      : "text-red-600"
+                                  }`}
+                                >
+                                  ₹{formatCurrency(Math.abs(netPayable))}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Month and Status */}
+                            <div className="flex justify-between items-center mb-4">
                               <div>
                                 <p className="text-sm text-gray-600">
-                                  Full Date
-                                </p>
-                                <p className="text-lg font-semibold">
                                   {formatDate(
                                     new Date(salary.year, salary.month - 1),
                                   )}
                                 </p>
-                              </div>
-                              <div>
-                                <p className="text-sm text-gray-600">
-                                  Net Receivable
-                                </p>
-                                <p className="text-lg font-semibold text-green-600">
-                                  ₹{formatCurrency(salary.netAmount)}
-                                </p>
-                              </div>
-                              <div>
-                                <p className="text-sm text-gray-600">Payable</p>
-                                <p className="text-lg font-semibold">
-                                  ₹{formatCurrency(salary.netAmount)}
-                                </p>
+                                <span
+                                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(salary.status)}`}
+                                >
+                                  {getStatusIcon(salary.status)}
+                                  <span className="ml-1">{salary.status}</span>
+                                </span>
                               </div>
                             </div>
 
@@ -729,22 +892,17 @@ export default function StaffSalaryOverviewPage() {
                                       </span>
                                     </div>
                                   ))
-                                ) : payments.length > 0 ? (
-                                  payments.map((payment, index) => (
-                                    <div
-                                      key={index}
-                                      className="flex justify-between"
-                                    >
-                                      <span className="text-gray-700">
-                                        {new Date(
-                                          payment.date,
-                                        ).toLocaleDateString()}
-                                      </span>
-                                      <span className="font-medium">
-                                        ₹{formatCurrency(payment.amount)}
-                                      </span>
-                                    </div>
-                                  ))
+                                ) : salary.paidAt ? (
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-700">
+                                      {new Date(
+                                        salary.paidAt,
+                                      ).toLocaleDateString()}
+                                    </span>
+                                    <span className="font-medium">
+                                      ₹{formatCurrency(salary.netAmount)}
+                                    </span>
+                                  </div>
                                 ) : (
                                   <p className="text-gray-500">
                                     No payments recorded
@@ -756,10 +914,17 @@ export default function StaffSalaryOverviewPage() {
                             {/* Closing Balance */}
                             <div>
                               <h4 className="font-semibold mb-2">
-                                Closing Balance
+                                Final Balance
                               </h4>
-                              <p className="text-lg font-bold text-blue-600">
-                                ₹{formatCurrency(closingBalance)}
+                              <p
+                                className={`text-lg font-bold ${
+                                  netPayable >= 0
+                                    ? "text-green-600"
+                                    : "text-red-600"
+                                }`}
+                              >
+                                {netPayable >= 0 ? "Receivable" : "Payable"}: ₹
+                                {formatCurrency(Math.abs(netPayable))}
                               </p>
                             </div>
 

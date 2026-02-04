@@ -178,7 +178,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    const joinLink = `${process.env.NEXTAUTH_URL}/join/${token}`;
+    const joinLink = `${process.env.NEXT_PUBLIC_NEXTAUTH_URL}/join/${token}`;
 
     // Send notifications using the notification service
     const message = `Your company "${company.name}" has been registered successfully. Create your account as company owner and let's start managing your staff. Join now: ${joinLink}`;
@@ -199,7 +199,7 @@ export async function POST(request: NextRequest) {
 
     // ✅ Audit log
     try {
-      await prisma.auditLog.create({
+      prisma.auditLog.create({
         data: {
           userId: session.user.id,
           action: "CREATED",

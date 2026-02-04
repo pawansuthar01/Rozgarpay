@@ -73,7 +73,6 @@ export default function StaffAttendancePage() {
     useStaffAttendance(year, month);
   const { data: todaysAttendance } = useTodayAttendance();
   const punchMutation = useStaffPunchAttendance();
-
   const generateCalendarDays = (): CalendarDay[] => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
@@ -142,7 +141,7 @@ export default function StaffAttendancePage() {
         return {
           bgColor: "bg-yellow-100 border-yellow-300",
           textColor: "text-red-800",
-          icon: <XCircle className="h-4 w-4 text-gray-600" />,
+          icon: <XCircle className="h-4 w-4 text-red-600" />,
           label: "absent",
         };
       default:
@@ -244,11 +243,11 @@ export default function StaffAttendancePage() {
 
   if (attendanceLoading) {
     return (
-      <div className=" bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      <div className=" ">
         <div className="max-w-sm md:max-w-2xl mx-auto px-2 py-3 space-y-2">
           <div className="animate-pulse space-y-2">
-            <div className="h-28 bg-white rounded-2xl "></div>
-            <div className="h-64 bg-white rounded-2xl "></div>
+            <div className="h-28 bg-white/90 rounded-2xl "></div>
+            <div className="h-64 bg-white/90 rounded-2xl "></div>
           </div>
         </div>
       </div>

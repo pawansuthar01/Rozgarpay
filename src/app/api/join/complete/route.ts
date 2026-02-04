@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
         action: "CREATED",
         entity: "USER",
         createdAt: {
-          gt: getDate( new Date(Date.now() - 60 * 1000)), // Last minute
+          gt: getDate(new Date(Date.now() - 60 * 1000)), // Last minute
         },
         meta: {
           path: ["clientIP"],
@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
 
     // Create audit log
     try {
-      await prisma.auditLog.create({
+      prisma.auditLog.create({
         data: {
           userId: user.id,
           action: "CREATED",
@@ -176,7 +176,6 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error(error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

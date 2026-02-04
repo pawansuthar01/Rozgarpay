@@ -83,7 +83,10 @@ export function useStaffDetail(staffId: string) {
   });
 }
 
-export function useStaffSalaries(params?: { month?: number; year?: number }) {
+export function useStaffSalaries(
+  params?: { month?: number; year?: number },
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: ["staff", "salaries", params] as const,
     queryFn: async () => {
@@ -105,7 +108,8 @@ export function useStaffSalaries(params?: { month?: number; year?: number }) {
       });
       return data;
     },
-    staleTime: STALE_TIMES.LIST,
+    staleTime: 1000 * 30, // 30 seconds - faster updates for salary data
+    enabled: options?.enabled ?? true,
   });
 }
 

@@ -427,15 +427,15 @@ export function useUpdateAttendance() {
       return response.json() as Promise<{ attendance: AttendanceRecord }>;
     },
     onMutate: async ({ attendanceId, data }) => {
-      // Cancel any outgoing refetches
+      // Cancel any outgoing refetches - cancel all list queries
       await queryClient.cancelQueries({ queryKey: ["attendance", "list"] });
 
-      // Snapshot the previous value
+      // Snapshot the previous value - get all list queries
       const previousList = queryClient.getQueryData(["attendance", "list"]);
 
-      // Optimistically update to the new value
+      // Optimistically update to the new value - update all matching list queries
       queryClient.setQueriesData(
-        { queryKey: ["attendance", "list"] },
+        { queryKey: ["attendance", "list"], exact: false },
         (oldData: AttendanceResponse | undefined) => {
           if (!oldData?.records) return oldData;
           return {
@@ -464,7 +464,7 @@ export function useUpdateAttendance() {
 }
 
 /**
- * Update attendance status - updates AFTER API response
+ * Update attendance status - with optimistic updates for instant UI feedback
  */
 export function useUpdateStatus() {
   const queryClient = useQueryClient();
@@ -490,9 +490,38 @@ export function useUpdateStatus() {
 
       return response.json() as Promise<{ attendance: AttendanceRecord }>;
     },
+    onMutate: async ({ attendanceId, data }) => {
+      // Cancel any outgoing refetches - cancel all list queries
+      await queryClient.cancelQueries({ queryKey: ["attendance", "list"] });
+
+      // Snapshot the previous value - get all list queries
+      const previousList = queryClient.getQueryData(["attendance", "list"]);
+
+      // Optimistically update to the new value - update all matching list queries
+      queryClient.setQueriesData(
+        { queryKey: ["attendance", "list"], exact: false },
+        (oldData: AttendanceResponse | undefined) => {
+          if (!oldData?.records) return oldData;
+          return {
+            ...oldData,
+            records: oldData.records.map((record) =>
+              record.id === attendanceId ? { ...record, ...data } : record,
+            ),
+          };
+        },
+      );
+
+      return { previousList };
+    },
+    onError: (error, variables, context) => {
+      // Rollback on error
+      if (context?.previousList) {
+        queryClient.setQueryData(["attendance", "list"], context.previousList);
+      }
+    },
     onSettled: () => {
-      // Refetch after API response to update UI
-      queryClient.invalidateQueries({ queryKey: ["attendance", "list"] });
+      // Optionally sync with server - comment out for instant updates
+      // queryClient.invalidateQueries({ queryKey: ["attendance", "list"] });
     },
   });
 }
@@ -637,11 +666,14 @@ export function useUpdateAttendanceStatus() {
       attendanceId: string;
       data: UpdateAttendanceStatusRequest;
     }) => {
-      const response = await fetch(`/api/attendance/${attendanceId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
+      const response = await fetch(
+        `/api/admin/attendance/${attendanceId}/update`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        },
+      );
 
       if (!response.ok) {
         const error = await response.json();
@@ -652,6 +684,10 @@ export function useUpdateAttendanceStatus() {
     },
     onMutate: async ({ attendanceId, data }) => {
       await queryClient.cancelQueries({ queryKey: ["attendance", "manager"] });
+      await queryClient.cancelQueries({ queryKey: ["attendance", "list"] });
+      await queryClient.cancelQueries({
+        queryKey: ["attendance", "detail", attendanceId],
+      });
 
       const previousAttendance = queryClient.getQueryData([
         "attendance",
@@ -673,6 +709,18 @@ export function useUpdateAttendanceStatus() {
         },
       );
 
+      // Also update the detail cache
+      queryClient.setQueryData(
+        ["attendance", "detail", attendanceId],
+        (old: { attendance: AttendanceRecord } | undefined) => {
+          if (!old?.attendance) return old;
+          return {
+            ...old,
+            attendance: { ...old.attendance, status: data.status },
+          };
+        },
+      );
+
       return { previousAttendance };
     },
     onError: (err, variables, context) => {
@@ -684,9 +732,12 @@ export function useUpdateAttendanceStatus() {
       }
       console.error("Failed to update attendance status:", err);
     },
-    onSettled: () => {
+    onSettled: (data, error, variables) => {
       queryClient.invalidateQueries({ queryKey: ["attendance", "manager"] });
       queryClient.invalidateQueries({ queryKey: ["attendance", "list"] });
+      queryClient.invalidateQueries({
+        queryKey: ["attendance", "detail", variables.attendanceId],
+      });
     },
   });
 }

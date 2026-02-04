@@ -7,12 +7,12 @@ import { signOut } from "next-auth/react";
 import {
   LayoutDashboard,
   CheckSquare,
-  DollarSign,
   Bell,
   UserCircle,
   Menu,
   LogOut,
   X,
+  IndianRupee,
 } from "lucide-react";
 
 export default function StaffLayout({
@@ -48,7 +48,7 @@ export default function StaffLayout({
       icon: CheckSquare,
       priority: 2,
     },
-    { name: "Salary", href: "/staff/salary", icon: DollarSign, priority: 3 },
+    { name: "Salary", href: "/staff/salary", icon: IndianRupee, priority: 3 },
 
     {
       name: "Notifications",
@@ -76,7 +76,7 @@ export default function StaffLayout({
     {
       name: "Salary",
       href: "/staff/salary",
-      icon: DollarSign,
+      icon: IndianRupee,
       shortName: "Salary",
     },
     {

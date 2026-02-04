@@ -6,10 +6,36 @@
  * - Performance monitoring integration
  * - Query deduplication
  * - Placeholder data for smooth loading
+ * - Instant optimistic updates for all operations
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { performanceMonitor } from "@/lib/performanceMonitor";
+
+// ============================================================================
+// Constants & Types
+// ============================================================================
+
+const CASHBOOK_LIST_KEY = ["cashbook", "list"] as const;
+const CASHBOOK_BALANCE_KEY = ["cashbook", "balance"] as const;
+
+interface CashbookRecord {
+  id: string;
+  status?: string;
+  isReversed?: boolean;
+  [key: string]: any;
+}
+
+interface CashbookListData {
+  records: CashbookRecord[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+  [key: string]: any;
+}
 
 // ============================================================================
 // Stale Times (based on data volatility)
@@ -39,7 +65,7 @@ export function useCashbook(params?: {
   search?: string;
 }) {
   return useQuery({
-    queryKey: ["cashbook", "list", params] as const,
+    queryKey: [...CASHBOOK_LIST_KEY, params] as const,
     queryFn: async () => {
       const searchParams = new URLSearchParams();
       if (params?.page) searchParams.set("page", String(params.page));
@@ -81,7 +107,7 @@ export function useCashbook(params?: {
 
 export function useCashbookBalance() {
   return useQuery({
-    queryKey: ["cashbook", "balance"] as const,
+    queryKey: CASHBOOK_BALANCE_KEY,
     queryFn: async () => {
       const startTime = performance.now();
       const response = await fetch("/api/admin/cashbook/balance");
@@ -119,9 +145,64 @@ export function useCreateCashbookEntry() {
       }
       return response.json();
     },
+    onMutate: async (newEntry) => {
+      await queryClient.cancelQueries({ queryKey: CASHBOOK_LIST_KEY });
+
+      // Snapshot all list queries
+      const previousLists = queryClient.getQueriesData<CashbookListData>({
+        queryKey: CASHBOOK_LIST_KEY,
+      });
+      const previousBalance = queryClient.getQueryData(CASHBOOK_BALANCE_KEY);
+
+      // Optimistically add the new entry to all list queries
+      previousLists.forEach(([key, oldData]) => {
+        if (oldData && typeof oldData === "object" && "records" in oldData) {
+          const updatedData: CashbookListData = {
+            ...oldData,
+            records: [
+              { ...newEntry, id: "temp-" + Date.now() },
+              ...oldData.records,
+            ],
+            pagination: {
+              ...oldData.pagination,
+              total: oldData.pagination.total + 1,
+            },
+          };
+          queryClient.setQueryData(key, updatedData);
+        }
+      });
+
+      // Optimistically update balance
+      if (previousBalance) {
+        const amount =
+          newEntry.direction === "IN" ? newEntry.amount : -newEntry.amount;
+        queryClient.setQueryData(CASHBOOK_BALANCE_KEY, (old: any) => {
+          if (!old?.balance) return old;
+          return {
+            ...old,
+            balance: old.balance + amount,
+          };
+        });
+      }
+
+      return { previousLists, previousBalance };
+    },
+    onError: (error, variables, context) => {
+      // Rollback all list queries
+      if (context?.previousLists) {
+        context.previousLists.forEach(([key, data]) => {
+          queryClient.setQueryData(key, data);
+        });
+      }
+      // Rollback balance
+      if (context?.previousBalance) {
+        queryClient.setQueryData(CASHBOOK_BALANCE_KEY, context.previousBalance);
+      }
+    },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["cashbook", "list"] });
-      queryClient.invalidateQueries({ queryKey: ["cashbook", "balance"] });
+      // Refresh to sync with server
+      queryClient.invalidateQueries({ queryKey: CASHBOOK_LIST_KEY });
+      queryClient.invalidateQueries({ queryKey: CASHBOOK_BALANCE_KEY });
     },
   });
 }
@@ -155,12 +236,39 @@ export function useUpdateCashbookEntry() {
       }
       return response.json();
     },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["cashbook", "list"] });
-      queryClient.invalidateQueries({ queryKey: ["cashbook", "balance"] });
-      queryClient.invalidateQueries({
-        queryKey: ["cashbook", "detail", variables.entryId],
+    onMutate: async ({ entryId, data }) => {
+      await queryClient.cancelQueries({ queryKey: CASHBOOK_LIST_KEY });
+
+      // Snapshot all list queries
+      const previousLists = queryClient.getQueriesData<CashbookListData>({
+        queryKey: CASHBOOK_LIST_KEY,
       });
+
+      // Optimistically update the entry in all list queries
+      previousLists.forEach(([key, oldData]) => {
+        if (oldData && typeof oldData === "object" && "records" in oldData) {
+          const updatedData: CashbookListData = {
+            ...oldData,
+            records: oldData.records.map((record) =>
+              record.id === entryId ? { ...record, ...data } : record,
+            ),
+          };
+          queryClient.setQueryData(key, updatedData);
+        }
+      });
+
+      return { previousLists };
+    },
+    onError: (error, variables, context) => {
+      if (context?.previousLists) {
+        context.previousLists.forEach(([key, data]) => {
+          queryClient.setQueryData(key, data);
+        });
+      }
+    },
+    onSettled: () => {
+      // Refresh to sync with server
+      queryClient.invalidateQueries({ queryKey: CASHBOOK_LIST_KEY });
     },
   });
 }
@@ -179,9 +287,41 @@ export function useDeleteCashbookEntry() {
       }
       return response.json();
     },
+    onMutate: async (entryId: string) => {
+      await queryClient.cancelQueries({ queryKey: CASHBOOK_LIST_KEY });
+
+      // Snapshot all list queries
+      const previousLists = queryClient.getQueriesData<CashbookListData>({
+        queryKey: CASHBOOK_LIST_KEY,
+      });
+
+      // Optimistically remove the entry from all list queries
+      previousLists.forEach(([key, oldData]) => {
+        if (oldData && typeof oldData === "object" && "records" in oldData) {
+          const updatedData: CashbookListData = {
+            ...oldData,
+            records: oldData.records.filter((record) => record.id !== entryId),
+            pagination: {
+              ...oldData.pagination,
+              total: oldData.pagination.total - 1,
+            },
+          };
+          queryClient.setQueryData(key, updatedData);
+        }
+      });
+
+      return { previousLists };
+    },
+    onError: (error, variables, context) => {
+      if (context?.previousLists) {
+        context.previousLists.forEach(([key, data]) => {
+          queryClient.setQueryData(key, data);
+        });
+      }
+    },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["cashbook", "list"] });
-      queryClient.invalidateQueries({ queryKey: ["cashbook", "balance"] });
+      // Refresh to sync with server
+      queryClient.invalidateQueries({ queryKey: CASHBOOK_LIST_KEY });
     },
   });
 }
@@ -210,9 +350,42 @@ export function useReverseCashbookEntry() {
       }
       return response.json();
     },
+    onMutate: async ({ entryId }) => {
+      await queryClient.cancelQueries({ queryKey: CASHBOOK_LIST_KEY });
+
+      // Snapshot all list queries
+      const previousLists = queryClient.getQueriesData<CashbookListData>({
+        queryKey: CASHBOOK_LIST_KEY,
+      });
+
+      // Optimistically remove the entry from all list queries (API filters out reversed entries)
+      previousLists.forEach(([key, oldData]) => {
+        if (oldData && typeof oldData === "object" && "records" in oldData) {
+          const updatedData: CashbookListData = {
+            ...oldData,
+            records: oldData.records.filter((record) => record.id !== entryId),
+            pagination: {
+              ...oldData.pagination,
+              total: oldData.pagination.total - 1,
+            },
+          };
+          queryClient.setQueryData(key, updatedData);
+        }
+      });
+
+      return { previousLists };
+    },
+    onError: (error, variables, context) => {
+      if (context?.previousLists) {
+        context.previousLists.forEach(([key, data]) => {
+          queryClient.setQueryData(key, data);
+        });
+      }
+    },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["cashbook", "list"] });
-      queryClient.invalidateQueries({ queryKey: ["cashbook", "balance"] });
+      // Refresh to sync with server
+      queryClient.invalidateQueries({ queryKey: CASHBOOK_LIST_KEY });
+      queryClient.invalidateQueries({ queryKey: CASHBOOK_BALANCE_KEY });
     },
   });
 }

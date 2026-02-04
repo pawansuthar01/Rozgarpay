@@ -8,7 +8,7 @@ import "react-loading-skeleton/dist/skeleton.css";
 import {
   Building,
   Clock,
-  DollarSign,
+  IndianRupee,
   Shield,
   Edit,
   Save,
@@ -17,7 +17,6 @@ import {
   Timer,
   Settings as SettingsIcon,
   AlertTriangle,
-  IndianRupee,
   Loader2,
 } from "lucide-react";
 import MessageModal from "@/components/MessageModal";

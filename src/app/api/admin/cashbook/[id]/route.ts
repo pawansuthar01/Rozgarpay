@@ -118,6 +118,7 @@ export async function PUT(
           amount: true,
           description: true,
           transactionDate: true,
+          isReversed: true,
           user: { select: { firstName: true, lastName: true } },
         },
       });

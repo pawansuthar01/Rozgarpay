@@ -92,27 +92,35 @@ export default function AdminCashbookPage() {
   const deleteEntryMutation = useDeleteCashbookEntry();
   const generatePDFMutation = useGenerateCashbookPDF();
 
-  const handleSubmitEntry = async (entryData: any) => {
-    try {
-      if (editingEntry) {
-        // Update existing entry
-        await updateEntryMutation.mutateAsync({
-          entryId: editingEntry.id,
-          data: entryData,
-        });
-      } else {
-        // Create new entry
-        await createEntryMutation.mutateAsync(entryData);
-      }
-      setShowForm(false);
-      setEditingEntry(null);
-    } catch (error) {
-      console.error("Entry operation error:", error);
-      showMessage(
-        "error",
-        "Error",
-        `Failed to ${editingEntry ? "update" : "create"} entry`,
+  const handleSubmitEntry = (entryData: any) => {
+    if (editingEntry) {
+      // Update existing entry - optimistic update
+      updateEntryMutation.mutate(
+        { entryId: editingEntry.id, data: entryData },
+        {
+          onSuccess: () => {
+            setShowForm(false);
+            setEditingEntry(null);
+            showMessage("success", "Success", "Entry updated successfully");
+          },
+          onError: (error: any) => {
+            console.error("Entry update error:", error);
+            showMessage("error", "Error", "Failed to update entry");
+          },
+        },
       );
+    } else {
+      // Create new entry - optimistic update
+      createEntryMutation.mutate(entryData, {
+        onSuccess: () => {
+          setShowForm(false);
+          showMessage("success", "Success", "Entry created successfully");
+        },
+        onError: (error: any) => {
+          console.error("Entry create error:", error);
+          showMessage("error", "Error", "Failed to create entry");
+        },
+      });
     }
   };
 
@@ -121,34 +129,46 @@ export default function AdminCashbookPage() {
     setShowForm(true);
   };
 
-  const handleReverseEntry = async (entryId: string, reason: string) => {
+  const handleReverseEntry = (entryId: string, reason: string) => {
     // The confirmation is already shown by CashbookTable
-    // Just perform the reversal action
+    // Just perform the reversal action - optimistic update
     setReversingEntryId(entryId);
-    try {
-      await reverseEntryMutation.mutateAsync({ entryId, reason });
-    } catch (error) {
-      console.error("Reverse entry error:", error);
-      showMessage("error", "Error", "Failed to reverse entry");
-    } finally {
-      setReversingEntryId(null);
-    }
+    reverseEntryMutation.mutate(
+      { entryId, reason },
+      {
+        onSuccess: () => {
+          showMessage("success", "Success", "Entry reversed successfully");
+        },
+        onError: (error: any) => {
+          console.error("Reverse entry error:", error);
+          showMessage("error", "Error", "Failed to reverse entry");
+        },
+        onSettled: () => {
+          setReversingEntryId(null);
+        },
+      },
+    );
   };
 
-  const handleDeleteEntry = async (entryId: string) => {
+  const handleDeleteEntry = (entryId: string) => {
     showConfirm(
       "Confirm Delete",
       "Are you sure you want to permanently delete this transaction? This action cannot be undone.",
-      async () => {
+      () => {
+        // Delete entry - optimistic update
         setDeletingEntryId(entryId);
-        try {
-          await deleteEntryMutation.mutateAsync(entryId);
-        } catch (error) {
-          console.error("Delete entry error:", error);
-          showMessage("error", "Error", "Failed to delete entry");
-        } finally {
-          setDeletingEntryId(null);
-        }
+        deleteEntryMutation.mutate(entryId, {
+          onSuccess: () => {
+            showMessage("success", "Success", "Entry deleted successfully");
+          },
+          onError: (error: any) => {
+            console.error("Delete entry error:", error);
+            showMessage("error", "Error", "Failed to delete entry");
+          },
+          onSettled: () => {
+            setDeletingEntryId(null);
+          },
+        });
       },
     );
   };

@@ -8,7 +8,7 @@ import Link from "next/link";
 import {
   FileText,
   TrendingUp,
-  DollarSign,
+IndianRupee,
   Download,
   Calendar,
   Filter,
@@ -114,7 +114,7 @@ export default function AdminReportsPage() {
       title: "Salary Report",
       description:
         "Monthly payroll reports, total payouts, and staff breakdowns",
-      icon: DollarSign,
+      icon: IndianRupee,
       color: "bg-green-500",
       bgColor: "bg-green-50",
       href: "/admin/reports/salary",

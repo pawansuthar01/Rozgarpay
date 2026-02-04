@@ -57,9 +57,9 @@ export async function GET(request: NextRequest) {
       ];
     }
 
-    // PARALLEL QUERIES: Run count and data queries concurrently
+    // PARALLEL QUERIES: Run count and data queries concurrently (with early exit optimization)
     const [total, users] = await Promise.all([
-      // Total count
+      // Total count (fast)
       prisma.user.count({ where }),
 
       // Users with selective field fetching
@@ -82,6 +82,19 @@ export async function GET(request: NextRequest) {
         take: limit,
       }),
     ]);
+
+    // Early exit for empty results
+    if (total === 0) {
+      const response = NextResponse.json({
+        users: [],
+        pagination: { page, limit, total: 0, totalPages: 0 },
+      });
+      response.headers.set(
+        "Cache-Control",
+        "public, s-maxage=120, stale-while-revalidate=600",
+      );
+      return response;
+    }
 
     // Build response with caching headers
     const response = NextResponse.json({

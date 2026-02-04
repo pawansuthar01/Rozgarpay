@@ -35,7 +35,6 @@ const securityHeaders: Record<string, string> = {
   "X-Frame-Options": "SAMEORIGIN",
   "X-XSS-Protection": "1; mode=block",
   "Referrer-Policy": "origin-when-cross-origin",
-  "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
 };
 
 const publicRoutes = [
@@ -48,10 +47,82 @@ const publicRoutes = [
   "/onboarding",
 ];
 
+// Auth routes that authenticated users should not access
+const authRoutes = ["/login", "/register", "/signup"];
+
 const isPublicRoute = (pathname: string): boolean => {
   return publicRoutes.some(
     (route) => pathname === route || pathname.startsWith(route + "/"),
   );
+};
+
+// Check if path is a static file that should be public
+const isPublicFile = (pathname: string): boolean => {
+  // Public file patterns
+  const publicFilePatterns = [
+    /\/workers\//, // Worker files
+    /\.worker\.js$/, // Worker JS files
+    /\/manifest\.json$/, // PWA manifest
+    /\/logo\.png$/, // Logo files
+    /\.svg$/, // SVG files
+    /\.ico$/, // Icon files
+    /\.json$/, // JSON files
+    /\.txt$/, // Text files
+  ];
+  return publicFilePatterns.some((pattern) => pattern.test(pathname));
+};
+
+// Get user dashboard URL based on role
+const getDashboardUrl = (role: string): string => {
+  switch (role) {
+    case "SUPER_ADMIN":
+      return "/super-admin/dashboard";
+    case "ADMIN":
+      return "/admin/dashboard";
+    case "MANAGER":
+      return "/manager/dashboard";
+    case "STAFF":
+      return "/staff/dashboard";
+    default:
+      return "/";
+  }
+};
+
+// Check if user can access another user's resource
+const canAccessUserResource = (
+  pathname: string,
+  tokenUserId: string,
+  role: string,
+): boolean => {
+  // Super Admin can access all user resources
+  if (role === "SUPER_ADMIN") {
+    return true;
+  }
+
+  // Admin can access all admin-level user resources
+  if (role === "ADMIN") {
+    return pathname.startsWith("/admin/");
+  }
+
+  // Manager can access staff resources within their scope
+  if (role === "MANAGER") {
+    return pathname.startsWith("/manager/") || pathname.startsWith("/staff/");
+  }
+
+  // Staff can only access their own resources
+  if (role === "STAFF") {
+    // Check if path contains user ID - staff can only access their own
+    const userIdMatch = pathname.match(/\/users\/([^/]+)/);
+    if (userIdMatch) {
+      return userIdMatch[1] === tokenUserId;
+    }
+    // Allow access to own profile and attendance
+    return (
+      pathname.startsWith("/staff/profile") || pathname.includes(tokenUserId)
+    );
+  }
+
+  return false;
 };
 
 export async function middleware(req: NextRequest) {
@@ -83,8 +154,8 @@ export async function middleware(req: NextRequest) {
     const clientIP = req.headers.get("x-forwarded-for") || req.ip || "unknown";
     const rateLimitKey = `${clientIP}:${pathname}`;
 
-    // Strict rate limit for auth endpoints (10 requests per minute)
-    if (!checkRateLimit(rateLimitKey, 10, 60000)) {
+    // Strict rate limit for auth endpoints (20 requests per minute)
+    if (!checkRateLimit(rateLimitKey, 20, 60000)) {
       return new NextResponse(
         JSON.stringify({ error: "Too many requests. Please try again later." }),
         {
@@ -98,13 +169,23 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  // Check if route is public
-  if (isPublicRoute(pathname)) {
+  // Check if route is public or static file
+  if (isPublicRoute(pathname) || isPublicFile(pathname)) {
     return response;
   }
 
   // Get token for protected routes
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+
+  // Redirect authenticated users away from auth pages
+  if (authRoutes.some((route) => pathname.startsWith(route))) {
+    if (token) {
+      const role = token.role as string;
+      const dashboardUrl = getDashboardUrl(role);
+      return NextResponse.redirect(new URL(dashboardUrl, req.url));
+    }
+    return response;
+  }
 
   if (!token) {
     // Redirect to login if not authenticated
@@ -113,42 +194,78 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Role-based access control
   const role = token.role as string;
+  const userId = token.sub as string;
+
+  // Cross-user path protection - prevent users from accessing other users' resources
+  const userResourcePaths = [
+    /\/users\/[^/]+$/, // /users/:userId
+    /\/users\/[^/]+\/[^/]+$/, // /users/:userId/*
+    /\/attendance\/[^/]+$/, // /attendance/:attendanceId
+    /\/salary\/[^/]+$/, // /salary/:salaryId
+    /\/correction-requests\/[^/]+$/, // /correction-requests/:requestId
+  ];
+
+  const isUserResourcePath = userResourcePaths.some((pattern) =>
+    pattern.test(pathname),
+  );
+
+  if (isUserResourcePath && !canAccessUserResource(pathname, userId, role)) {
+    // User is trying to access another user's resource
+    const dashboardUrl = getDashboardUrl(role);
+    return NextResponse.redirect(new URL(dashboardUrl, req.url));
+  }
 
   // Super Admin routes
   if (pathname.startsWith("/super-admin")) {
     if (role !== "SUPER_ADMIN") {
-      return new NextResponse("Unauthorized", { status: 403 });
+      const dashboardUrl = getDashboardUrl(role);
+      return NextResponse.redirect(new URL(dashboardUrl, req.url));
     }
+    return response;
   }
 
-  // Admin routes
+  // Admin routes - ONLY ADMIN and SUPER_ADMIN can access
   if (pathname.startsWith("/admin")) {
-    if (role === "ADMIN") {
+    // Block MANAGER and STAFF from accessing admin routes
+    if (role === "MANAGER" || role === "STAFF") {
+      const dashboardUrl = getDashboardUrl(role);
+      return NextResponse.redirect(new URL(dashboardUrl, req.url));
+    }
+    // Allow ADMIN and SUPER_ADMIN
+    if (role === "ADMIN" || role === "SUPER_ADMIN") {
       return response;
     }
-    if (role === "MANAGER" && pathname.startsWith("/manager")) {
-      return response;
-    }
-    if (role === "STAFF" && pathname.startsWith("/staff")) {
-      return response;
-    }
-    // Block other roles
-    return new NextResponse("Unauthorized", { status: 403 });
+    // Any other role - redirect to their dashboard
+    const dashboardUrl = getDashboardUrl(role);
+    return NextResponse.redirect(new URL(dashboardUrl, req.url));
   }
 
-  // Manager routes
+  // Manager routes - ONLY MANAGER and SUPER_ADMIN can access (ADMIN can also access if needed)
   if (pathname.startsWith("/manager")) {
-    if (role === "MANAGER" || role === "ADMIN") {
+    // Block STAFF from accessing manager routes
+    if (role === "STAFF") {
+      const dashboardUrl = getDashboardUrl(role);
+      return NextResponse.redirect(new URL(dashboardUrl, req.url));
+    }
+    // Allow MANAGER, ADMIN, and SUPER_ADMIN
+    if (role === "MANAGER" || role === "ADMIN" || role === "SUPER_ADMIN") {
       return response;
     }
-    return new NextResponse("Unauthorized", { status: 403 });
+    // Any other role - redirect to their dashboard
+    const dashboardUrl = getDashboardUrl(role);
+    return NextResponse.redirect(new URL(dashboardUrl, req.url));
   }
 
-  // Staff routes
+  // Staff routes - ONLY STAFF, MANAGER, ADMIN, and SUPER_ADMIN can access
   if (pathname.startsWith("/staff")) {
-    if (role === "STAFF" || role === "ADMIN" || role === "MANAGER") {
+    // Allow STAFF, MANAGER, ADMIN, and SUPER_ADMIN
+    if (
+      role === "STAFF" ||
+      role === "MANAGER" ||
+      role === "ADMIN" ||
+      role === "SUPER_ADMIN"
+    ) {
       // Prevent caching of authenticated pages
       response.headers.set(
         "Cache-Control",
@@ -158,7 +275,9 @@ export async function middleware(req: NextRequest) {
       response.headers.set("Expires", "0");
       return response;
     }
-    return new NextResponse("Unauthorized", { status: 403 });
+    // Any other role - redirect to their dashboard
+    const dashboardUrl = getDashboardUrl(role);
+    return NextResponse.redirect(new URL(dashboardUrl, req.url));
   }
 
   // API routes protection
@@ -182,6 +301,14 @@ export async function middleware(req: NextRequest) {
         headers: { "Content-Type": "application/json" },
       });
     }
+
+    // API cross-user protection
+    if (isUserResourcePath && !canAccessUserResource(pathname, userId, role)) {
+      return new NextResponse(JSON.stringify({ error: "Forbidden" }), {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
   }
 
   return response;
@@ -189,14 +316,6 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico
-     * - public folder
-     * - api/health (health check)
-     */
-    "/((?!_next/static|_next/image|favicon.ico|public|api/health).*)",
+    "/((?!_next|_static|public|api|favicon.ico|manifest.json|logo.png|\\.worker\\.js|workers).*)",
   ],
 };

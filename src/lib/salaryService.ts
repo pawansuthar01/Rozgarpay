@@ -6,6 +6,10 @@ import { SalaryType, AttendanceStatus, AuditAction } from "@prisma/client";
 import { getDate } from "./attendanceUtils";
 import { getCurrentTime } from "./utils";
 
+// ============================================================================
+// Types and Interfaces
+// ============================================================================
+
 export interface SalaryCalculationInput {
   userId: string;
   companyId: string;
@@ -31,26 +35,118 @@ export interface AttendanceSummary {
   rejectedDays: number;
 }
 
+export interface SalaryBreakdown {
+  type: string;
+  description: string;
+  amount: number;
+  hours?: number;
+  quantity?: number;
+  rate?: number;
+}
+
+export interface SalaryComponents {
+  baseAmount: number;
+  overtimeAmount: number;
+  penaltyAmount: number;
+  deductions: number;
+  grossAmount: number;
+  netAmount: number;
+  breakdowns: SalaryBreakdown[];
+}
+
+export interface UserSalaryConfig {
+  id: string;
+  firstName: string;
+  lastName: string;
+  baseSalary: number | null;
+  hourlyRate: number | null;
+  dailyRate: number | null;
+  salaryType: SalaryType | null;
+  workingDays: number | null;
+  overtimeRate: number | null;
+  pfEsiApplicable: boolean;
+  joiningDate: Date | null;
+}
+
+export interface CompanyPayrollConfig {
+  id: string;
+  name: string;
+  defaultSalaryType: SalaryType | null;
+  overtimeMultiplier: number | null;
+  enableLatePenalty: boolean;
+  latePenaltyPerMinute: number | null;
+  enableAbsentPenalty: boolean;
+  halfDayThresholdHours: number | null;
+  absentPenaltyPerDay: number | null;
+  pfPercentage: number | null;
+  esiPercentage: number | null;
+  minWorkingHours: number | null;
+  maxDailyHours: number | null;
+  overtimeThresholdHours: number | null;
+  shiftStartTime: string | null;
+  gracePeriodMinutes: number | null;
+}
+
+// ============================================================================
+// Validation Utilities
+// ============================================================================
+
+function validateMonth(month: number): void {
+  if (month < 1 || month > 12) {
+    throw new Error(`Invalid month: ${month}. Must be between 1 and 12.`);
+  }
+}
+
+function validateYear(year: number): void {
+  const currentYear = new Date().getFullYear() + 1;
+  const minYear = currentYear - 10;
+  if (year < minYear || year > currentYear) {
+    throw new Error(
+      `Invalid year: ${year}. Must be between ${minYear} and ${currentYear}.`,
+    );
+  }
+}
+
+function validatePositiveNumber(value: number, fieldName: string): void {
+  if (value < 0) {
+    throw new Error(`${fieldName} cannot be negative: ${value}`);
+  }
+}
+
+function roundToTwoDecimals(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+// ============================================================================
+// Salary Service Class
+// ============================================================================
+
 export class SalaryService {
+  // ========================================================================
+  // Public API Methods
+  // ========================================================================
+
   /**
    * Calculate balance for a salary including ledger adjustments
-   * Positive balance = Company owes employee
-   * Negative balance = Employee owes company
+   * Positive balance = Company owes employee (receivable)
+   * Negative balance = Employee owes company (payable)
    */
-  calculateSalaryBalance(salary: any, ledger: any[]) {
+  calculateSalaryBalance(
+    salary: { netAmount: number },
+    ledger: Array<{ type: string; amount: number }>,
+  ): number {
+    if (!salary || typeof salary.netAmount !== "number") {
+      throw new Error("Invalid salary object provided");
+    }
+
     const paid = ledger
       .filter((l) => l.type === "PAYMENT")
-      .reduce((s, l) => s + l.amount, 0);
+      .reduce((sum, l) => sum + (l.amount || 0), 0);
 
-    const recovered = ledger
-      .filter((l) => l.type === "RECOVERY")
-      .reduce((s, l) => s + Math.abs(l.amount), 0);
-
-    const deductions = ledger
-      .filter((l) => l.type === "DEDUCTION")
-      .reduce((s, l) => s + Math.abs(l.amount), 0);
-
-    return salary.netAmount - paid + recovered - deductions;
+    // Balance = netAmount - payments
+    // If netAmount > paid, company owes employee (positive)
+    // If netAmount < paid, employee owes company (negative)
+    return roundToTwoDecimals(salary.netAmount - paid);
   }
 
   /**
@@ -62,6 +158,16 @@ export class SalaryService {
   ): Promise<SalaryCalculationResult> {
     const { userId, companyId, month, year } = input;
 
+    // Input validation
+    if (!userId || typeof userId !== "string") {
+      return { success: false, error: "Invalid user ID" };
+    }
+    if (!companyId || typeof companyId !== "string") {
+      return { success: false, error: "Invalid company ID" };
+    }
+    validateMonth(month);
+    validateYear(year);
+
     try {
       // Check if salary already exists and is locked
       const existingSalary = await prisma.salary.findUnique({
@@ -69,7 +175,7 @@ export class SalaryService {
         include: { breakdowns: true },
       });
 
-      if (existingSalary && existingSalary.lockedAt) {
+      if (existingSalary?.lockedAt) {
         return {
           success: false,
           error: "Salary is locked and cannot be regenerated",
@@ -82,47 +188,17 @@ export class SalaryService {
         };
       }
 
-      // Get user and company settings
+      // Get user and company settings in parallel
       const [user, company] = await Promise.all([
-        prisma.user.findUnique({
-          where: { id: userId },
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            baseSalary: true,
-            hourlyRate: true,
-            dailyRate: true,
-            salaryType: true,
-            workingDays: true,
-            overtimeRate: true,
-            pfEsiApplicable: true,
-            joiningDate: true,
-          },
-        }),
-        prisma.company.findUnique({
-          where: { id: companyId },
-          select: {
-            id: true,
-            name: true,
-            defaultSalaryType: true,
-            overtimeMultiplier: true,
-            enableLatePenalty: true,
-            latePenaltyPerMinute: true,
-            enableAbsentPenalty: true,
-            halfDayThresholdHours: true,
-            absentPenaltyPerDay: true,
-            pfPercentage: true,
-            esiPercentage: true,
-            minWorkingHours: true,
-            maxDailyHours: true,
-            overtimeThresholdHours: true,
-          },
-        }),
+        this.getUserSalaryConfig(userId),
+        this.getCompanyPayrollConfig(companyId),
       ]);
 
-      if (!user || !company) {
-        return { success: false, error: "User or company not found" };
+      if (!user) {
+        return { success: false, error: "User not found" };
+      }
+      if (!company) {
+        return { success: false, error: "Company not found" };
       }
 
       // Determine salary type
@@ -137,7 +213,7 @@ export class SalaryService {
         month,
         year,
       );
-      console.log(attendanceSummary);
+
       // Calculate salary components
       const calculation = await this.calculateSalaryComponents(
         user,
@@ -145,25 +221,24 @@ export class SalaryService {
         salaryType,
         attendanceSummary,
       );
+
+      // Determine if version should be incremented
       const shouldIncrementVersion =
         !existingSalary ||
         calculation.baseAmount !== existingSalary.baseAmount ||
         calculation.overtimeAmount !== existingSalary.overtimeAmount ||
         calculation.penaltyAmount !== existingSalary.penaltyAmount ||
         calculation.grossAmount !== existingSalary.grossAmount;
-      const payableDays =
-        attendanceSummary.approvedDays -
-        attendanceSummary.halfDays +
-        attendanceSummary.halfDays * 0.5;
 
-      // Create or update salary record
+      const payableDays = this.calculatePayableDays(attendanceSummary);
+
+      // Prepare salary data
       const salaryData = {
         userId,
         companyId,
         month,
         year,
         totalWorkingDays: payableDays,
-
         totalWorkingHours: attendanceSummary.workingHours,
         overtimeHours: attendanceSummary.overtimeHours,
         lateMinutes: attendanceSummary.lateMinutes,
@@ -176,13 +251,15 @@ export class SalaryService {
         grossAmount: calculation.grossAmount,
         netAmount: calculation.netAmount,
         type: salaryType,
-        status: "PENDING",
+        status: "PENDING" as const,
         version: shouldIncrementVersion
           ? (existingSalary?.version || 0) + 1
-          : (existingSalary.version ?? 1),
+          : (existingSalary?.version ?? 1),
       };
+
       let salary: any;
 
+      // Execute transaction
       await prisma.$transaction(async (tx) => {
         salary = await tx.salary.upsert({
           where: { userId_month_year: { userId, month, year } },
@@ -190,26 +267,28 @@ export class SalaryService {
           create: salaryData,
         });
 
+        // Delete existing breakdowns
         await tx.salaryBreakdown.deleteMany({
           where: { salaryId: salary.id },
         });
 
+        // Create new breakdowns
         await tx.salaryBreakdown.createMany({
           data: calculation.breakdowns.map((b) => ({
             salaryId: salary.id,
             type: b.type,
             description: b.description,
             amount: b.amount,
-            hours: b.hours,
-            quantity: b.quantity,
+            hours: b.hours ?? null,
+            quantity: b.quantity ?? null,
           })),
         });
 
+        // Create audit log
         await tx.auditLog.create({
           data: {
             userId: salary.userId,
             action: existingSalary ? AuditAction.UPDATED : AuditAction.CREATED,
-
             entity: "Salary",
             entityId: salary.id,
             salaryId: salary.id,
@@ -221,38 +300,6 @@ export class SalaryService {
         });
       });
 
-      // // Generate and upload PDF after salary creation
-      // try {
-      //   const { generateSalaryPDFBuffer } = await import("@/lib/pdfGenerator");
-      //   const { uploadPDF } = await import("@/lib/cloudinary");
-      //   const pdfData = await this.generateSalaryPDFData(salary.id);
-      //   const pdfBuffer = generateSalaryPDFBuffer({
-      //     data: pdfData,
-      //     companyName: company.name,
-      //   });
-
-      //   // Validate PDF buffer
-      //   if (!pdfBuffer || pdfBuffer.length === 0) {
-      //     throw new Error("Generated PDF buffer is empty or invalid");
-      //   }
-
-      //   console.log(`Generated PDF buffer size: ${pdfBuffer.length} bytes`);
-
-      //   const filename = `${user.firstName}_${user.lastName}_salary_${month}_${year}`;
-      //   const pdfUrl = await uploadPDF(pdfBuffer, "salary-pdfs", filename);
-
-      //   // Update salary with PDF URL
-      //   await prisma.salary.update({
-      //     where: { id: salary.id },
-      //     data: { pdfUrl },
-      //   });
-
-      //   salary.pdfUrl = pdfUrl;
-      // } catch (pdfError) {
-      //   console.error("Failed to generate/upload PDF:", pdfError);
-      //   // Don't fail the salary generation if PDF fails
-      // }
-
       return {
         success: true,
         salary,
@@ -262,9 +309,398 @@ export class SalaryService {
       console.error("Error generating salary:", error);
       return {
         success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unknown error occurred during salary generation",
+      };
+    }
+  }
+
+  /**
+   * Approve a pending salary
+   */
+  async approveSalary(
+    salaryId: string,
+    approvedBy: string,
+  ): Promise<{ success: boolean; error?: string }> {
+    if (!salaryId || typeof salaryId !== "string") {
+      return { success: false, error: "Invalid salary ID" };
+    }
+    if (!approvedBy || typeof approvedBy !== "string") {
+      return { success: false, error: "Invalid approver ID" };
+    }
+
+    try {
+      const salary = await prisma.salary.findUnique({
+        where: { id: salaryId },
+        select: { id: true, status: true, lockedAt: true, userId: true },
+      });
+
+      if (!salary) {
+        return { success: false, error: "Salary not found" };
+      }
+
+      if (salary.status !== "PENDING") {
+        return { success: false, error: "Salary is not in pending status" };
+      }
+
+      if (salary.lockedAt) {
+        return { success: false, error: "Salary is locked" };
+      }
+
+      await prisma.salary.update({
+        where: { id: salaryId },
+        data: {
+          status: "APPROVED",
+          approvedBy,
+          approvedAt: getCurrentTime(),
+        },
+      });
+
+      await this.logSalaryAudit(salaryId, salary.userId, AuditAction.APPROVED, {
+        approvedBy,
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error("Error approving salary:", error);
+      return {
+        success: false,
         error: error instanceof Error ? error.message : "Unknown error",
       };
     }
+  }
+
+  /**
+   * Mark salary as paid
+   */
+  async markAsPaid(
+    salaryId: string,
+    paidAt?: Date,
+  ): Promise<{ success: boolean; error?: string }> {
+    if (!salaryId || typeof salaryId !== "string") {
+      return { success: false, error: "Invalid salary ID" };
+    }
+
+    try {
+      const salary = await prisma.salary.findFirst({
+        where: {
+          id: salaryId,
+          status: "APPROVED",
+        },
+        include: {
+          ledger: true,
+          user: {
+            select: {
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+        },
+      });
+
+      if (!salary) {
+        return { success: false, error: "Salary not found or not approved" };
+      }
+
+      if (salary.lockedAt) {
+        return { success: false, error: "Salary is locked" };
+      }
+
+      const remainingBalance = this.calculateSalaryBalance(
+        salary,
+        salary.ledger,
+      );
+
+      if (remainingBalance <= 0) {
+        return { success: false, error: "Salary already settled or overpaid" };
+      }
+      if (salary.netAmount > remainingBalance) {
+        return {
+          success: false,
+          error: "Payment exceeds remaining salary balance",
+        };
+      }
+
+      const currentTime = getCurrentTime();
+
+      await prisma.salary.update({
+        where: { id: salaryId },
+        data: {
+          status: "PAID",
+          paidAt: paidAt || currentTime,
+          lockedAt: currentTime,
+        },
+      });
+
+      await this.logSalaryAudit(salaryId, salary.userId, AuditAction.UPDATED, {
+        action: "MARKED_AS_PAID",
+        paidAt: paidAt || currentTime,
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error("Error marking salary as paid:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  }
+
+  /**
+   * Recalculate salary on attendance correction
+   */
+  async recalculateSalary(salaryId: string): Promise<SalaryCalculationResult> {
+    if (!salaryId || typeof salaryId !== "string") {
+      return { success: false, error: "Invalid salary ID" };
+    }
+
+    try {
+      const salary = await prisma.salary.findUnique({
+        where: { id: salaryId },
+        select: {
+          id: true,
+          userId: true,
+          companyId: true,
+          month: true,
+          year: true,
+          lockedAt: true,
+          paidAt: true,
+          status: true,
+        },
+      });
+
+      if (!salary) {
+        return { success: false, error: "Salary not found" };
+      }
+
+      if (salary.status === "PAID") {
+        return {
+          success: false,
+          error: "Paid salary cannot be recalculated",
+        };
+      }
+
+      if (salary.lockedAt) {
+        return {
+          success: false,
+          error: "Salary is locked and cannot be recalculated",
+        };
+      }
+
+      const input: SalaryCalculationInput = {
+        userId: salary.userId,
+        companyId: salary.companyId,
+        month: salary.month,
+        year: salary.year,
+      };
+
+      const result = await this.generateSalary(input);
+
+      if (result.success && salary.paidAt) {
+        await this.logSalaryAudit(
+          salaryId,
+          salary.userId,
+          AuditAction.UPDATED,
+          {
+            action: "RECALCULATED_AFTER_PAYMENT",
+            reason: "Attendance correction",
+          },
+        );
+      }
+
+      return result;
+    } catch (error) {
+      console.error("Error recalculating salary:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  }
+
+  /**
+   * Auto-generate salaries for all users in a company for a month
+   */
+  async autoGenerateSalaries(
+    companyId: string,
+    month: number,
+    year: number,
+  ): Promise<{
+    success: boolean;
+    skipped: boolean;
+    processed: number;
+    errors: string[];
+  }> {
+    validateMonth(month);
+    validateYear(year);
+
+    if (!companyId || typeof companyId !== "string") {
+      return {
+        success: false,
+        skipped: false,
+        processed: 0,
+        errors: ["Invalid company ID"],
+      };
+    }
+
+    try {
+      const users = await prisma.user.findMany({
+        where: {
+          companyId,
+          status: "ACTIVE",
+          role: { in: ["STAFF", "MANAGER"] },
+        },
+        select: {
+          id: true,
+          salaries: {
+            where: {
+              month,
+              year,
+              status: { not: "PAID" as const },
+              lockedAt: null,
+            },
+            select: { id: true },
+          },
+        },
+      });
+
+      let processed = 0;
+      const errors: string[] = [];
+      let skipped = false;
+
+      // Process users in batches for better performance
+      const batchSize = 10;
+      for (let i = 0; i < users.length; i += batchSize) {
+        const batch = users.slice(i, i + batchSize);
+        const batchPromises = batch.map(async (user) => {
+          if (user.salaries.length === 0) {
+            return { success: true, skipped: true };
+          }
+          try {
+            const result = await this.generateSalary({
+              userId: user.id,
+              companyId,
+              month,
+              year,
+            });
+
+            if (result.success) {
+              return { success: true, error: null };
+            } else {
+              return {
+                success: false,
+                error: `User ${user.id}: ${result.error}`,
+              };
+            }
+          } catch (error) {
+            return {
+              success: false,
+              error: `User ${user.id}: ${error instanceof Error ? error.message : "Unknown error"}`,
+            };
+          }
+        });
+
+        const batchResults = await Promise.all(batchPromises);
+        batchResults.forEach((result) => {
+          if (result.skipped) {
+            skipped = true;
+            return;
+          }
+          if (result.success) {
+            processed++;
+          } else if (result.error) {
+            errors.push(result.error);
+          }
+        });
+      }
+
+      return {
+        success: errors.length === 0,
+        processed,
+        errors,
+        skipped,
+      };
+    } catch (error) {
+      console.error("Error in auto-generate salaries:", error);
+      return {
+        success: false,
+        skipped: false,
+        processed: 0,
+        errors: [error instanceof Error ? error.message : "Unknown error"],
+      };
+    }
+  }
+
+  // ========================================================================
+  // Private Helper Methods
+  // ========================================================================
+
+  /**
+   * Get user salary configuration
+   */
+  private async getUserSalaryConfig(
+    userId: string,
+  ): Promise<UserSalaryConfig | null> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        baseSalary: true,
+        hourlyRate: true,
+        dailyRate: true,
+        salaryType: true,
+        workingDays: true,
+        overtimeRate: true,
+        pfEsiApplicable: true,
+        joiningDate: true,
+      },
+    });
+    return user as UserSalaryConfig | null;
+  }
+
+  /**
+   * Get company payroll configuration
+   */
+  private async getCompanyPayrollConfig(
+    companyId: string,
+  ): Promise<CompanyPayrollConfig | null> {
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        id: true,
+        name: true,
+        defaultSalaryType: true,
+        overtimeMultiplier: true,
+        enableLatePenalty: true,
+        latePenaltyPerMinute: true,
+        enableAbsentPenalty: true,
+        halfDayThresholdHours: true,
+        absentPenaltyPerDay: true,
+        pfPercentage: true,
+        esiPercentage: true,
+        minWorkingHours: true,
+        maxDailyHours: true,
+        overtimeThresholdHours: true,
+        shiftStartTime: true,
+        gracePeriodMinutes: true,
+      },
+    });
+    return company as CompanyPayrollConfig | null;
+  }
+
+  /**
+   * Calculate payable days based on attendance
+   */
+  private calculatePayableDays(attendance: AttendanceSummary): number {
+    return roundToTwoDecimals(
+      attendance.approvedDays - attendance.halfDays + attendance.halfDays * 0.5,
+    );
   }
 
   /**
@@ -272,29 +708,22 @@ export class SalaryService {
    */
   private async getAttendanceSummary(
     userId: string,
-    user: any,
+    user: UserSalaryConfig,
     companyId: string,
     month: number,
     year: number,
   ): Promise<AttendanceSummary> {
     const startDate = getDate(new Date(year, month - 1, 1));
     const endDate = getDate(new Date(year, month, 1));
-    if (user?.joiningDate) {
+
+    if (user.joiningDate) {
       const joinDate = new Date(user.joiningDate);
       if (joinDate > startDate) {
         startDate.setDate(joinDate.getDate());
       }
     }
-    // Get company settings for shift times
-    const company = await prisma.company.findUnique({
-      where: { id: companyId },
-      select: {
-        shiftStartTime: true,
-        gracePeriodMinutes: true,
-        halfDayThresholdHours: true,
-      },
-    });
 
+    const company = await this.getCompanyPayrollConfig(companyId);
     if (!company) {
       throw new Error("Company not found");
     }
@@ -338,11 +767,10 @@ export class SalaryService {
         let isHalfDayOnly = false;
         if (attendance.workingHours) {
           workingHours += attendance.workingHours;
-          isHalfDayOnly =
-            (company.halfDayThresholdHours &&
-              attendance.workingHours < company.halfDayThresholdHours) ||
-            false;
-          // Check for half day
+          isHalfDayOnly = !!(
+            company.halfDayThresholdHours &&
+            attendance.workingHours < company.halfDayThresholdHours
+          );
 
           if (isHalfDayOnly) {
             halfDays++;
@@ -357,12 +785,10 @@ export class SalaryService {
           lateMinutes += attendance.LateMinute!;
         }
       } else if (attendance.status === AttendanceStatus.LEAVE) {
-        // LEAVE counts as present day but no working hours, overtime, or penalties
         leavesDays++;
       } else if (attendance.status === AttendanceStatus.REJECTED) {
         rejectedDays++;
       } else if (attendance.status === AttendanceStatus.ABSENT) {
-        // ABSENT day
         absentDays++;
       }
     }
@@ -382,21 +808,13 @@ export class SalaryService {
   /**
    * Calculate salary components based on type and attendance
    */
-  private async calculateSalaryComponents(
-    user: any,
-    company: any,
+  private calculateSalaryComponents(
+    user: UserSalaryConfig,
+    company: CompanyPayrollConfig,
     salaryType: SalaryType,
     attendance: AttendanceSummary,
-  ): Promise<{
-    baseAmount: number;
-    overtimeAmount: number;
-    penaltyAmount: number;
-    deductions: number;
-    grossAmount: number;
-    netAmount: number;
-    breakdowns: any[];
-  }> {
-    const breakdowns: any[] = [];
+  ): SalaryComponents {
+    const breakdowns: SalaryBreakdown[] = [];
     let baseAmount = 0;
     let overtimeAmount = 0;
     let penaltyAmount = 0;
@@ -405,94 +823,37 @@ export class SalaryService {
     // Base salary calculation
     switch (salaryType) {
       case SalaryType.MONTHLY:
-        if (user.baseSalary && user.workingDays) {
-          const perDaySalary = user.baseSalary / user.workingDays;
-          const payableDays =
-            attendance.approvedDays -
-            attendance.halfDays +
-            attendance.halfDays * 0.5;
-          baseAmount = perDaySalary * payableDays;
-          breakdowns.push({
-            type: "BASE_SALARY",
-            description: "Monthly Salary (Prorated)",
-
-            amount: baseAmount,
-            quantity: payableDays,
-          });
-        }
+        baseAmount = this.calculateMonthlyBaseSalary(
+          user,
+          attendance,
+          breakdowns,
+        );
         break;
-
       case SalaryType.HOURLY:
-        if (user.hourlyRate) {
-          baseAmount = user.hourlyRate * attendance.workingHours;
-          breakdowns.push({
-            type: "BASE_SALARY",
-            description: `Hourly Rate (${user.hourlyRate}/hr)`,
-            amount: baseAmount,
-            hours: attendance.workingHours,
-            quantity: attendance.approvedDays,
-          });
-        }
+        baseAmount = this.calculateHourlyBaseSalary(
+          user,
+          attendance,
+          breakdowns,
+        );
         break;
-
       case SalaryType.DAILY:
-        if (user.dailyRate) {
-          const fullDays = attendance.approvedDays - attendance.halfDays;
-          const halfDayPay = (user.dailyRate / 2) * attendance.halfDays;
-          baseAmount = fullDays * user.dailyRate + halfDayPay;
-          breakdowns.push({
-            type: "BASE_SALARY",
-            description: `Daily Rate (${user.dailyRate}/day)`,
-            amount: baseAmount,
-            quantity: attendance.approvedDays,
-          });
-        }
+        baseAmount = this.calculateDailyBaseSalary(
+          user,
+          attendance,
+          breakdowns,
+        );
         break;
     }
 
+    // Overtime calculation
     if (attendance.overtimeHours > 0) {
-      let baseHourlyRate = 0;
-
-      // 1️⃣ Hourly salary
-      if (salaryType === SalaryType.HOURLY && user.hourlyRate) {
-        baseHourlyRate = user.hourlyRate;
-      }
-
-      // 2️⃣ Daily salary
-      else if (
-        salaryType === SalaryType.DAILY &&
-        user.dailyRate &&
-        company.minWorkingHours
-      ) {
-        baseHourlyRate = user.dailyRate / company.minWorkingHours;
-      }
-
-      // 3️⃣ Monthly salary
-      else if (
-        salaryType === SalaryType.MONTHLY &&
-        user.baseSalary &&
-        user.workingDays &&
-        company.minWorkingHours
-      ) {
-        baseHourlyRate =
-          user.baseSalary / (user.workingDays * company.minWorkingHours);
-      }
-
-      if (baseHourlyRate > 0 && attendance.overtimeHours > 0) {
-        const overtimeRate =
-          user.overtimeRate ??
-          baseHourlyRate * (company.overtimeMultiplier ?? 1);
-
-        overtimeAmount = overtimeRate * attendance.overtimeHours;
-        breakdowns.push({
-          type: "OVERTIME",
-          description: "Overtime Pay",
-          amount: overtimeAmount,
-          hours: attendance.overtimeHours,
-          quantity: attendance.overtimeHours,
-          rate: overtimeRate,
-        });
-      }
+      overtimeAmount = this.calculateOvertime(
+        user,
+        company,
+        salaryType,
+        attendance,
+        breakdowns,
+      );
     }
 
     // Penalties
@@ -501,14 +862,14 @@ export class SalaryService {
       company.enableLatePenalty &&
       company.latePenaltyPerMinute
     ) {
-      const latePenalty = attendance.lateMinutes * company.latePenaltyPerMinute;
-
+      const latePenalty = roundToTwoDecimals(
+        attendance.lateMinutes * company.latePenaltyPerMinute,
+      );
       penaltyAmount += latePenalty;
       breakdowns.push({
         type: "LATE_PENALTY",
         description: "Late Arrival Penalty",
         amount: latePenalty,
-
         quantity: attendance.lateMinutes,
       });
     }
@@ -518,10 +879,10 @@ export class SalaryService {
       company.enableAbsentPenalty &&
       company.absentPenaltyPerDay
     ) {
-      const absentPenalty = attendance.absentDays * company.absentPenaltyPerDay;
-
+      const absentPenalty = roundToTwoDecimals(
+        attendance.absentDays * company.absentPenaltyPerDay,
+      );
       penaltyAmount += absentPenalty;
-
       breakdowns.push({
         type: "ABSENT_PENALTY",
         description: "Absent Days Penalty",
@@ -530,12 +891,17 @@ export class SalaryService {
       });
     }
 
-    // Deductions
-    let grossAmount = baseAmount + overtimeAmount - penaltyAmount;
-    const statutoryBase = baseAmount;
+    // Gross amount
+    let grossAmount = roundToTwoDecimals(
+      baseAmount + overtimeAmount - penaltyAmount,
+    );
+
+    // Statutory deductions
     if (user.pfEsiApplicable && grossAmount > 0) {
       if (company.pfPercentage) {
-        const pfDeduction = statutoryBase * (company.pfPercentage / 100);
+        const pfDeduction = roundToTwoDecimals(
+          baseAmount * (company.pfPercentage / 100),
+        );
         deductions += pfDeduction;
         breakdowns.push({
           type: "PF_DEDUCTION",
@@ -545,7 +911,9 @@ export class SalaryService {
       }
 
       if (company.esiPercentage) {
-        const esiDeduction = statutoryBase * (company.esiPercentage / 100);
+        const esiDeduction = roundToTwoDecimals(
+          baseAmount * (company.esiPercentage / 100),
+        );
         deductions += esiDeduction;
         breakdowns.push({
           type: "ESI_DEDUCTION",
@@ -554,19 +922,14 @@ export class SalaryService {
         });
       }
     }
-    let netAmount = Math.max(0, grossAmount - deductions);
-    const round = (n: number) => Math.round(n * 100) / 100;
-    baseAmount = round(baseAmount);
-    overtimeAmount = round(overtimeAmount);
-    penaltyAmount = round(penaltyAmount);
-    deductions = round(deductions);
-    grossAmount = round(grossAmount);
-    netAmount = round(netAmount);
+
+    const netAmount = Math.max(0, roundToTwoDecimals(grossAmount - deductions));
+
     return {
-      baseAmount,
+      baseAmount: roundToTwoDecimals(baseAmount),
       overtimeAmount,
-      penaltyAmount,
-      deductions,
+      penaltyAmount: roundToTwoDecimals(penaltyAmount),
+      deductions: roundToTwoDecimals(deductions),
       grossAmount,
       netAmount,
       breakdowns,
@@ -574,372 +937,127 @@ export class SalaryService {
   }
 
   /**
-   * Create salary breakdown records
+   * Calculate monthly base salary
    */
-  private async createSalaryBreakdowns(
-    salaryId: string,
-    breakdowns: any[],
-  ): Promise<void> {
-    // Delete existing breakdowns
-    await prisma.salaryBreakdown.deleteMany({
-      where: { salaryId },
-    });
-
-    // Create new breakdowns
-
-    await prisma.salaryBreakdown.createMany({
-      data: breakdowns.map((breakdown) => ({
-        salaryId,
-        type: breakdown.type,
-        description: breakdown.description,
-        amount: breakdown.amount,
-        hours: breakdown.hours,
-        quantity: breakdown.quantity,
-      })),
-    });
-  }
-
-  /**
-   * Approve salary
-   */
-  async approveSalary(
-    salaryId: string,
-    approvedBy: string,
-  ): Promise<{ success: boolean; error?: string }> {
-    try {
-      const salary = await prisma.salary.findUnique({
-        where: { id: salaryId },
-        select: { id: true, status: true, lockedAt: true, userId: true },
+  private calculateMonthlyBaseSalary(
+    user: UserSalaryConfig,
+    attendance: AttendanceSummary,
+    breakdowns: SalaryBreakdown[],
+  ): number {
+    if (user.baseSalary && user.workingDays) {
+      const perDaySalary = user.baseSalary / user.workingDays;
+      const payableDays = this.calculatePayableDays(attendance);
+      const amount = roundToTwoDecimals(perDaySalary * payableDays);
+      breakdowns.push({
+        type: "BASE_SALARY",
+        description: "Monthly Salary (Prorated)",
+        amount,
+        quantity: payableDays,
       });
-
-      if (!salary) {
-        return { success: false, error: "Salary not found" };
-      }
-
-      if (salary.status !== "PENDING") {
-        return { success: false, error: "Salary is not in pending status" };
-      }
-
-      if (salary.lockedAt) {
-        return { success: false, error: "Salary is locked" };
-      }
-
-      await prisma.salary.update({
-        where: { id: salaryId },
-        data: {
-          status: "APPROVED",
-          approvedBy,
-          approvedAt: getCurrentTime(),
-        },
-      });
-
-      await this.logSalaryAudit(salaryId, salary.userId, AuditAction.APPROVED, {
-        approvedBy,
-      });
-
-      return { success: true };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      };
+      return amount;
     }
+    return 0;
   }
 
   /**
-   * Mark salary as paid
+   * Calculate hourly base salary
    */
-  async markAsPaid(
-    salaryId: string,
-    paidAt?: Date,
-  ): Promise<{ success: boolean; error?: string }> {
-    try {
-      const salary = await prisma.salary.findFirst({
-        where: {
-          id: salaryId,
-
-          status: "APPROVED",
-        },
-        include: {
-          ledger: true, // 👈 IMPORTANT
-          user: {
-            select: {
-              firstName: true,
-              lastName: true,
-              email: true,
-            },
-          },
-        },
-      });
-
-      if (!salary) {
-        return { success: false, error: "Salary not found" };
-      }
-
-      if (salary.status !== "APPROVED") {
-        return {
-          success: false,
-          error: "Salary must be approved before marking as paid",
-        };
-      }
-
-      if (salary.lockedAt) {
-        return { success: false, error: "Salary is locked" };
-      }
-      // Use 'this' to call instance method correctly (fixed BUG-002)
-      const remainingBalance = this.calculateSalaryBalance(
-        salary,
-        salary.ledger,
+  private calculateHourlyBaseSalary(
+    user: UserSalaryConfig,
+    attendance: AttendanceSummary,
+    breakdowns: SalaryBreakdown[],
+  ): number {
+    if (user.hourlyRate) {
+      const amount = roundToTwoDecimals(
+        user.hourlyRate * attendance.workingHours,
       );
-
-      if (remainingBalance <= 0) {
-        return { success: false, error: "Salary already settled or overpaid" };
-      }
-      if (salary.netAmount > remainingBalance) {
-        return {
-          success: false,
-          error: "Payment exceeds remaining salary balance",
-        };
-      }
-
-      await prisma.salary.update({
-        where: { id: salaryId },
-        data: {
-          status: "PAID",
-          paidAt: paidAt || getCurrentTime(),
-          lockedAt: getCurrentTime(), // Lock after payment
-        },
+      breakdowns.push({
+        type: "BASE_SALARY",
+        description: `Hourly Rate (${user.hourlyRate}/hr)`,
+        amount,
+        hours: attendance.workingHours,
+        quantity: attendance.approvedDays,
       });
-
-      await this.logSalaryAudit(salaryId, salary.userId, AuditAction.UPDATED, {
-        action: "MARKED_AS_PAID",
-        paidAt: paidAt || getCurrentTime(),
-      });
-
-      return { success: true };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      };
+      return amount;
     }
+    return 0;
   }
 
   /**
-   * Recalculate salary on attendance correction
+   * Calculate daily base salary
    */
-  async recalculateSalary(salaryId: string): Promise<SalaryCalculationResult> {
-    const salary = await prisma.salary.findUnique({
-      where: { id: salaryId },
-      select: {
-        id: true,
-        userId: true,
-        companyId: true,
-        month: true,
-        year: true,
-        lockedAt: true,
-        paidAt: true,
-        status: true,
-      },
-    });
-
-    if (!salary) {
-      return { success: false, error: "Salary not found" };
-    }
-    if (salary.status == "PAID") {
-      return {
-        success: false,
-        error: "paid salary cannot be recalculated",
-      };
-    }
-
-    if (salary.lockedAt) {
-      return {
-        success: false,
-        error: "Salary is locked and cannot be recalculated",
-      };
-    }
-
-    // Allow recalculation even after payment for corrections, but log it
-    const input: SalaryCalculationInput = {
-      userId: salary.userId,
-      companyId: salary.companyId,
-      month: salary.month,
-      year: salary.year,
-    };
-
-    const result = await this.generateSalary(input);
-
-    if (result.success && salary.paidAt) {
-      // Log that this was a recalculation after payment
-      await this.logSalaryAudit(salaryId, salary.userId, AuditAction.UPDATED, {
-        action: "RECALCULATED_AFTER_PAYMENT",
-        reason: "Attendance correction",
+  private calculateDailyBaseSalary(
+    user: UserSalaryConfig,
+    attendance: AttendanceSummary,
+    breakdowns: SalaryBreakdown[],
+  ): number {
+    if (user.dailyRate) {
+      const fullDays = attendance.approvedDays - attendance.halfDays;
+      const halfDayPay = (user.dailyRate / 2) * attendance.halfDays;
+      const amount = roundToTwoDecimals(fullDays * user.dailyRate + halfDayPay);
+      breakdowns.push({
+        type: "BASE_SALARY",
+        description: `Daily Rate (${user.dailyRate}/day)`,
+        amount,
+        quantity: attendance.approvedDays,
       });
+      return amount;
     }
-
-    // // Generate new PDF for recalculated salary
-    // if (result.success && result.salary) {
-    //   try {
-    //     const pdfData = await this.generateSalaryPDFData(salaryId);
-    //     const company = await prisma.company.findUnique({
-    //       where: { id: salary.companyId },
-    //       select: { name: true },
-    //     });
-    //     const user = await prisma.user.findUnique({
-    //       where: { id: salary.userId },
-    //       select: { firstName: true, lastName: true },
-    //     });
-    //     const { generateSalaryPDFBuffer } = await import("@/lib/pdfGenerator");
-    //     const { uploadPDF } = await import("@/lib/cloudinary");
-    //     const { deletePDF } = await import("@/lib/cloudinary");
-    //     const pdfBuffer = generateSalaryPDFBuffer({
-    //       data: pdfData,
-    //       companyName: company?.name || "Company",
-    //     });
-
-    //     // Validate PDF buffer
-    //     if (!pdfBuffer || pdfBuffer.length === 0) {
-    //       throw new Error("Generated PDF buffer is empty or invalid");
-    //     }
-
-    //     console.log(
-    //       `Generated PDF buffer size for recalculation: ${pdfBuffer.length} bytes`,
-    //     );
-
-    //     // Delete old PDF if it exists
-    //     if (result.salary.pdfUrl) {
-    //       try {
-    //         // Extract public ID from Cloudinary URL
-    //         const urlParts = result.salary.pdfUrl.split("/");
-    //         const filenameWithExtension = urlParts[urlParts.length - 1];
-    //         const publicId = `salary-pdfs/${filenameWithExtension.replace(".pdf", "")}`;
-    //         await deletePDF(publicId);
-    //       } catch (deleteError) {
-    //         console.error("Failed to delete old PDF:", deleteError);
-    //         // Continue with upload even if delete fails
-    //       }
-    //     }
-
-    //     // Upload new PDF with consistent filename (no version suffix)
-    //     const filename = `${user?.firstName}_${user?.lastName}_salary_${salary.month}_${salary.year}`;
-    //     const pdfUrl = await uploadPDF(pdfBuffer, "salary-pdfs", filename);
-
-    //     // Update salary with new PDF URL
-    //     await prisma.salary.update({
-    //       where: { id: salaryId },
-    //       data: { pdfUrl },
-    //     });
-
-    //     result.salary.pdfUrl = pdfUrl;
-    //   } catch (pdfError) {
-    //     console.error(
-    //       "Failed to generate/upload PDF for recalculation:",
-    //       pdfError,
-    //     );
-    //     // Don't fail the recalculation if PDF fails
-    //   }
-    // }
-
-    return result;
+    return 0;
   }
 
   /**
-   * Generate PDF data for salary
+   * Calculate overtime pay
    */
-  private async generateSalaryPDFData(salaryId: string) {
-    const salary = await prisma.salary.findUnique({
-      where: { id: salaryId },
-      include: {
-        user: true,
-        company: true,
-        ledger: {
-          orderBy: { createdAt: "desc" },
-        },
-        breakdowns: true,
-      },
-    });
+  private calculateOvertime(
+    user: UserSalaryConfig,
+    company: CompanyPayrollConfig,
+    salaryType: SalaryType,
+    attendance: AttendanceSummary,
+    breakdowns: SalaryBreakdown[],
+  ): number {
+    if (attendance.overtimeHours <= 0) return 0;
 
-    if (!salary) throw new Error("Salary not found");
+    let baseHourlyRate = 0;
 
-    // Validate required salary data
-    if (salary.grossAmount === null || salary.netAmount === null) {
-      throw new Error("Salary amounts are not calculated yet");
+    // Calculate base hourly rate based on salary type
+    switch (salaryType) {
+      case SalaryType.HOURLY:
+        if (user.hourlyRate) {
+          baseHourlyRate = user.hourlyRate;
+        }
+        break;
+      case SalaryType.DAILY:
+        if (user.dailyRate && company.minWorkingHours) {
+          baseHourlyRate = user.dailyRate / company.minWorkingHours;
+        }
+        break;
+      case SalaryType.MONTHLY:
+        if (user.baseSalary && user.workingDays && company.minWorkingHours) {
+          baseHourlyRate =
+            user.baseSalary / (user.workingDays * company.minWorkingHours);
+        }
+        break;
     }
 
-    // Get deductions and recoveries from ledger
-    const deductions = salary.ledger.filter(
-      (item) => item.type === "DEDUCTION",
+    if (baseHourlyRate <= 0) return 0;
+
+    const overtimeRate =
+      user.overtimeRate ?? baseHourlyRate * (company.overtimeMultiplier ?? 1);
+    const overtimePay = roundToTwoDecimals(
+      overtimeRate * attendance.overtimeHours,
     );
-    const recoveries = salary.ledger.filter((item) => item.type === "RECOVERY");
-    const payments = salary.ledger.filter(
-      (item) => item.type === "PAYMENT" || item.type === "EARNING",
-    );
-    // Calculate balance using the same logic as calculateSalaryBalance
-    let balanceAmount = salary.netAmount;
-    salary.ledger.forEach((ledger) => {
-      if (ledger.type === "PAYMENT") {
-        balanceAmount -= ledger.amount;
-      } else if (ledger.type === "EARNING") {
-        balanceAmount += ledger.amount;
-      } else if (ledger.type === "DEDUCTION" || ledger.type === "RECOVERY") {
-        balanceAmount -= Math.abs(ledger.amount);
-      }
+
+    breakdowns.push({
+      type: "OVERTIME",
+      description: "Overtime Pay",
+      amount: overtimePay,
+      hours: attendance.overtimeHours,
+      quantity: attendance.overtimeHours,
+      rate: overtimeRate,
     });
-    return {
-      user: {
-        id: salary.user.id,
-        firstName: salary.user.firstName || "",
-        lastName: salary.user.lastName || "",
-        email: salary.user.email,
-        phone: salary.user.phone,
-      },
-      month: salary.month,
-      year: salary.year,
-      grossAmount: salary.grossAmount || 0,
-      netAmount: salary.netAmount || 0,
-      totalPaid: salary.ledger
-        .filter((item) => item.type === "PAYMENT" || item.type === "EARNING")
-        .reduce((sum, item) => sum + (item.amount || 0), 0),
-      totalRecovered: salary.ledger
-        .filter((item) => item.type === "DEDUCTION" || item.type === "RECOVERY")
-        .reduce((sum, item) => sum + (item.amount || 0), 0),
-      balanceAmount: balanceAmount || 0,
-      payments: payments.map((p) => ({
-        id: p.id,
-        amount: p.amount || 0,
-        type: p.reason || "",
-        description: p.reason || "",
-        date: p.createdAt.toISOString(),
-      })),
-      deductions: deductions.map((d) => ({
-        id: d.id,
-        amount: d.amount || 0,
-        type: d.reason || "",
-        description: d.reason || "",
-        date: d.createdAt.toISOString(),
-      })),
-      recoveries: recoveries.map((r) => ({
-        id: r.id,
-        amount: Math.abs(r.amount || 0),
-        type: r.type,
-        description: r.reason || "",
-        date: r.createdAt.toISOString(),
-      })),
-      recentTransactions: salary.ledger
-        .sort(
-          (a, b) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-        )
-        .slice(0, 10)
-        .map((entry) => ({
-          id: entry.id,
-          amount: entry.amount,
-          type: entry.type,
-          description: entry.reason,
-          date: entry.createdAt.toISOString(),
-        })),
-    };
+
+    return overtimePay;
   }
 
   /**
@@ -949,108 +1067,26 @@ export class SalaryService {
     salaryId: string,
     userId: string,
     action: AuditAction,
-    meta?: any,
+    meta?: Record<string, unknown>,
   ): Promise<void> {
-    await prisma.auditLog.create({
-      data: {
-        userId,
-        action,
-        entity: "Salary",
-        entityId: salaryId,
-        salaryId,
-        meta,
-      },
-    });
-  }
+    const metaData = meta || {};
 
-  /**
-   * Auto-generate salaries for all users in a company for a month
-   */
-  async autoGenerateSalaries(
-    companyId: string,
-    month: number,
-    year: number,
-  ): Promise<{
-    success: boolean;
-    skipped: boolean;
-    processed: number;
-    errors: string[];
-  }> {
-    const users = await prisma.user.findMany({
-      where: {
-        companyId,
-        status: "ACTIVE",
-        role: { in: ["STAFF", "MANAGER"] },
-      },
-      select: {
-        id: true,
-        salaries: {
-          where: {
-            month,
-            year,
-            status: { not: "PAID" },
-            lockedAt: null,
-          },
-          select: { id: true },
+    try {
+      await prisma.auditLog.create({
+        data: {
+          userId,
+          action,
+          entity: "Salary",
+          entityId: salaryId,
+          salaryId,
+          meta:
+            Object.keys(metaData).length > 0 ? (metaData as any) : undefined,
         },
-      },
-    });
-
-    let processed = 0;
-    const errors: string[] = [];
-    let skipped: boolean = false;
-    // Process users in batches of 10 for better performance
-    const batchSize = 10;
-    for (let i = 0; i < users.length; i += batchSize) {
-      const batch = users.slice(i, i + batchSize);
-      const batchPromises = batch.map(async (user) => {
-        if (user.salaries.length === 0) {
-          return { success: true, skipped: true };
-        }
-        try {
-          const result = await this.generateSalary({
-            userId: user.id,
-            companyId,
-            month,
-            year,
-          });
-
-          if (result.success) {
-            return { success: true, error: null };
-          } else {
-            return {
-              success: false,
-              error: `User ${user.id}: ${result.error}`,
-            };
-          }
-        } catch (error) {
-          return {
-            success: false,
-            error: `User ${user.id}: ${error instanceof Error ? error.message : "Unknown error"}`,
-          };
-        }
       });
-
-      const batchResults = await Promise.all(batchPromises);
-      batchResults.forEach((result) => {
-        if (result.skipped) {
-          skipped = true;
-          return;
-        }
-        if (result.success) {
-          processed++;
-        } else if (result.error) {
-          errors.push(result.error);
-        }
-      });
+    } catch (error) {
+      console.error("Failed to create audit log:", error);
+      // Don't throw - audit logging should not block main operations
     }
-
-    return {
-      success: errors.length === 0,
-      processed,
-      errors,
-      skipped,
-    };
   }
 }
 

@@ -43,7 +43,13 @@ export default function CashbookTable({
   const formatCurrency = (amount: number) => `₹${amount.toLocaleString()}`;
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-IN", {
+    // Convert UTC date to Indian timezone (Asia/Kolkata, UTC+5:30)
+    const date = new Date(dateString);
+    // Add 5 hours and 30 minutes to convert UTC to IST
+    const istDate = new Date(
+      date.getTime() + 5 * 60 * 60 * 1000 + 30 * 60 * 1000,
+    );
+    return istDate.toLocaleDateString("en-IN", {
       day: "2-digit",
       month: "short",
       year: "numeric",

@@ -112,6 +112,7 @@ export async function GET(request: NextRequest) {
           reference: true,
           description: true,
           transactionDate: true,
+          isReversed: true,
           user: {
             select: {
               firstName: true,

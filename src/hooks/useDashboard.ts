@@ -22,7 +22,7 @@ import { performanceMonitor } from "@/lib/performanceMonitor";
 
 const STALE_TIMES = {
   STATS: 1000 * 60 * 2, // 2 minutes
-  RECENT_ACTIVITY: 1000 * 30, // 30 seconds
+  RECENT_ACTIVITY: 1000 * 60 * 2, // 2 minutes
   AUDIT_LOGS: 1000 * 60 * 2, // 2 minutes
 } as const;
 

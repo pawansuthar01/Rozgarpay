@@ -1,11 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { salaryService } from "@/lib/salaryService";
 import { authOptions } from "@/lib/auth";
 import { toZonedTime } from "date-fns-tz";
 
 export const dynamic = "force-dynamic";
+
+// Helper function to calculate balance correctly
+// Positive = Company owes employee (receivable)
+// Negative = Employee owes company (payable)
+function calculateSalaryBalance(
+  netAmount: number,
+  ledger: Array<{ type: string; amount: number }>,
+): number {
+  const payments = ledger
+    .filter((l) => l.type === "PAYMENT")
+    .reduce((sum, l) => sum + (l.amount || 0), 0);
+
+  // Balance = netAmount - payments
+  // If netAmount > payments, company owes employee (positive)
+  // If netAmount < payments, employee owes company (negative)
+  const balance = netAmount - payments;
+  return Math.round(balance * 100) / 100;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,7 +48,6 @@ export async function GET(request: NextRequest) {
     const currentYear = nowLocal.getFullYear();
 
     // Optimized: Single query to get salaries with required data
-    // Only fetch last 24 months of data
     const salaries = await prisma.salary.findMany({
       where: {
         userId,
@@ -41,6 +57,7 @@ export async function GET(request: NextRequest) {
         id: true,
         month: true,
         year: true,
+        grossAmount: true,
         netAmount: true,
         status: true,
         createdAt: true,
@@ -48,6 +65,7 @@ export async function GET(request: NextRequest) {
           select: {
             type: true,
             amount: true,
+            description: true,
           },
         },
         ledger: {
@@ -59,44 +77,55 @@ export async function GET(request: NextRequest) {
             createdAt: true,
           },
           orderBy: { createdAt: "desc" },
-          take: 50, // Limit ledgers per salary for performance
+          take: 50,
         },
       },
       orderBy: [{ year: "desc" }, { month: "desc" }],
-      take: 24, // Limit to 2 years of data
+      take: 24,
     });
 
     // Calculate totals and monthly breakdown
     let totalOwed = 0;
     let totalOwe = 0;
+    let totalGross = 0;
+    let totalPaid = 0;
+    let totalDeductions = 0;
 
     const monthlyBreakdown = salaries.map((salary) => {
-      // Calculate balance from ledgers
-      let salaryBalance = 0;
-      const payments = salary.ledger.filter((l) => l.type === "PAYMENT");
-      const recoveries = salary.ledger.filter(
-        (l) => l.type === "RECOVERY" || l.type === "DEDUCTION",
-      );
+      // Calculate balance: netAmount - payments
+      const payments = salary.ledger
+        .filter((l) => l.type === "PAYMENT")
+        .reduce((sum, l) => sum + (l.amount || 0), 0);
 
-      const given = payments.reduce((sum, p) => sum + p.amount, 0);
-      const taken = recoveries.reduce((sum, r) => sum + Math.abs(r.amount), 0);
+      const balance = calculateSalaryBalance(salary.netAmount, salary.ledger);
 
-      // Calculate balance
-      const totalCredits = given;
-      const totalDebits = salary.netAmount + taken;
-      salaryBalance = totalCredits - totalDebits;
+      // Get gross earnings from breakdowns
+      const earnings = salary.breakdowns
+        .filter((b) => ["BASE_SALARY", "OVERTIME"].includes(b.type))
+        .reduce((sum, b) => sum + (b.amount || 0), 0);
 
-      // Include all salaries in totals for complete financial picture
-      totalOwed += Math.max(0, salaryBalance);
-      totalOwe += Math.max(0, -salaryBalance);
+      // Get all deductions from ledger
+      const ledgerDeductions = salary.ledger
+        .filter((l) => l.type === "DEDUCTION" || l.type === "RECOVERY")
+        .reduce((sum, l) => sum + Math.abs(l.amount || 0), 0);
+
+      // Track totals
+      totalGross += earnings;
+      totalPaid += payments;
+      totalDeductions += ledgerDeductions;
+
+      // Include all salaries in totals
+      totalOwed += Math.max(0, balance);
+      totalOwe += Math.max(0, -balance);
 
       return {
         month: salary.month,
         year: salary.year,
-        given,
-        taken,
+        gross: earnings,
+        deductions: ledgerDeductions,
+        paid: payments,
+        balance,
         net: salary.netAmount,
-        balance: salaryBalance,
         status: salary.status,
       };
     });
@@ -105,26 +134,56 @@ export async function GET(request: NextRequest) {
     const currentSalary = salaries.find(
       (s) => s.month === currentMonth && s.year === currentYear,
     );
-    const currentLedgers = currentSalary?.ledger || [];
+
+    // Calculate current month balance
     const currentBalance = currentSalary
-      ? currentLedgers
-          .filter((l) => l.type === "PAYMENT")
-          .reduce((sum, p) => sum + p.amount, 0) -
-        (currentSalary.netAmount +
-          currentLedgers
-            .filter((l) => l.type === "RECOVERY" || l.type === "DEDUCTION")
-            .reduce((sum, r) => sum + Math.abs(r.amount), 0))
+      ? calculateSalaryBalance(currentSalary.netAmount, currentSalary.ledger)
       : 0;
+
+    // Get earnings breakdown for current month
+    const currentEarnings =
+      currentSalary?.breakdowns.filter((b) =>
+        ["BASE_SALARY", "OVERTIME"].includes(b.type),
+      ) || [];
+
+    const currentDeductions =
+      currentSalary?.ledger.filter(
+        (l) => l.type === "DEDUCTION" || l.type === "RECOVERY",
+      ) || [];
+
+    const currentPayments =
+      currentSalary?.ledger.filter((l) => l.type === "PAYMENT") || [];
 
     const currentMonthData = currentSalary
       ? {
+          gross: currentEarnings.reduce((sum, b) => sum + (b.amount || 0), 0),
+          deductions: currentDeductions.reduce(
+            (sum, l) => sum + Math.abs(l.amount || 0),
+            0,
+          ),
+          paid: currentPayments.reduce((sum, l) => sum + (l.amount || 0), 0),
+          balance: currentBalance,
           owed: Math.max(0, currentBalance),
           owe: Math.max(0, -currentBalance),
-          net: currentBalance,
+          net: currentSalary.netAmount,
+          earnings: currentEarnings,
+          payments: currentPayments,
+          extraDeductions: currentDeductions,
         }
-      : { owed: 0, owe: 0, net: 0 };
+      : {
+          gross: 0,
+          deductions: 0,
+          paid: 0,
+          balance: 0,
+          owed: 0,
+          owe: 0,
+          net: 0,
+          earnings: [],
+          payments: [],
+          extraDeductions: [],
+        };
 
-    // Get recent transactions (flatten from all salary ledgers)
+    // Get recent transactions
     const allLedgers = salaries.flatMap((s) =>
       s.ledger.map((l) => ({
         ...l,
@@ -132,31 +191,34 @@ export async function GET(request: NextRequest) {
       })),
     );
     const recentTransactions = allLedgers
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      )
       .slice(0, 50)
       .map((ledger) => ({
         id: ledger.id,
         type: ledger.type,
         description: ledger.reason,
         amount: ledger.amount,
-        date: ledger.createdAt.toISOString().split("T")[0],
+        date: new Date(ledger.createdAt).toISOString().split("T")[0],
         salaryMonth: ledger.salaryMonth,
       }));
-
-    const pendingAmount = totalOwed - totalOwe;
 
     return NextResponse.json(
       {
         totalOwed,
         totalOwe,
-        pendingAmount,
+        totalGross,
+        totalPaid,
+        totalDeductions,
+        pendingAmount: totalOwed - totalOwe,
         monthlyBreakdown,
         recentTransactions,
         currentMonth: currentMonthData,
       },
       {
         headers: {
-          // Cache at CDN for 2 minutes, browser for 1 minute
           "Cache-Control": "public, s-maxage=120, stale-while-revalidate=60",
         },
       },

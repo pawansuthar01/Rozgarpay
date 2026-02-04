@@ -84,7 +84,7 @@ export async function POST(
       },
     });
 
-    const joinLink = `${process.env.NEXTAUTH_URL}/join/${token}`;
+    const joinLink = `${process.env.NEXT_PUBLIC_NEXTAUTH_URL}/join/${token}`;
 
     // Send notifications using the notification service
     try {
@@ -113,7 +113,7 @@ export async function POST(
 
     // Audit log
     try {
-      await prisma.auditLog.create({
+      prisma.auditLog.create({
         data: {
           userId: session.user.id,
           action: "CREATED",

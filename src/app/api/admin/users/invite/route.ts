@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
 
     // Create audit log
     try {
-      await prisma.auditLog.create({
+      prisma.auditLog.create({
         data: {
           userId: admin.id,
           action: "CREATED",

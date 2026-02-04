@@ -1,6 +1,6 @@
 import { prisma } from "./prisma";
 import { toZonedTime, fromZonedTime } from "date-fns-tz";
-import { convertSeconds } from "./utils";
+import { convertSeconds, formatTime } from "./utils";
 
 export interface LocationData {
   lat: number;
@@ -116,7 +116,6 @@ export function isPunchInAllowed(
 ) {
   // Convert the provided instant to the company's local time for comparisons
   const localNow = toZonedTime(now, timeZone);
-
   const [h, m] = shiftStart.split(":").map(Number);
   const startLocal = new Date(localNow);
   startLocal.setHours(h, m, 0, 0);
@@ -130,7 +129,12 @@ export function isPunchInAllowed(
   const startUtc = fromZonedTime(startLocal, timeZone);
 
   if (now < earlyUtc)
-    return { allowed: false, isLate: false, reason: "Too early to punch in." };
+    return {
+      allowed: false,
+      isLate: false,
+      reason: `🚫 Too early to punch in \n
+Your scheduled shift begins at ${shiftStart}. Please wait until the shift start time.`,
+    };
 
   if (now > lateUtc) {
     const lateMin = Math.floor(
