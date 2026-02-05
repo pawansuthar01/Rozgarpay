@@ -43,7 +43,7 @@ const publicRoutes = [
   "/Home",
   "/docs",
   "/about",
-  "/join/",
+  "/join",
   "/contact",
   "/privacy-policy",
   "/onboarding",
