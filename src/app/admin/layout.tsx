@@ -101,7 +101,7 @@ export default function AdminLayout({
     { name: "Salary", href: "/admin/salary", icon: IndianRupee },
     { name: "Cashbook", href: "/admin/cashbook", icon: IndianRupee },
     { name: "Salary Setup", href: "/admin/salary/setup", icon: Settings },
-    { name: "Reports", href: "/admin/reports", icon: FileText },
+    // { name: "Reports", href: "/admin/reports", icon: FileText },
     { name: "Staff", href: "/admin/users", icon: Users },
     { name: "Invitations", href: "/admin/invitations", icon: Mail },
     { name: "Settings", href: "/admin/settings", icon: Settings },

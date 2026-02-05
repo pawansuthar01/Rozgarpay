@@ -84,6 +84,7 @@ export interface CompanyPayrollConfig {
   maxDailyHours: number | null;
   overtimeThresholdHours: number | null;
   shiftStartTime: string | null;
+  shiftEndTime: string | null;
   gracePeriodMinutes: number | null;
 }
 
@@ -688,6 +689,7 @@ export class SalaryService {
         maxDailyHours: true,
         overtimeThresholdHours: true,
         shiftStartTime: true,
+        shiftEndTime: true,
         gracePeriodMinutes: true,
       },
     });
@@ -701,6 +703,71 @@ export class SalaryService {
     return roundToTwoDecimals(
       attendance.approvedDays - attendance.halfDays + attendance.halfDays * 0.5,
     );
+  }
+
+  async getShiftHoursForSalary(
+    shiftStartTime?: string | null,
+    shiftEndTime?: string | null,
+    maxDailyHours?: number | null,
+  ): Promise<number> {
+    const DEFAULT_SHIFT_HOURS = 8;
+
+    try {
+      // 1️⃣ Use maxDailyHours if explicitly set (most reliable for salary)
+      if (typeof maxDailyHours === "number" && maxDailyHours > 0) {
+        return Math.round(maxDailyHours * 100) / 100;
+      }
+
+      // 2️⃣ Validate presence
+      if (!shiftStartTime || !shiftEndTime) {
+        return DEFAULT_SHIFT_HOURS;
+      }
+
+      // 3️⃣ Validate format HH:mm
+      const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
+      if (!timeRegex.test(shiftStartTime) || !timeRegex.test(shiftEndTime)) {
+        return DEFAULT_SHIFT_HOURS;
+      }
+
+      const [sh, sm] = shiftStartTime.split(":").map(Number);
+      const [eh, em] = shiftEndTime.split(":").map(Number);
+
+      if ([sh, sm, eh, em].some((v) => Number.isNaN(v))) {
+        return DEFAULT_SHIFT_HOURS;
+      }
+
+      const startMinutes = sh * 60 + sm;
+      const endMinutes = eh * 60 + em;
+
+      // 4️⃣ Night shift not allowed
+      if (endMinutes <= startMinutes) {
+        return DEFAULT_SHIFT_HOURS;
+      }
+
+      const hours = (endMinutes - startMinutes) / 60;
+
+      // 5️⃣ Sanity bounds
+      if (hours <= 0 || hours > 16) {
+        return DEFAULT_SHIFT_HOURS;
+      }
+
+      return Math.round(hours * 100) / 100;
+    } catch {
+      // Absolute safety net
+      return DEFAULT_SHIFT_HOURS;
+    }
+  }
+
+  async calculateWorkingHours(
+    punchIn?: Date | null,
+    punchOut?: Date | null,
+  ): Promise<number> {
+    if (!punchIn || !punchOut) return 0;
+
+    const diffMs = punchOut.getTime() - punchIn.getTime();
+    if (diffMs <= 0) return 0;
+
+    return Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
   }
 
   /**
@@ -760,24 +827,43 @@ export class SalaryService {
     let absentDays = 0;
     let leavesDays = 0;
     let rejectedDays = 0;
+    const shiftHours =
+      company.shiftStartTime && company.shiftEndTime
+        ? await this.getShiftHoursForSalary(
+            company.shiftStartTime,
+            company.shiftEndTime,
+            company.maxDailyHours,
+          )
+        : (company.maxDailyHours ?? 8);
 
+    const halfDayLimit = shiftHours / 2;
     for (const attendance of attendances) {
       if (attendance.status === AttendanceStatus.APPROVED) {
         approvedDays++;
-        let isHalfDayOnly = false;
-        if (attendance.workingHours) {
-          workingHours += attendance.workingHours;
-          isHalfDayOnly = !!(
-            company.halfDayThresholdHours &&
-            attendance.workingHours < company.halfDayThresholdHours
-          );
 
-          if (isHalfDayOnly) {
+        if (attendance.workingHours) {
+          const actualWorkingHours =
+            attendance.punchIn && attendance.punchOut
+              ? await this.calculateWorkingHours(
+                  attendance.punchIn,
+                  attendance.punchOut,
+                )
+              : (attendance.workingHours ?? 0);
+          workingHours += actualWorkingHours;
+          const isHalfDay =
+            actualWorkingHours > 0 && actualWorkingHours <= halfDayLimit;
+
+          if (isHalfDay) {
             halfDays++;
+          }
+          if (actualWorkingHours === 0) {
+            absentDays++;
+            approvedDays--;
+            continue;
           }
         }
 
-        if (attendance.overtimeHours && !isHalfDayOnly) {
+        if (attendance.overtimeHours) {
           overtimeHours += attendance.overtimeHours;
         }
 
@@ -860,6 +946,7 @@ export class SalaryService {
     if (
       attendance.lateMinutes > 0 &&
       company.enableLatePenalty &&
+      !isHalfDay &&
       company.latePenaltyPerMinute
     ) {
       const latePenalty = roundToTwoDecimals(

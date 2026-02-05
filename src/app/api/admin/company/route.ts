@@ -7,7 +7,9 @@ export const dynamic = "force-dynamic";
 
 // Cache for 5 minutes (company settings rarely change)
 const CACHE_CONTROL = "public, s-maxage=300, stale-while-revalidate=600";
-
+function isValidTime(time: string): boolean {
+  return /^([01]\d|2[0-3]):([0-5]\d)$/.test(time);
+}
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -114,6 +116,43 @@ export async function PATCH(request: NextRequest) {
       "pfPercentage",
       "esiPercentage",
     ];
+    if (!body.shiftStartTime || !body.shiftEndTime) {
+      return NextResponse.json(
+        { error: "Both shiftStartTime and shiftEndTime are required" },
+        { status: 400 },
+      );
+    }
+
+    if (!isValidTime(body.shiftStartTime) || !isValidTime(body.shiftEndTime)) {
+      return NextResponse.json(
+        { error: "Shift time must be in HH:mm format" },
+        { status: 400 },
+      );
+    }
+
+    const [sh, sm] = body.shiftStartTime.split(":").map(Number);
+    const [eh, em] = body.shiftEndTime.split(":").map(Number);
+
+    const start = sh * 60 + sm;
+    const end = eh * 60 + em;
+
+    if (end <= start) {
+      return NextResponse.json(
+        {
+          error:
+            "Invalid shift time: shiftEndTime must be after shiftStartTime",
+        },
+        { status: 400 },
+      );
+    }
+    const shiftHours = (end - start) / 60;
+
+    if (body.maxDailyHours && shiftHours > body.maxDailyHours) {
+      return NextResponse.json(
+        { error: "Shift duration exceeds maxDailyHours" },
+        { status: 400 },
+      );
+    }
 
     for (const field of numericFields) {
       if (body[field] !== undefined) {
@@ -156,7 +195,7 @@ export async function PATCH(request: NextRequest) {
         shiftEndTime: body.shiftEndTime,
         gracePeriodMinutes: body.gracePeriodMinutes,
         minWorkingHours: body.minWorkingHours,
-        maxDailyHours: body.maxDailyHours,
+        maxDailyHours: body.maxDailyHours ?? shiftHours,
         autoPunchOutBufferMinutes: body.autoPunchOutBufferMinutes,
         locationLat: body.locationLat,
         locationLng: body.locationLng,

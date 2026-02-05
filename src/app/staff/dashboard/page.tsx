@@ -374,7 +374,8 @@ export default function StaffDashboardPage() {
 
           <Link
             href="/staff/salary-slips"
-            className="block bg-white rounded-2xl  p-4 hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
+            className="hidden bg-white rounded-2xl   p-4 hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
+            // className="block bg-white rounded-2xl   p-4 hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
@@ -446,7 +447,7 @@ export default function StaffDashboardPage() {
 
           <Link
             href="/staff/correction-requests"
-            className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors duration-200"
+            className="hidden items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors duration-200"
           >
             <div className="flex items-center space-x-3">
               <Plus className="h-5 w-5 text-blue-600" />
