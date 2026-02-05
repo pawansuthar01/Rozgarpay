@@ -946,7 +946,6 @@ export class SalaryService {
     if (
       attendance.lateMinutes > 0 &&
       company.enableLatePenalty &&
-      !isHalfDay &&
       company.latePenaltyPerMinute
     ) {
       const latePenalty = roundToTwoDecimals(

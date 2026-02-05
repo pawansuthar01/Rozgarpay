@@ -14,6 +14,10 @@ prisma/seed.tsx
 
 # testing
 /coverage
+/docs
+/src/app/docs
+/src/app/docs
+/src/components/docs
 
 # next.js
 /.next/
