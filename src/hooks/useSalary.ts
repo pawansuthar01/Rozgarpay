@@ -16,9 +16,9 @@ import { SalaryRecord, SalaryApiResponse } from "@/types/salary";
 // ============================================================================
 
 const STALE_TIMES = {
-  LIST: 1000 * 30, // 30 seconds - changes frequently
-  DETAIL: 1000 * 60, // 1 minute
-  REPORTS: 1000 * 60, // 2 minutes
+  LIST: 0, // 30 seconds - changes frequently
+  DETAIL: 0, // 1 minute
+  REPORTS: 0, // 2 minutes
 } as const;
 
 // ============================================================================

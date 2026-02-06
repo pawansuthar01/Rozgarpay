@@ -86,8 +86,8 @@ export function useSalarySetup(params?: {
         throw error;
       }
     },
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    gcTime: 1000 * 60 * 30, // 30 minutes cache
+    staleTime: 0, // 5 minutes
+    gcTime: 0, // 30 minutes cache
   });
 }
 
