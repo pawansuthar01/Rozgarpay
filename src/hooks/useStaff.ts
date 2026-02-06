@@ -15,8 +15,8 @@ import { performanceMonitor } from "@/lib/performanceMonitor";
 // ============================================================================
 
 const STALE_TIMES = {
-  LIST: 1000 * 60 * 2, // 2 minutes
-  DETAIL: 1000 * 60 * 5, // 5 minutes
+  LIST: 1000 * 20, // 2 minutes
+  DETAIL: 1000 * 30, // 5 minutes
 } as const;
 
 // ============================================================================
@@ -95,7 +95,9 @@ export function useStaffSalaries(
       if (params?.month) searchParams.set("month", String(params.month));
       if (params?.year) searchParams.set("year", String(params.year));
 
-      const response = await fetch(`/api/staff/salary?${searchParams}`);
+      const response = await fetch(`/api/staff/salary?${searchParams}`, {
+        cache: "no-store",
+      });
       if (!response.ok) throw new Error("Failed to fetch staff salaries");
 
       const data = await response.json();
@@ -108,7 +110,8 @@ export function useStaffSalaries(
       });
       return data;
     },
-    staleTime: 1000 * 30, // 30 seconds - faster updates for salary data
+    staleTime: 0, // Always fetch fresh data
+    refetchOnWindowFocus: true,
     enabled: options?.enabled ?? true,
   });
 }
@@ -118,7 +121,9 @@ export function useStaffSalaryOverview() {
     queryKey: ["staff", "salary", "overview"] as const,
     queryFn: async () => {
       const startTime = performance.now();
-      const response = await fetch("/api/staff/salary/overview");
+      const response = await fetch("/api/staff/salary/overview", {
+        cache: "no-store",
+      });
       if (!response.ok)
         throw new Error("Failed to fetch staff salary overview");
 
@@ -132,7 +137,8 @@ export function useStaffSalaryOverview() {
       });
       return data;
     },
-    staleTime: STALE_TIMES.LIST,
+    staleTime: 0, // Always fetch fresh data for current month
+    refetchOnWindowFocus: true,
   });
 }
 

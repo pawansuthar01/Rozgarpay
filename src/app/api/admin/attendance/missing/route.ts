@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import authOptions from "@/lib/auth";
-import { getApprovedWorkingHours, getDate } from "@/lib/attendanceUtils";
+import {
+  getApprovedWorkingHours,
+  getDate,
+  getISTMonthYear,
+} from "@/lib/attendanceUtils";
 import { salaryService } from "@/lib/salaryService";
 import { toZonedTime } from "date-fns-tz";
 
@@ -44,55 +48,56 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const startOfDay = getDate(new Date(`${date}T00:00:00`));
-    const endOfDay = getDate(new Date(`${date}T23:59:59.999`));
+    const attendanceDate = getDate(new Date(date));
+    const startOfDay = attendanceDate;
+    const endOfDay = new Date(attendanceDate);
+    endOfDay.setHours(23, 59, 59, 999);
 
-    // PARALLEL QUERIES: Fetch staff and attendance concurrently
-    const [allStaff, staffWithAttendance] = await Promise.all([
-      // Get all staff in the company
+    // Get users who HAVE attendance for this date
+    const usersWithAttendance = await prisma.attendance.findMany({
+      where: {
+        companyId: admin.companyId,
+        attendanceDate: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+      },
+      select: { userId: true },
+    });
+
+    const attendedUserIds = new Set(usersWithAttendance.map((a) => a.userId));
+
+    // OPTIMIZED: Get count and paginated results for users WITHOUT attendance
+    const [total, paginatedStaff] = await Promise.all([
+      prisma.user.count({
+        where: {
+          companyId: admin.companyId,
+          role: "STAFF",
+          status: "ACTIVE",
+          id: { notIn: Array.from(attendedUserIds) },
+        },
+      }),
       prisma.user.findMany({
         where: {
           companyId: admin.companyId,
           role: "STAFF",
           status: "ACTIVE",
+          id: { notIn: Array.from(attendedUserIds) },
         },
         select: {
           id: true,
           firstName: true,
           lastName: true,
           phone: true,
+          email: true,
         },
-      }),
-
-      // Get staff who have attendance records for the date
-      prisma.attendance.findMany({
-        where: {
-          companyId: admin.companyId,
-          attendanceDate: {
-            gte: startOfDay,
-            lte: endOfDay,
-          },
-        },
-        select: {
-          userId: true,
-        },
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { firstName: "asc" },
       }),
     ]);
 
-    // Find staff without attendance (client-side filtering for small datasets)
-    const attendedUserIds = new Set(staffWithAttendance.map((a) => a.userId));
-    const missingAttendanceStaff = allStaff.filter(
-      (staff) => !attendedUserIds.has(staff.id),
-    );
-
-    // Apply pagination
-    const total = missingAttendanceStaff.length;
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + limit;
-    const paginatedStaff = missingAttendanceStaff.slice(startIndex, endIndex);
-
-    // Build response with caching headers
-    const response = NextResponse.json({
+    return NextResponse.json({
       date,
       missingStaff: paginatedStaff,
       pagination: {
@@ -103,14 +108,6 @@ export async function GET(request: NextRequest) {
       },
       totalMissing: total,
     });
-
-    // Cache for 30 seconds (data changes when staff is marked)
-    response.headers.set(
-      "Cache-Control",
-      "public, s-maxage=30, stale-while-revalidate=60",
-    );
-
-    return response;
   } catch (error) {
     console.error("Missing attendance fetch error:", error);
     return NextResponse.json(
@@ -175,7 +172,6 @@ export async function POST(request: NextRequest) {
     }
 
     const attendanceDate = getDate(new Date(date));
-    attendanceDate.setHours(0, 0, 0, 0);
 
     // Check if attendance already exists
     const existingAttendance = await prisma.attendance.findUnique({
@@ -197,11 +193,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Calculate working hours based on status
-    let workingHours =
+    const workingHours =
       status === "ABSENT" || status === "LEAVE"
         ? 0
         : status === "APPROVED"
-          ? getApprovedWorkingHours(existingAttendance as any, admin.company)
+          ? getApprovedWorkingHours(null, admin.company)
           : 0;
 
     // Create attendance record with minimal fields
@@ -223,46 +219,47 @@ export async function POST(request: NextRequest) {
       },
       select: {
         id: true,
-
         attendanceDate: true,
         status: true,
         user: { select: { id: true, firstName: true, lastName: true } },
       },
     });
-    setImmediate(async () => {
-      const attendanceLocal = toZonedTime(
-        new Date(attendance.attendanceDate),
-        "Asia/Kolkata",
-      );
-      const month = attendanceLocal.getMonth() + 1;
-      const year = attendanceLocal.getFullYear();
 
-      const existingSalary = await prisma.salary.findUnique({
-        where: {
-          userId_month_year: {
+    // Fire salary recalculation in background (non-blocking)
+    setImmediate(async () => {
+      try {
+        const { month, year } = getISTMonthYear(attendance.attendanceDate);
+
+        const existingSalary = await prisma.salary.findUnique({
+          where: {
+            userId_month_year: {
+              userId: attendance.user.id,
+              month,
+              year,
+            },
+          },
+        });
+
+        if (
+          existingSalary &&
+          existingSalary.status === "PENDING" &&
+          !existingSalary.lockedAt
+        ) {
+          await salaryService.recalculateSalary(existingSalary.id);
+        } else if (!existingSalary && admin?.companyId) {
+          await salaryService.generateSalary({
             userId: attendance.user.id,
+            companyId: admin.companyId,
             month,
             year,
-          },
-        },
-      });
-
-      if (
-        existingSalary &&
-        existingSalary.status === "PENDING" &&
-        !existingSalary.lockedAt
-      ) {
-        await salaryService.recalculateSalary(existingSalary.id);
-      } else if (!existingSalary && admin?.companyId) {
-        await salaryService.generateSalary({
-          userId: attendance.user.id,
-          companyId: admin.companyId,
-          month,
-          year,
-        });
+          });
+        }
+      } catch (error) {
+        console.error("Background salary recalculation error:", error);
       }
     });
-    // Create audit log (fire-and-forget)
+
+    // Fire-and-forget audit log
     prisma.auditLog
       .create({
         data: {
@@ -277,7 +274,9 @@ export async function POST(request: NextRequest) {
           },
         },
       })
-      .catch(console.error);
+      .catch((error) => {
+        console.error("Audit log creation error:", error);
+      });
 
     return NextResponse.json({
       success: true,

@@ -115,7 +115,7 @@ export function useSalary(salaryId: string) {
 export function useApproveSalary() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useMutation<string, Error, string, { previousSalaries: any }>({
     mutationFn: async (salaryId: string) => {
       const response = await fetch(`/api/admin/salary/${salaryId}/approve`, {
         method: "POST",
@@ -126,7 +126,40 @@ export function useApproveSalary() {
       }
       return response.json();
     },
-    onSuccess: (_, salaryId) => {
+    onMutate: async (salaryId: string) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["salaries"] });
+      await queryClient.cancelQueries({
+        queryKey: ["salary", "detail", salaryId],
+      });
+
+      // Snapshot previous value
+      const previousSalaries = queryClient.getQueryData(["salaries", "list"]);
+
+      // Optimistically update to approved status
+      queryClient.setQueryData(["salaries", "list"], (old: any) => {
+        if (!old?.records) return old;
+        return {
+          ...old,
+          records: old.records.map((record: any) =>
+            record.id === salaryId ? { ...record, status: "APPROVED" } : record,
+          ),
+        };
+      });
+
+      return { previousSalaries };
+    },
+    onError: (err: any, salaryId: string, context: any) => {
+      // Rollback on error
+      if (context?.previousSalaries) {
+        queryClient.setQueryData(
+          ["salaries", "list"],
+          context.previousSalaries,
+        );
+      }
+    },
+    onSettled: (data, error, salaryId) => {
+      // Always refetch after error or success
       queryClient.invalidateQueries({ queryKey: ["salaries"] });
       queryClient.invalidateQueries({
         queryKey: ["salary", "detail", salaryId],
@@ -138,7 +171,7 @@ export function useApproveSalary() {
 export function useRejectSalary() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useMutation<string, Error, string, { previousSalaries: any }>({
     mutationFn: async (salaryId: string) => {
       const response = await fetch(`/api/admin/salary/${salaryId}/reject`, {
         method: "POST",
@@ -149,7 +182,40 @@ export function useRejectSalary() {
       }
       return response.json();
     },
-    onSuccess: (_, salaryId) => {
+    onMutate: async (salaryId: string) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["salaries"] });
+      await queryClient.cancelQueries({
+        queryKey: ["salary", "detail", salaryId],
+      });
+
+      // Snapshot previous value
+      const previousSalaries = queryClient.getQueryData(["salaries", "list"]);
+
+      // Optimistically update to rejected status
+      queryClient.setQueryData(["salaries", "list"], (old: any) => {
+        if (!old?.records) return old;
+        return {
+          ...old,
+          records: old.records.map((record: any) =>
+            record.id === salaryId ? { ...record, status: "REJECTED" } : record,
+          ),
+        };
+      });
+
+      return { previousSalaries };
+    },
+    onError: (err: any, salaryId: string, context: any) => {
+      // Rollback on error
+      if (context?.previousSalaries) {
+        queryClient.setQueryData(
+          ["salaries", "list"],
+          context.previousSalaries,
+        );
+      }
+    },
+    onSettled: (data, error, salaryId) => {
+      // Always refetch after error or success
       queryClient.invalidateQueries({ queryKey: ["salaries"] });
       queryClient.invalidateQueries({
         queryKey: ["salary", "detail", salaryId],
@@ -161,7 +227,12 @@ export function useRejectSalary() {
 export function useMarkSalaryPaid() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useMutation<
+    any,
+    Error,
+    { salaryId: string; paymentData: any },
+    { previousSalaries: any }
+  >({
     mutationFn: async ({
       salaryId,
       paymentData,
@@ -180,7 +251,42 @@ export function useMarkSalaryPaid() {
       }
       return response.json();
     },
-    onSuccess: (_, variables) => {
+    onMutate: async (variables: { salaryId: string }) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["salaries"] });
+      await queryClient.cancelQueries({
+        queryKey: ["salary", "detail", variables.salaryId],
+      });
+
+      // Snapshot previous value
+      const previousSalaries = queryClient.getQueryData(["salaries", "list"]);
+
+      // Optimistically update to paid status
+      queryClient.setQueryData(["salaries", "list"], (old: any) => {
+        if (!old?.records) return old;
+        return {
+          ...old,
+          records: old.records.map((record: any) =>
+            record.id === variables.salaryId
+              ? { ...record, status: "PAID" }
+              : record,
+          ),
+        };
+      });
+
+      return { previousSalaries };
+    },
+    onError: (err: any, variables: { salaryId: string }, context: any) => {
+      // Rollback on error
+      if (context?.previousSalaries) {
+        queryClient.setQueryData(
+          ["salaries", "list"],
+          context.previousSalaries,
+        );
+      }
+    },
+    onSettled: (data, error, variables) => {
+      // Always refetch after error or success
       queryClient.invalidateQueries({ queryKey: ["salaries"] });
       queryClient.invalidateQueries({
         queryKey: ["salary", "detail", variables.salaryId],
@@ -192,7 +298,7 @@ export function useMarkSalaryPaid() {
 export function useRecalculateSalary() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useMutation<any, Error, string, { previousSalaries: any }>({
     mutationFn: async (salaryId: string) => {
       const response = await fetch(
         `/api/admin/salary/${salaryId}/recalculate`,
@@ -204,7 +310,42 @@ export function useRecalculateSalary() {
       }
       return response.json();
     },
-    onSuccess: (_, salaryId) => {
+    onMutate: async (salaryId: string) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["salaries"] });
+      await queryClient.cancelQueries({
+        queryKey: ["salary", "detail", salaryId],
+      });
+
+      // Snapshot previous value
+      const previousSalaries = queryClient.getQueryData(["salaries", "list"]);
+
+      // Optimistically set loading state (could add a loading field)
+      queryClient.setQueryData(["salaries", "list"], (old: any) => {
+        if (!old?.records) return old;
+        return {
+          ...old,
+          records: old.records.map((record: any) =>
+            record.id === salaryId
+              ? { ...record, _isRecalculating: true }
+              : record,
+          ),
+        };
+      });
+
+      return { previousSalaries };
+    },
+    onError: (err: any, salaryId: string, context: any) => {
+      // Rollback on error
+      if (context?.previousSalaries) {
+        queryClient.setQueryData(
+          ["salaries", "list"],
+          context.previousSalaries,
+        );
+      }
+    },
+    onSettled: (data, error, salaryId) => {
+      // Always refetch after error or success
       queryClient.invalidateQueries({ queryKey: ["salaries"] });
       queryClient.invalidateQueries({
         queryKey: ["salary", "detail", salaryId],

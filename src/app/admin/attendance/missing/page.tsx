@@ -26,6 +26,12 @@ interface MissingStaff {
   phone: string;
 }
 
+interface SuccessMessage {
+  id: string;
+  message: string;
+  status: string;
+}
+
 export default function MissingAttendancePage() {
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     const today = new Date();
@@ -38,6 +44,9 @@ export default function MissingAttendancePage() {
   const [processingStaff, setProcessingStaff] = useState<Set<string>>(
     new Set(),
   );
+
+  // Success messages queue
+  const [successMessages, setSuccessMessages] = useState<SuccessMessage[]>([]);
 
   // Use the custom hooks
   const {
@@ -62,7 +71,17 @@ export default function MissingAttendancePage() {
     }
   }, [selectedDate]);
 
-  // Handle mark attendance - show loading until API response
+  // Auto-remove success messages after 3 seconds
+  useEffect(() => {
+    if (successMessages.length > 0) {
+      const timer = setTimeout(() => {
+        setSuccessMessages((prev) => prev.slice(1));
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessages]);
+
+  // Handle mark attendance - update UI after API success
   const handleMarkAttendance = useCallback(
     (userId: string, status: "APPROVED" | "ABSENT" | "LEAVE" = "APPROVED") => {
       // Show loading on the specific staff member's buttons
@@ -76,22 +95,45 @@ export default function MissingAttendancePage() {
           reason: "Manual attendance entry by admin",
         },
         {
-          onError: () => {
+          onError: (error) => {
             // Remove loading state from this staff member on error
             setProcessingStaff((prev) => {
               const next = new Set(prev);
               next.delete(userId);
               return next;
             });
+            // Add error message
+            setSuccessMessages((prev) => [
+              ...prev,
+              {
+                id: `${userId}-${Date.now()}`,
+                message: error.message || "Failed to mark attendance",
+                status: "error",
+              },
+            ]);
           },
-          onSuccess: () => {
+          onSuccess: (data) => {
             // API response received - clear processing state
             setProcessingStaff((prev) => {
               const next = new Set(prev);
               next.delete(userId);
               return next;
             });
-            // Query will refetch automatically due to invalidation
+            // Add success message
+            const statusText =
+              data.attendance?.status === "APPROVED"
+                ? "Present"
+                : data.attendance?.status === "ABSENT"
+                  ? "Absent"
+                  : "Leave";
+            setSuccessMessages((prev) => [
+              ...prev,
+              {
+                id: `${userId}-${Date.now()}`,
+                message: `Marked as ${statusText}`,
+                status: "success",
+              },
+            ]);
           },
         },
       );
@@ -105,6 +147,29 @@ export default function MissingAttendancePage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
+        {/* Success/Error Messages */}
+        {successMessages.length > 0 && (
+          <div className="fixed top-4 right-4 z-50 space-y-2">
+            {successMessages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg animate-pulse ${
+                  msg.status === "success"
+                    ? "bg-green-600 text-white"
+                    : "bg-red-600 text-white"
+                }`}
+              >
+                {msg.status === "success" ? (
+                  <CheckCircle className="h-5 w-5" />
+                ) : (
+                  <AlertTriangle className="h-5 w-5" />
+                )}
+                <span className="font-medium">{msg.message}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Header */}
         <div className="mb-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">

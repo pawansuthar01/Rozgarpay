@@ -2,8 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
-import { getDate } from "@/lib/attendanceUtils";
-import { toZonedTime } from "date-fns-tz";
+import { format, fromZonedTime, toZonedTime } from "date-fns-tz";
+
+const TZ = "Asia/Kolkata";
+
+function parseISTStart(dateStr: string): Date {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const local = new Date(y, m - 1, d, 0, 0, 0, 0);
+  return fromZonedTime(local, TZ); // IST → UTC
+}
+
+function parseISTEnd(dateStr: string): Date {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const local = new Date(y, m - 1, d, 23, 59, 59, 999);
+  return fromZonedTime(local, TZ); // IST → UTC
+}
 
 export async function GET(
   request: NextRequest,
@@ -19,23 +32,11 @@ export async function GET(
     const { userId } = params;
     const companyId = session.user.companyId;
     const { searchParams } = new URL(request.url);
-    const monthParam = searchParams.get("month");
-    let month: number, year: number;
 
-    if (monthParam && monthParam.includes("-")) {
-      // Handle YYYY-MM format
-      [year, month] = monthParam.split("-").map(Number);
-    } else {
-      // Fallback to separate parameters or current date
-      month = parseInt(
-        searchParams.get("month") ||
-          (toZonedTime(new Date(), "Asia/Kolkata").getMonth() + 1).toString(),
-      );
-      year = parseInt(
-        searchParams.get("year") ||
-          toZonedTime(new Date(), "Asia/Kolkata").getFullYear().toString(),
-      );
-    }
+    // Get date range from query params
+    const startDateParam = searchParams.get("startDate");
+    const endDateParam = searchParams.get("endDate");
+    const monthParam = searchParams.get("month"); // Keep for backward compatibility
 
     if (!companyId) {
       return NextResponse.json(
@@ -65,10 +66,39 @@ export async function GET(
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Get attendance records for the specified month
-    const startDate = getDate(new Date(year, month - 1, 1));
-    const endDate = getDate(new Date(year, month, 0)); // Last day of the month
+    let startDate: Date;
+    let endDate: Date;
+    let year: number;
+    let month: number;
 
+    if (startDateParam && endDateParam) {
+      startDate = parseISTStart(startDateParam);
+      endDate = parseISTEnd(endDateParam);
+
+      const [y, m] = startDateParam.split("-").map(Number);
+      year = y;
+      month = m;
+    } else if (monthParam && monthParam.includes("-")) {
+      [year, month] = monthParam.split("-").map(Number);
+      const lastDay = new Date(year, month, 0).getDate();
+
+      startDate = parseISTStart(`${year}-${String(month).padStart(2, "0")}-01`);
+      endDate = parseISTEnd(
+        `${year}-${String(month).padStart(2, "0")}-${lastDay}`,
+      );
+    } else {
+      const nowIST = toZonedTime(new Date(), TZ);
+      year = nowIST.getFullYear();
+      month = nowIST.getMonth() + 1;
+      const lastDay = new Date(year, month, 0).getDate();
+
+      startDate = parseISTStart(`${year}-${String(month).padStart(2, "0")}-01`);
+      endDate = parseISTEnd(
+        `${year}-${String(month).padStart(2, "0")}-${lastDay}`,
+      );
+    }
+
+    // Fetch attendance records within the date range
     const attendanceRecords = await prisma.attendance.findMany({
       where: {
         userId,
@@ -86,38 +116,90 @@ export async function GET(
       },
     });
 
+    // Create a map of attendance records by date
+    const attendanceByDate = new Map();
+    attendanceRecords.forEach((record) => {
+      const dateKey = format(
+        toZonedTime(record.attendanceDate, "Asia/Kolkata"),
+        "yyyy-MM-dd",
+      );
+      attendanceByDate.set(dateKey, record);
+    });
+
+    // Generate all days in the date range
+    const allDaysRecords = [];
+    const indiaTimezone = "Asia/Kolkata";
+
+    // Calculate days in range
+    const currentDate = new Date(startDate);
+    while (currentDate <= endDate) {
+      const dateKey = format(currentDate, "yyyy-MM-dd");
+
+      if (attendanceByDate.has(dateKey)) {
+        // Use existing record
+        const record = attendanceByDate.get(dateKey);
+        allDaysRecords.push({
+          id: record.id,
+          attendanceDate: record.attendanceDate,
+          status: record.status,
+          punchIn: record.punchIn ? record.punchIn : null,
+          punchOut: record.punchOut ? record.punchOut : null,
+          workingHours: record.workingHours,
+          isLate: record.isLate,
+          isLateMinutes: record.LateMinute,
+          punchOutImageUrl: record.punchOutImageUrl,
+          punchInImageUrl: record.punchInImageUrl,
+          overtimeHours: record.overtimeHours,
+          shiftDurationHours: record.shiftDurationHours,
+        });
+      } else {
+        // Create absent record for missing dates
+        allDaysRecords.push({
+          id: `no-Marked-${dateKey}`,
+          attendanceDate: toZonedTime(currentDate, indiaTimezone).toISOString(),
+          status: "NO_MARKED",
+          punchIn: null,
+          punchOut: null,
+          workingHours: 0,
+          isLate: false,
+          isLateMinutes: 0,
+          punchOutImageUrl: null,
+          punchInImageUrl: null,
+          overtimeHours: 0,
+          shiftDurationHours: undefined,
+        });
+      }
+
+      // Move to next day
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
     // Calculate summary
-    const totalDays = attendanceRecords.length;
-    const presentDays = attendanceRecords.filter(
-      (record) => record.status === "APPROVED",
+    const totalDays = allDaysRecords.length;
+    const presentDays = allDaysRecords.filter(
+      (record) => record.status === "PRESENT" || record.status === "APPROVED",
     ).length;
-    const absentDays = attendanceRecords.filter(
+    const absentDays = allDaysRecords.filter(
       (record) => record.status === "ABSENT",
     ).length;
-    const lateDays = attendanceRecords.filter(
-      (record) => record.isLate && record.status === "APPROVED",
+    const noMarkedDays = allDaysRecords.filter(
+      (record) => record.status === "NO_MARKED",
+    ).length;
+    const lateDays = allDaysRecords.filter(
+      (record) =>
+        record.status === "LATE" ||
+        (record.isLate &&
+          (record.status === "PRESENT" || record.status === "APPROVED")),
     ).length;
 
     return NextResponse.json({
       user,
       totalDays,
+      noMarkedDays,
       presentDays,
       absentDays,
       lateDays,
-      attendanceRecords: attendanceRecords.map((record) => ({
-        id: record.id,
-        attendanceDate: record.attendanceDate,
-        status: record.status,
-        punchIn: record.punchIn ? record.punchIn : null,
-        punchOut: record.punchOut ? record.punchOut : null,
-        workingHours: record.workingHours,
-        isLate: record.isLate,
-        isLateMinutes: record.LateMinute,
-        punchOutImageUrl: record.punchOutImageUrl,
-        punchInImageUrl: record.punchInImageUrl,
-        overtimeHours: record.overtimeHours,
-        shiftDurationHours: record.shiftDurationHours,
-      })),
+      attendanceRecords: allDaysRecords,
     });
   } catch (error) {
     console.error("Admin user attendance GET error:", error);

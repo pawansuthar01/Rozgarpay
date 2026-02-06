@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
-export const dynamic = "force-dynamic";
 import { generateSalaryReportPDFBuffer } from "@/lib/salaryReportGenerator";
-import { getDate } from "@/lib/attendanceUtils";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,13 +15,19 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
+
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
     const format = searchParams.get("format") || "json";
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "10");
 
-    // Get admin's company
+    const page = Math.max(1, Number(searchParams.get("page")) || 1);
+    const limit = Math.min(
+      Math.max(Number(searchParams.get("limit")) || 10, 1),
+      100,
+    );
+    const offset = (page - 1) * limit;
+
+    // Admin + company
     const admin = await prisma.user.findUnique({
       where: { id: session.user.id },
       include: { company: true },
@@ -34,63 +40,75 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const dateFilter =
-      startDate && endDate
-        ? {
-            createdAt: {
-              gte: getDate(new Date(startDate)),
-              lte: getDate(new Date(endDate)),
-            },
-          }
-        : {};
+    // ✅ UTC-safe date filter
+    let dateWhere: any = {};
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      start.setUTCHours(0, 0, 0, 0);
 
-    // Total payout
+      const end = new Date(endDate);
+      end.setUTCHours(23, 59, 59, 999);
+
+      dateWhere = {
+        createdAt: {
+          gte: start,
+          lte: end,
+        },
+      };
+    }
+
+    // ✅ Total payout
     const totalPayoutResult = await prisma.salary.aggregate({
       where: {
         companyId: admin.company.id,
         status: "PAID",
-        ...dateFilter,
+        ...dateWhere,
       },
-      _sum: {
-        netAmount: true,
-      },
+      _sum: { netAmount: true },
     });
 
     const totalPayout = totalPayoutResult._sum.netAmount || 0;
 
-    // Staff count
+    // ✅ Staff count
     const staffCount = await prisma.user.count({
-      where: {
-        companyId: admin.company.id,
-        role: "STAFF",
-      },
+      where: { companyId: admin.company.id, role: "STAFF" },
     });
 
-    // Monthly breakdown
+    // ✅ Monthly breakdown
     const monthlyResult = await prisma.salary.groupBy({
       by: ["month", "year"],
       where: {
         companyId: admin.company.id,
         status: "PAID",
-        ...dateFilter,
+        ...dateWhere,
       },
-      _sum: {
-        netAmount: true,
-      },
+      _sum: { netAmount: true },
       orderBy: [{ year: "asc" }, { month: "asc" }],
     });
 
     const monthlyBreakdown = monthlyResult.map((m) => ({
-      month: `${new Date(m.year, m.month - 1).toLocaleString("default", { month: "short" })} ${m.year}`,
+      month: `${new Date(m.year, m.month - 1).toLocaleString("default", {
+        month: "short",
+      })} ${m.year}`,
       amount: m._sum.netAmount || 0,
     }));
 
-    // Staff breakdown
-    const staff = await prisma.user.findMany({
+    // ✅ Staff breakdown (single query, paginated)
+    const staffBreakdown = await prisma.salary.groupBy({
+      by: ["userId"],
       where: {
         companyId: admin.company.id,
-        role: "STAFF",
+        status: "PAID",
+        ...dateWhere,
       },
+      _sum: { netAmount: true },
+      orderBy: { _sum: { netAmount: "desc" } },
+      skip: offset,
+      take: limit,
+    });
+
+    const users = await prisma.user.findMany({
+      where: { id: { in: staffBreakdown.map((s) => s.userId) } },
       select: {
         id: true,
         firstName: true,
@@ -99,42 +117,45 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const staffBreakdown = await Promise.all(
-      staff.map(async (user) => {
-        const totalAmountResult = await prisma.salary.aggregate({
-          where: {
-            userId: user.id,
-            status: "PAID",
-            ...dateFilter,
-          },
-          _sum: {
-            netAmount: true,
-          },
-        });
-
-        return {
-          userId: user.id,
-          user,
-          totalAmount: totalAmountResult._sum.netAmount || 0,
-        };
-      }),
+    const staffMap = new Map(
+      users.map((u) => [
+        u.id,
+        {
+          firstName: u.firstName ?? null,
+          lastName: u.lastName ?? null,
+          phone: u.phone ?? null,
+        },
+      ]),
     );
 
-    // Sort by total amount desc
-    staffBreakdown.sort((a, b) => b.totalAmount - a.totalAmount);
+    const staffResult: {
+      userId: string;
+      user: {
+        firstName: string | null;
+        lastName: string | null;
+        phone?: string | null;
+      };
+      totalAmount: number;
+    }[] = staffBreakdown.map((s) => {
+      const user = staffMap.get(s.userId);
 
-    // Paginate
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + limit;
-    const paginatedStaff = staffBreakdown.slice(startIndex, endIndex);
-    const totalPages = Math.ceil(staffBreakdown.length / limit);
+      return {
+        userId: s.userId,
+        user: {
+          firstName: user?.firstName ?? null,
+          lastName: user?.lastName ?? null,
+          phone: user?.phone ?? null,
+        },
+        totalAmount: s._sum.netAmount || 0,
+      };
+    });
 
-    // Status distribution
+    // ✅ Status distribution
     const statusResult = await prisma.salary.groupBy({
       by: ["status"],
       where: {
         companyId: admin.company.id,
-        ...dateFilter,
+        ...dateWhere,
       },
       _count: true,
     });
@@ -157,28 +178,25 @@ export async function GET(request: NextRequest) {
       },
     ];
 
+    // ✅ PDF
     if (format === "pdf") {
-      // Generate PDF report
-      const pdfData = {
+      const pdfBuffer = generateSalaryReportPDFBuffer({
         company: admin.company,
         totalPayout,
         staffCount,
         monthlyBreakdown,
-        staffBreakdown: staffBreakdown, // Include all staff for PDF
+        staffBreakdown: staffResult,
         statusDistribution,
         generatedBy: session.user,
-        dateRange: {
-          startDate,
-          endDate,
-        },
-      };
-
-      const pdfBuffer = generateSalaryReportPDFBuffer(pdfData);
+        dateRange: { startDate, endDate },
+      });
 
       return new NextResponse(new Uint8Array(pdfBuffer), {
         headers: {
           "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename=salary-report-${getDate(new Date()).toISOString().split("T")[0]}.pdf`,
+          "Content-Disposition": `attachment; filename=salary-report-${
+            new Date().toISOString().split("T")[0]
+          }.pdf`,
         },
       });
     }
@@ -187,9 +205,13 @@ export async function GET(request: NextRequest) {
       totalPayout,
       staffCount,
       monthlyBreakdown,
-      staffBreakdown: paginatedStaff,
+      staffBreakdown: staffResult,
       statusDistribution,
-      totalPages,
+      pagination: {
+        page,
+        limit,
+        totalPages: Math.ceil(staffCount / limit),
+      },
     });
   } catch (error) {
     console.error("Salary report error:", error);

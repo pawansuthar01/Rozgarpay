@@ -22,6 +22,7 @@ import {
   formatDateTO,
   formatTime,
 } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
 interface AttendanceTableProps {
   records: AttendanceRecord[];
@@ -49,6 +50,7 @@ export default function AttendanceTable({
   onPageChange,
   itemsPerPage,
 }: AttendanceTableProps) {
+  const router = useRouter();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedAttendance, setSelectedAttendance] =
@@ -158,7 +160,12 @@ export default function AttendanceTable({
 
                   return (
                     <tr key={record.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td
+                        onClick={() =>
+                          router.push(`/admin/users/${record.user.id}`)
+                        }
+                        className="px-6 py-4 whitespace-nowrap"
+                      >
                         <div className="text-sm font-medium text-gray-900">
                           {record.user.firstName} {record.user.lastName}
                         </div>

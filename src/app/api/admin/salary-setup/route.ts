@@ -5,9 +5,6 @@ import { authOptions } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-// Cache for 2 minutes
-const CACHE_CONTROL = "public, s-maxage=120, stale-while-revalidate=300";
-
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -81,7 +78,7 @@ export async function GET(request: NextRequest) {
 
     const totalPages = Math.ceil(totalCount / limit);
 
-    const response = NextResponse.json({
+    return NextResponse.json({
       staff,
       pagination: {
         page,
@@ -90,9 +87,6 @@ export async function GET(request: NextRequest) {
         totalPages,
       },
     });
-
-    response.headers.set("Cache-Control", CACHE_CONTROL);
-    return response;
   } catch (error) {
     console.error("Admin salary setup GET error:", error);
     return NextResponse.json(

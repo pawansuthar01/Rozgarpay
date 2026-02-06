@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
-import { getDate } from "@/lib/attendanceUtils";
-import { toZonedTime } from "date-fns-tz";
+import { fromZonedTime } from "date-fns-tz";
 
 export const dynamic = "force-dynamic";
+
+const IST = "Asia/Kolkata";
 
 export async function GET(request: Request) {
   try {
@@ -17,18 +18,20 @@ export async function GET(request: Request) {
 
     const userId = session.user.id;
     const { searchParams } = new URL(request.url);
-    const year = parseInt(
-      searchParams.get("year") ||
-        toZonedTime(new Date(), "Asia/Kolkata").getFullYear().toString(),
-    );
-    const month = parseInt(
-      searchParams.get("month") ||
-        (toZonedTime(new Date(), "Asia/Kolkata").getMonth() + 1).toString(),
+
+    const nowIST = new Date(
+      new Date().toLocaleString("en-US", { timeZone: IST }),
     );
 
-    // Get start and end dates for the month
-    const startDate = getDate(new Date(year, month - 1, 1));
-    const endDate = getDate(new Date(year, month, 1));
+    const year = Number(searchParams.get("year")) || nowIST.getFullYear();
+    const month = Number(searchParams.get("month")) || nowIST.getMonth() + 1;
+
+    // ✅ IST month boundaries → UTC
+    const istMonthStart = new Date(year, month - 1, 1, 0, 0, 0);
+    const istMonthEnd = new Date(year, month, 1, 0, 0, 0);
+
+    const startDate = fromZonedTime(istMonthStart, IST);
+    const endDate = fromZonedTime(istMonthEnd, IST);
 
     const attendanceRecords = await prisma.attendance.findMany({
       where: {
@@ -44,22 +47,19 @@ export async function GET(request: Request) {
         punchOut: true,
         status: true,
       },
-      orderBy: {
-        attendanceDate: "asc",
-      },
+      orderBy: { attendanceDate: "asc" },
     });
 
-    const records = attendanceRecords.map((record) => ({
-      date: record.attendanceDate.toISOString(),
-      punchIn: record.punchIn?.toISOString() || null,
-      punchOut: record.punchOut?.toISOString() || null,
-      status: record.status,
+    const records = attendanceRecords.map((r) => ({
+      date: r.attendanceDate.toISOString().split("T")[0],
+      punchIn: r.punchIn?.toISOString() ?? null,
+      punchOut: r.punchOut?.toISOString() ?? null,
+      status: r.status,
     }));
 
-    // Cache at CDN for 5 minutes, browser for 5 minutes
     return NextResponse.json(records, {
       headers: {
-        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=300",
+        "Cache-Control": "private, max-age=0",
       },
     });
   } catch (error) {

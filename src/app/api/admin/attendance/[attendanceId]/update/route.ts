@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { salaryService } from "@/lib/salaryService";
 import { authOptions } from "@/lib/auth";
-import { hmToHours } from "@/lib/attendanceUtils";
+import { getISTMonthYear, hmToHours } from "@/lib/attendanceUtils";
 import { getCurrentTime } from "@/lib/utils";
 import { toZonedTime } from "date-fns-tz";
 
@@ -85,8 +85,8 @@ export async function PUT(
             ? Math.round(parseFloat(overtimeHours.toString()) * 100) / 100
             : undefined,
         workingHours:
-          workingHours !== undefined && workingHours !== null
-            ? Math.round(parseFloat(workingHours.toString()) * 100) / 100
+          finalWorkingHours !== undefined
+            ? Math.round(finalWorkingHours * 100) / 100
             : undefined,
         LateMinute: LateMinute !== null ? LateMinute : 0,
         shiftDurationHours:
@@ -103,9 +103,8 @@ export async function PUT(
       },
     });
 
-    try {
-      // Create audit log
-      prisma.auditLog.create({
+    prisma.auditLog
+      .create({
         data: {
           userId: session.user.id,
           action: "UPDATED",
@@ -121,42 +120,45 @@ export async function PUT(
             },
           },
         },
-      });
-    } catch (error) {}
+      })
+      .catch(console.error);
 
     // 🔥 Fire-and-forget salary recalculation (non-blocking, production-ready)
-    setImmediate(async () => {
-      const attendanceLocal = toZonedTime(
-        new Date(updatedAttendance.attendanceDate),
-        "Asia/Kolkata",
-      );
-      const month = attendanceLocal.getMonth() + 1;
-      const year = attendanceLocal.getFullYear();
+    setImmediate(() => {
+      (async () => {
+        try {
+          const { month, year } = getISTMonthYear(
+            updatedAttendance.attendanceDate,
+          );
 
-      const existingSalary = await prisma.salary.findUnique({
-        where: {
-          userId_month_year: {
-            userId: updatedAttendance.userId,
-            month,
-            year,
-          },
-        },
-      });
+          const existingSalary = await prisma.salary.findUnique({
+            where: {
+              userId_month_year: {
+                userId: updatedAttendance.userId,
+                month,
+                year,
+              },
+            },
+          });
 
-      if (
-        existingSalary &&
-        existingSalary.status === "PENDING" &&
-        !existingSalary.lockedAt
-      ) {
-        await salaryService.recalculateSalary(existingSalary.id);
-      } else if (!existingSalary && admin?.companyId) {
-        await salaryService.generateSalary({
-          userId: updatedAttendance.userId,
-          companyId: admin.companyId,
-          month,
-          year,
-        });
-      }
+          if (
+            existingSalary &&
+            existingSalary.status === "PENDING" &&
+            !existingSalary.lockedAt
+          ) {
+            await salaryService.recalculateSalary(existingSalary.id);
+          } else if (!existingSalary && admin.companyId) {
+            await salaryService.generateSalary({
+              userId: updatedAttendance.userId,
+              companyId: admin.companyId,
+              month,
+              year,
+            });
+          }
+        } catch (e) {
+          console.error("Salary background job failed:", e);
+        }
+      })();
     });
 
     return NextResponse.json({ attendance: updatedAttendance });

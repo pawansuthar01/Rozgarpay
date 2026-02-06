@@ -93,7 +93,6 @@ export async function POST(request: NextRequest, { params }: any) {
         { status: 400 },
       );
     }
-
     const parsedAmount = Math.abs(parseFloat(amount));
     if (Number.isNaN(parsedAmount)) {
       return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
@@ -117,10 +116,10 @@ export async function POST(request: NextRequest, { params }: any) {
       }
     }
 
-    // 🔹 Current month salary
-    const now = getDate(new Date());
-    const month = now.getMonth() + 1;
-    const year = now.getFullYear();
+    // 🔹 Determine month/year from the selected paymentDate instead of current date
+    const paymentDateObj = getDate(new Date(paymentDate));
+    const month = paymentDateObj.getMonth() + 1;
+    const year = paymentDateObj.getFullYear();
 
     let salary = await prisma.salary.findFirst({
       where: { userId, companyId, month, year },
@@ -177,6 +176,7 @@ export async function POST(request: NextRequest, { params }: any) {
           userId,
           companyId,
           type: "PAYMENT",
+          createdAt: getDate(new Date(paymentDate)),
           amount: parsedAmount,
           reason:
             description ||

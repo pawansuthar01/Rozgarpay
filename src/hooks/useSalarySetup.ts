@@ -121,72 +121,56 @@ export function useUpdateSalarySetup() {
 
       return response.json();
     },
-    onMutate: async (newUpdates) => {
-      // Cancel outgoing refetches
-      await queryClient.cancelQueries({ queryKey: ["salary-setup"] });
+    onSuccess: (_, newUpdates) => {
+      // Update the cache with the updated data
+      queryClient.setQueriesData<SalarySetupResponse>(
+        { queryKey: ["salary-setup"] },
+        (old) => {
+          if (!old) return old;
 
-      // Snapshot previous value
-      const previousData = queryClient.getQueryData<SalarySetupResponse>([
-        "salary-setup",
-      ]);
+          const updatedStaff = old.staff.map((staffMember) => {
+            const update = newUpdates.staffUpdates.find(
+              (u) => u.userId === staffMember.id,
+            );
+            if (update) {
+              return {
+                ...staffMember,
+                baseSalary: update.baseSalary
+                  ? parseFloat(update.baseSalary)
+                  : staffMember.baseSalary,
+                hourlyRate: update.hourlyRate
+                  ? parseFloat(update.hourlyRate)
+                  : staffMember.hourlyRate,
+                dailyRate: update.dailyRate
+                  ? parseFloat(update.dailyRate)
+                  : staffMember.dailyRate,
+                salaryType: update.salaryType || staffMember.salaryType,
+                workingDays: update.workingDays
+                  ? parseInt(update.workingDays)
+                  : staffMember.workingDays,
+                overtimeRate: update.overtimeRate
+                  ? parseFloat(update.overtimeRate)
+                  : staffMember.overtimeRate,
+                pfEsiApplicable:
+                  update.pfEsiApplicable ?? staffMember.pfEsiApplicable,
+                joiningDate: update.joiningDate || staffMember.joiningDate,
+              };
+            }
+            return staffMember;
+          });
 
-      // Optimistically update the cache
-      if (previousData) {
-        queryClient.setQueryData<SalarySetupResponse>(
-          ["salary-setup"],
-          (old) => {
-            if (!old) return old;
+          return {
+            ...old,
+            staff: updatedStaff,
+          };
+        },
+      );
 
-            const updatedStaff = old.staff.map((staffMember) => {
-              const update = newUpdates.staffUpdates.find(
-                (u) => u.userId === staffMember.id,
-              );
-              if (update) {
-                return {
-                  ...staffMember,
-                  baseSalary: update.baseSalary
-                    ? parseFloat(update.baseSalary)
-                    : staffMember.baseSalary,
-                  hourlyRate: update.hourlyRate
-                    ? parseFloat(update.hourlyRate)
-                    : staffMember.hourlyRate,
-                  dailyRate: update.dailyRate
-                    ? parseFloat(update.dailyRate)
-                    : staffMember.dailyRate,
-                  salaryType: update.salaryType || staffMember.salaryType,
-                  workingDays: update.workingDays
-                    ? parseInt(update.workingDays)
-                    : staffMember.workingDays,
-                  overtimeRate: update.overtimeRate
-                    ? parseFloat(update.overtimeRate)
-                    : staffMember.overtimeRate,
-                  pfEsiApplicable:
-                    update.pfEsiApplicable ?? staffMember.pfEsiApplicable,
-                  joiningDate: update.joiningDate || staffMember.joiningDate,
-                };
-              }
-              return staffMember;
-            });
-
-            return {
-              ...old,
-              staff: updatedStaff,
-            };
-          },
-        );
-      }
-
-      return { previousData };
-    },
-    onError: (err, newUpdates, context) => {
-      // Rollback on error
-      if (context?.previousData) {
-        queryClient.setQueryData(["salary-setup"], context.previousData);
-      }
-    },
-    onSettled: () => {
-      // Refetch after mutation
+      // Also invalidate to ensure fresh data is fetched
       queryClient.invalidateQueries({ queryKey: ["salary-setup"] });
+    },
+    onError: (err) => {
+      console.error("Failed to update salary setup:", err);
     },
   });
 }

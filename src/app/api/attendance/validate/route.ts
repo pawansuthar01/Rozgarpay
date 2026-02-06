@@ -9,7 +9,6 @@ import {
   isPunchOutAllowed,
   getDate,
 } from "@/lib/attendanceUtils";
-import { toZonedTime } from "date-fns-tz";
 import { getCurrentTime } from "@/lib/utils";
 
 export async function POST(request: NextRequest) {
@@ -38,9 +37,11 @@ export async function POST(request: NextRequest) {
     }
 
     const settings = await getCompanySettings(companyId);
-    const nowUtc = new Date();
-    const attendanceDate = getDate(nowUtc);
-
+    const nowUtc = getCurrentTime();
+    const today = getDate(nowUtc);
+    const startOfDay = today;
+    const endOfDay = new Date(today);
+    endOfDay.setUTCHours(23, 59, 59, 999);
     // Check if user already has an active attendance session
     const openAttendance = await prisma.attendance.findFirst({
       where: {
@@ -48,7 +49,10 @@ export async function POST(request: NextRequest) {
         companyId,
         punchIn: { not: null },
         punchOut: null,
-        attendanceDate,
+        attendanceDate: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
       },
       orderBy: { punchIn: "desc" },
     });
@@ -56,16 +60,8 @@ export async function POST(request: NextRequest) {
     // PUNCH IN VALIDATION
     if (punchType === "in") {
       // Check for existing open attendance (double punch-in prevention)
-      const existingOpen = await prisma.attendance.findFirst({
-        where: {
-          userId,
-          companyId,
-          punchOut: null,
-          attendanceDate,
-        },
-      });
 
-      if (existingOpen) {
+      if (openAttendance) {
         return NextResponse.json(
           {
             error:
@@ -78,7 +74,7 @@ export async function POST(request: NextRequest) {
 
       // Check punch-in allowed based on time
       const punchInCheck = isPunchInAllowed(
-        new Date(),
+        nowUtc,
         settings.shiftStartTime,
         settings.shiftEndTime,
         settings.gracePeriodMinutes,
@@ -132,7 +128,7 @@ export async function POST(request: NextRequest) {
 
       // Check punch-out allowed based on time worked
       const punchOutCheck = isPunchOutAllowed(
-        new Date(),
+        nowUtc,
         openAttendance.punchIn!,
         settings.minWorkingHours,
         settings.maxDailyHours,

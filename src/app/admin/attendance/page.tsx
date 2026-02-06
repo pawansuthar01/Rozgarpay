@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useCallback, useRef, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { XCircle, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import AttendanceStatsCards from "@/components/admin/attendance/AttendanceStatsCards";
 import AttendanceChart from "@/components/admin/attendance/AttendanceChart";
 import AttendanceFilters from "@/components/admin/attendance/AttendanceFilters";
 import AttendanceTable from "@/components/admin/attendance/AttendanceTable";
-import { useDebounce } from "@/lib/hooks";
 import { useAttendance, useUpdateAttendance, useUpdateStatus } from "@/hooks";
 
 export default function AdminAttendancePage() {
@@ -25,13 +24,29 @@ export default function AdminAttendancePage() {
   const [pageLimit, setPageLimit] = useState<number>(5);
   const [sortBy, setSortBy] = useState<string>("attendanceDate");
   const [sortOrder, setSortOrder] = useState<string>("desc");
-  const [search, setSearch] = useState<string>("");
-  const debouncedSearch = useDebounce(search, 500);
+
+  // Search state - input value vs debounced value
+  const [searchInput, setSearchInput] = useState<string>("");
+  const [debouncedSearch, setDebouncedSearch] = useState<string>("");
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Use the custom hooks
+  // Track which rows are loading
+  const [loadingRows, setLoadingRows] = useState<Set<string>>(new Set());
+
+  // Debounce logic - update debounced search after user stops typing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchInput);
+      if (searchInput !== debouncedSearch) {
+        setCurrentPage(1); // Reset to page 1 on search change
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchInput, debouncedSearch]);
+
   const {
     data: attendanceData,
     isLoading,
@@ -42,24 +57,10 @@ export default function AdminAttendancePage() {
     limit: pageLimit,
     status: statusFilter || undefined,
     date: startDate,
+    search: debouncedSearch || undefined,
   });
 
-  const updateAttendanceMutation = useUpdateAttendance();
   const updateStatus = useUpdateStatus();
-
-  // Track loading state with ref and timeout - no re-renders needed
-  const loadingRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
-
-  // Check if a row is loading
-  const isRowLoading = useCallback((attendanceId: string) => {
-    return loadingRef.current.has(attendanceId);
-  }, []);
-
-  // Force re-render only when needed (when loading state changes)
-  const [, forceUpdate] = useState(0);
-  const triggerUpdate = useCallback(() => {
-    forceUpdate((t) => t + 1);
-  }, []);
 
   const handleAttendanceAction = useCallback(
     (
@@ -85,73 +86,54 @@ export default function AdminAttendancePage() {
           status = "APPROVED";
       }
 
-      // Set loading state - show loading on button
-      const existingTimeout = loadingRef.current.get(attendanceId);
-      if (existingTimeout) {
-        clearTimeout(existingTimeout);
-      }
+      // Set loading state for this row
+      setLoadingRows((prev) => new Set(prev).add(attendanceId));
 
-      // Short timeout as fallback for slow API responses
-      loadingRef.current.set(
-        attendanceId,
-        setTimeout(() => {
-          loadingRef.current.delete(attendanceId);
-          triggerUpdate();
-        }, 500),
-      );
-      triggerUpdate();
-
-      // Call API - status will update optimistically after response
       updateStatus.mutate(
         { attendanceId, data: { status } },
         {
           onSettled: () => {
-            const timeout = loadingRef.current.get(attendanceId);
-            if (timeout) {
-              clearTimeout(timeout);
-              loadingRef.current.delete(attendanceId);
-              triggerUpdate();
-            }
+            // Clear loading state after mutation completes
+            setLoadingRows((prev) => {
+              const next = new Set(prev);
+              next.delete(attendanceId);
+              return next;
+            });
           },
         },
       );
     },
-    [updateStatus, triggerUpdate],
+    [updateStatus],
   );
 
   const handleMoreOptions = useCallback(
     (attendanceId: string, updates?: Record<string, unknown>) => {
       if (!updates) return;
 
-      const existingTimeout = loadingRef.current.get(attendanceId);
-      if (existingTimeout) {
-        clearTimeout(existingTimeout);
-      }
+      // Set loading state for this row
+      setLoadingRows((prev) => new Set(prev).add(attendanceId));
 
-      loadingRef.current.set(
-        attendanceId,
-        setTimeout(() => {
-          loadingRef.current.delete(attendanceId);
-          triggerUpdate();
-        }, 1000),
-      );
-      triggerUpdate();
-
-      updateAttendanceMutation.mutate(
-        { attendanceId, data: updates },
+      updateStatus.mutate(
+        { attendanceId, data: updates as any },
         {
           onSettled: () => {
-            const timeout = loadingRef.current.get(attendanceId);
-            if (timeout) {
-              clearTimeout(timeout);
-              loadingRef.current.delete(attendanceId);
-              triggerUpdate();
-            }
+            // Clear loading state after mutation completes
+            setLoadingRows((prev) => {
+              const next = new Set(prev);
+              next.delete(attendanceId);
+              return next;
+            });
           },
         },
       );
     },
-    [updateAttendanceMutation, triggerUpdate],
+    [updateStatus],
+  );
+
+  // Check if a row is loading
+  const isRowLoading = useCallback(
+    (attendanceId: string) => loadingRows.has(attendanceId),
+    [loadingRows],
   );
 
   return (
@@ -210,8 +192,8 @@ export default function AdminAttendancePage() {
             setSortBy={setSortBy}
             sortOrder={sortOrder}
             setSortOrder={setSortOrder}
-            search={search}
-            setSearch={setSearch}
+            search={searchInput}
+            setSearch={setSearchInput}
           />
 
           {fetchError && (

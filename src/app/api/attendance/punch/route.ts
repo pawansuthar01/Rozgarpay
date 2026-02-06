@@ -62,7 +62,12 @@ export async function POST(request: NextRequest) {
     // PUNCH OUT
     if (validation.punchType === "out" && validation.attendanceId) {
       const openAttendance = await prisma.attendance.findUnique({
-        where: { id: validation.attendanceId },
+        where: {
+          id: validation.attendanceId,
+          userId,
+          companyId,
+          punchOut: null,
+        },
       });
 
       if (!openAttendance) {
@@ -146,8 +151,9 @@ export async function POST(request: NextRequest) {
           status: "PENDING",
         },
       });
-      try {
-        prisma.auditLog.create({
+
+      prisma.auditLog
+        .create({
           data: {
             userId,
             action: "CREATED",
@@ -155,8 +161,8 @@ export async function POST(request: NextRequest) {
             entityId: attendance.id,
             meta: { type: "PUNCH_IN" },
           },
-        });
-      } catch (_) {}
+        })
+        .catch(console.error);
     } else {
       return NextResponse.json(
         { error: "Invalid punch type" },

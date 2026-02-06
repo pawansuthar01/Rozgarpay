@@ -6,26 +6,11 @@ import {
 } from "@tanstack/react-query";
 import { saveAttendance } from "@/lib/storageWorker";
 import { performanceMonitor } from "@/lib/performanceMonitor";
+import { AttendanceRecord } from "@/types/attendance";
 
 // ============================================================================
 // Types
 // ============================================================================
-
-interface AttendanceRecord {
-  id: string;
-  userId: string;
-  user: {
-    firstName: string | null;
-    lastName: string | null;
-    phone: string;
-  };
-  attendanceDate: string;
-  punchIn: string | null;
-  punchOut: string | null;
-  status: string;
-  workingHours?: number;
-  createdAt: string;
-}
 
 interface AttendanceResponse {
   records: AttendanceRecord[];
@@ -142,17 +127,6 @@ export type {
 };
 
 // ============================================================================
-// Stale Times (based on data volatility)
-// ============================================================================
-
-const STALE_TIMES = {
-  LIST: 1000 * 20, // 20seconds - changes frequently
-  TODAY: 1000 * 20, // 30 seconds - changes frequently
-  DETAIL: 1000 * 20, // 1 minutes - detailed data changes rarely
-  REPORTS: 1000 * 20, // 1 minutes - reports are expensive
-} as const;
-
-// ============================================================================
 // Fetch Functions
 // ============================================================================
 
@@ -165,6 +139,10 @@ async function fetchAttendance(
   if (params?.userId) searchParams.set("userId", String(params.userId));
   if (params?.date) searchParams.set("date", String(params.date));
   if (params?.status) searchParams.set("status", String(params.status));
+  if (params?.search) searchParams.set("search", String(params.search));
+  if (params?.sortBy) searchParams.set("sortBy", String(params.sortBy));
+  if (params?.sortOrder)
+    searchParams.set("sortOrder", String(params.sortOrder));
 
   const startTime = performance.now();
 
@@ -257,7 +235,7 @@ async function fetchTodayAttendance(): Promise<TodayAttendanceResponse> {
 // ============================================================================
 
 /**
- * Optimized attendance records query
+ * Optimized attendance records query - uses caching to prevent unnecessary re-fetches
  */
 export function useAttendance(params?: {
   page?: number;
@@ -265,14 +243,16 @@ export function useAttendance(params?: {
   userId?: string;
   date?: string;
   status?: string;
+  search?: string;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
 }) {
   return useQuery({
     queryKey: ["attendance", "list", params] as const,
     queryFn: () => fetchAttendance(params),
-    staleTime: STALE_TIMES.LIST,
-    gcTime: 1000 * 60 * 10,
+    staleTime: 1000 * 10, // Cache for 30 seconds - prevents re-fetch on same page navigation
+    gcTime: 1000 * 60, // Keep in cache for 5 minutes
+    placeholderData: (previousData) => previousData, // Keep previous data while fetching new page
   });
 }
 
@@ -283,14 +263,13 @@ export function useTodayAttendance() {
   return useQuery({
     queryKey: ["attendance", "today"] as const,
     queryFn: fetchTodayAttendance,
-    staleTime: STALE_TIMES.TODAY,
-    gcTime: 1000 * 60 * 5,
-    refetchInterval: 60000, // Refetch every minute for active users
+    staleTime: 0, // Always fetch fresh data
+    gcTime: 1000 * 60,
   });
 }
 
 /**
- * Punch attendance mutation with optimistic updates
+ * Punch attendance mutation - updates UI after successful API response
  */
 export function usePunchAttendance() {
   const queryClient = useQueryClient();
@@ -310,47 +289,11 @@ export function usePunchAttendance() {
 
       return response.json() as Promise<PunchResponse>;
     },
-    onMutate: async (newPunch) => {
-      await queryClient.cancelQueries({ queryKey: ["attendance", "today"] });
-      await queryClient.cancelQueries({ queryKey: ["attendance", "list"] });
-
-      const previousToday = queryClient.getQueryData(["attendance", "today"]);
-
-      queryClient.setQueryData(
-        ["attendance", "today"],
-        (old: TodayAttendanceResponse | undefined) => {
-          if (!old) return old;
-
-          if (newPunch.type === "IN") {
-            return {
-              ...old,
-              hasPunchedIn: true,
-              punchInTime: new Date().toISOString(),
-            };
-          } else {
-            return {
-              ...old,
-              hasPunchedOut: true,
-              punchOutTime: new Date().toISOString(),
-            };
-          }
-        },
-      );
-
-      return { previousToday };
-    },
-    onError: (error, variables, context) => {
-      if (context?.previousToday) {
-        queryClient.setQueryData(
-          ["attendance", "today"],
-          context.previousToday,
-        );
-      }
-      console.error("Punch attendance failed:", error);
-    },
-    onSettled: () => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["attendance", "today"] });
-      queryClient.invalidateQueries({ queryKey: ["attendance", "list"] });
+    },
+    onError: (error) => {
+      console.error("Punch attendance failed:", error);
     },
   });
 }
@@ -369,12 +312,12 @@ export function useAttendanceById(attendanceId: string) {
       return response.json();
     },
     enabled: !!attendanceId,
-    staleTime: STALE_TIMES.DETAIL,
+    staleTime: 0, // Always fetch fresh data
   });
 }
 
 /**
- * Update attendance mutation
+ * Update attendance - updates UI with response data only (no re-fetch)
  */
 export function useUpdateAttendance() {
   const queryClient = useQueryClient();
@@ -403,45 +346,31 @@ export function useUpdateAttendance() {
 
       return response.json() as Promise<{ attendance: AttendanceRecord }>;
     },
-    onMutate: async ({ attendanceId, data }) => {
-      // Cancel any outgoing refetches - cancel all list queries
-      await queryClient.cancelQueries({ queryKey: ["attendance", "list"] });
-
-      // Snapshot the previous value - get all list queries
-      const previousList = queryClient.getQueryData(["attendance", "list"]);
-
-      // Optimistically update to the new value - update all matching list queries
-      queryClient.setQueriesData(
+    // Update UI with response data - NO re-fetch, NO invalidation
+    onSuccess: (response, variables) => {
+      queryClient.setQueriesData<AttendanceResponse>(
         { queryKey: ["attendance", "list"], exact: false },
         (oldData: AttendanceResponse | undefined) => {
           if (!oldData?.records) return oldData;
           return {
             ...oldData,
             records: oldData.records.map((record) =>
-              record.id === attendanceId ? { ...record, ...data } : record,
+              record.id === variables.attendanceId
+                ? response.attendance
+                : record,
             ),
           };
         },
       );
-
-      return { previousList };
     },
-    onError: (error, variables, context) => {
-      // Rollback on error
-      if (context?.previousList) {
-        queryClient.setQueryData(["attendance", "list"], context.previousList);
-      }
-    },
-    onSettled: () => {
-      // Don't invalidate - we already updated optimistically
-      // If you need to sync with server, uncomment below:
-      // queryClient.invalidateQueries({ queryKey: ["attendance", "list"] });
+    onError: (error) => {
+      console.error("Failed to update attendance:", error);
     },
   });
 }
 
 /**
- * Update attendance status - with optimistic updates for instant UI feedback
+ * Update attendance status - updates UI with response data only (no re-fetch)
  */
 export function useUpdateStatus() {
   const queryClient = useQueryClient();
@@ -467,38 +396,25 @@ export function useUpdateStatus() {
 
       return response.json() as Promise<{ attendance: AttendanceRecord }>;
     },
-    onMutate: async ({ attendanceId, data }) => {
-      // Cancel any outgoing refetches - cancel all list queries
-      await queryClient.cancelQueries({ queryKey: ["attendance", "list"] });
-
-      // Snapshot the previous value - get all list queries
-      const previousList = queryClient.getQueryData(["attendance", "list"]);
-
-      // Optimistically update to the new value - update all matching list queries
-      queryClient.setQueriesData(
+    // Update UI with response data - NO re-fetch, NO invalidation
+    onSuccess: (response, variables) => {
+      queryClient.setQueriesData<AttendanceResponse>(
         { queryKey: ["attendance", "list"], exact: false },
         (oldData: AttendanceResponse | undefined) => {
           if (!oldData?.records) return oldData;
           return {
             ...oldData,
             records: oldData.records.map((record) =>
-              record.id === attendanceId ? { ...record, ...data } : record,
+              record.id === variables.attendanceId
+                ? response.attendance
+                : record,
             ),
           };
         },
       );
-
-      return { previousList };
     },
-    onError: (error, variables, context) => {
-      // Rollback on error
-      if (context?.previousList) {
-        queryClient.setQueryData(["attendance", "list"], context.previousList);
-      }
-    },
-    onSettled: () => {
-      // Optionally sync with server - comment out for instant updates
-      // queryClient.invalidateQueries({ queryKey: ["attendance", "list"] });
+    onError: (error) => {
+      console.error("Failed to update attendance status:", error);
     },
   });
 }
@@ -530,7 +446,7 @@ export function useAttendanceReports(params?: {
       }
       return response.json();
     },
-    staleTime: STALE_TIMES.REPORTS,
+    staleTime: 0, // Always fetch fresh data
   });
 }
 
@@ -558,13 +474,13 @@ export function useMissingAttendance(params?: {
       }
       return response.json() as Promise<MissingStaffResponse>;
     },
-    staleTime: 1000 * 30, // 30 seconds - data changes when marked
-    gcTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 0, // Always fetch fresh data when needed
+    gcTime: 1000 * 60, // 2 minutes
   });
 }
 
 /**
- * Mark attendance for missing staff
+ * Mark attendance for missing staff - updates UI after successful API response
  */
 export function useMarkAttendance() {
   const queryClient = useQueryClient();
@@ -594,9 +510,35 @@ export function useMarkAttendance() {
 
       return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["attendance", "missing"] });
-      queryClient.invalidateQueries({ queryKey: ["attendance", "list"] });
+    onSuccess: (_, variables) => {
+      // Manually update the cache to remove the marked staff member
+      queryClient.setQueriesData(
+        { queryKey: ["attendance", "missing"], exact: false },
+        (old: MissingStaffResponse | undefined) => {
+          if (!old?.missingStaff) return old;
+          const filteredStaff = old.missingStaff.filter(
+            (staff) => staff.id !== variables.userId,
+          );
+          // Only update if staff was actually removed
+          if (filteredStaff.length === old.missingStaff.length) return old;
+          return {
+            ...old,
+            missingStaff: filteredStaff,
+            totalMissing: Math.max(0, (old.totalMissing || 1) - 1),
+            pagination: {
+              ...old.pagination,
+              total: Math.max(0, (old.pagination?.total || 1) - 1),
+              totalPages: Math.ceil(
+                Math.max(0, (old.pagination?.total || 1) - 1) /
+                  (old.pagination?.limit || 10),
+              ),
+            },
+          };
+        },
+      );
+    },
+    onError: (error) => {
+      console.error("Mark attendance failed:", error);
     },
   });
 }
@@ -627,12 +569,12 @@ export function useManagerAttendance(params?: {
       }
       return response.json() as Promise<ManagerAttendanceResponse>;
     },
-    staleTime: STALE_TIMES.LIST,
+    staleTime: 0, // Always fetch fresh data
   });
 }
 
 /**
- * Update attendance status (approve/reject)
+ * Update attendance status (approve/reject) - updates UI after successful API response
  */
 export function useUpdateAttendanceStatus() {
   const queryClient = useQueryClient();
@@ -661,62 +603,25 @@ export function useUpdateAttendanceStatus() {
 
       return response.json();
     },
-    onMutate: async ({ attendanceId, data }) => {
-      await queryClient.cancelQueries({ queryKey: ["attendance", "manager"] });
-      await queryClient.cancelQueries({ queryKey: ["attendance", "list"] });
-      await queryClient.cancelQueries({
-        queryKey: ["attendance", "detail", attendanceId],
-      });
-
-      const previousAttendance = queryClient.getQueryData([
-        "attendance",
-        "manager",
-      ]);
-
-      queryClient.setQueryData(
-        ["attendance", "manager"],
+    onSuccess: (_, variables) => {
+      // Manually update the cache after API success
+      queryClient.setQueriesData(
+        { queryKey: ["attendance", "manager"], exact: false },
         (old: ManagerAttendanceResponse | undefined) => {
           if (!old?.records) return old;
           return {
             ...old,
             records: old.records.map((record) =>
-              record.id === attendanceId
-                ? { ...record, status: data.status }
+              record.id === variables.attendanceId
+                ? { ...record, status: variables.data.status }
                 : record,
             ),
           };
         },
       );
-
-      // Also update the detail cache
-      queryClient.setQueryData(
-        ["attendance", "detail", attendanceId],
-        (old: { attendance: AttendanceRecord } | undefined) => {
-          if (!old?.attendance) return old;
-          return {
-            ...old,
-            attendance: { ...old.attendance, status: data.status },
-          };
-        },
-      );
-
-      return { previousAttendance };
     },
-    onError: (err, variables, context) => {
-      if (context?.previousAttendance) {
-        queryClient.setQueryData(
-          ["attendance", "manager"],
-          context.previousAttendance,
-        );
-      }
+    onError: (err) => {
       console.error("Failed to update attendance status:", err);
-    },
-    onSettled: (data, error, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["attendance", "manager"] });
-      queryClient.invalidateQueries({ queryKey: ["attendance", "list"] });
-      queryClient.invalidateQueries({
-        queryKey: ["attendance", "detail", variables.attendanceId],
-      });
     },
   });
 }

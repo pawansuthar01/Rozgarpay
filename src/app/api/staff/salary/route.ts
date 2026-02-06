@@ -124,7 +124,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Cache for 5 minutes
+    // No caching for fresh data
     return NextResponse.json(
       {
         salaries,
@@ -135,7 +135,9 @@ export async function GET(request: NextRequest) {
       },
       {
         headers: {
-          "Cache-Control": "public, s-maxage=300, stale-while-revalidate=300",
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
         },
       },
     );

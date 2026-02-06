@@ -34,10 +34,10 @@ export async function POST(
       );
     }
 
-    // Get current month salary record
-    const currentDate = getDate(new Date());
-    const currentMonth = currentDate.getMonth() + 1;
-    const currentYear = currentDate.getFullYear();
+    // 🔹 Determine month/year from the selected recordDate instead of current date
+    const recordDateObj = getDate(new Date(recordDate));
+    const currentMonth = recordDateObj.getMonth() + 1;
+    const currentYear = recordDateObj.getFullYear();
 
     let salary = await prisma.salary.findFirst({
       where: {
@@ -111,6 +111,7 @@ export async function POST(
           salaryId: salary.id,
           userId,
           companyId,
+          createdAt: getDate(new Date(recordDate)),
           type: "DEDUCTION",
           amount: -parsedAmount,
           reason: description || `Deduction (${cycle})`,

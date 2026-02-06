@@ -43,54 +43,8 @@ interface SalaryOverview {
     lastName: string | null;
     joiningDate: Date | string | null;
   };
-  lifetimeTotals: {
-    totalSalary: number; // Kita lena (Gross earnings)
-    totalPaid: number; // Total received
-    totalRecoveries: number; // Total recoveries (deductions)
-    totalOwed: number; // Company owes staff
-    totalOwe: number; // Staff owes company
-    netPosition: number; // Net position (+ = company owes, - = staff owes)
-  };
-  monthlyBreakdown: Array<{
-    month: number;
-    year: number;
-    period?: string;
-    gross: number;
-    deductions: number;
-    paid: number;
-    balance: number;
-    net: number;
-    status: string;
-  }>;
+  lifetimeBalance: number;
   recentTransactions: SalaryTransaction[];
-  currentMonth: {
-    gross: number;
-    deductions: number;
-    paid: number;
-    balance: number;
-    owed: number;
-    owe: number;
-    net: number;
-    earnings: Array<{
-      type: string;
-      amount: number;
-      description: string;
-    }>;
-    payments: Array<{
-      id: string;
-      type: string;
-      amount: number;
-      reason: string;
-      createdAt: string;
-    }>;
-    extraDeductions: Array<{
-      id: string;
-      type: string;
-      amount: number;
-      reason: string;
-      createdAt: string;
-    }>;
-  };
 }
 
 export default function StaffSalaryOverviewPage() {
@@ -109,6 +63,7 @@ export default function StaffSalaryOverviewPage() {
     data: overview,
     isLoading: overviewLoading,
     error: overviewError,
+    refetch: refetchOverview,
   } = useStaffSalaryOverview();
 
   // Fetch salaries only when history tab is clicked - disabled by default
@@ -218,16 +173,25 @@ export default function StaffSalaryOverviewPage() {
               Salary Management
             </h1>
             <p className="text-sm text-gray-600 mt-1">
-              Comprehensive view of your salary details and transactions
+              View your current month salary and transaction history
             </p>
           </div>
-          <button
-            onClick={generateReport}
-            className="px-4 py-2  bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors hidden items-center gap-2"
-          >
-            <Download className="h-4 w-4" />
-            Generate Report
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => refetchOverview()}
+              className="px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors flex items-center gap-2"
+            >
+              <Clock className="h-4 w-4" />
+              Refresh
+            </button>
+            <button
+              onClick={generateReport}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Generate Report
+            </button>
+          </div>
         </div>
       </div>
 
@@ -268,249 +232,28 @@ export default function StaffSalaryOverviewPage() {
         {/* Overview Tab */}
         {activeTab === "overview" && (
           <div className="space-y-6">
-            {/* Lifetime Summary - Clear & Simple */}
+            {/* Lifetime Balance - Current Balance */}
             {isOverviewLoading ? (
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                {[1, 2, 3, 4].map((i) => (
-                  <div
-                    key={i}
-                    className="bg-white/90 rounded-xl p-4 border border-gray-200/50"
-                  >
-                    <Skeleton height={14} width={80} className="mb-2" />
-                    <Skeleton height={28} width={100} />
-                  </div>
-                ))}
+              <div className="bg-white/90 rounded-xl p-6 border border-gray-200/50">
+                <Skeleton height={24} width={150} className="mb-2" />
+                <Skeleton height={40} width={120} />
               </div>
             ) : (
-              <div className="bg-white/90 backdrop-blur-sm rounded-xl p-6 border border-gray-200/50">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-blue-600" />
-                  Lifetime Summary (Since Joining)
-                </h3>
-
-                {/* Row 1: Earnings & Received */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                  {/* Total Earnings (Kita Lena) */}
-                  <div className="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <p className="text-xs text-blue-700 font-medium">
-                      Total Earnings (Kita Lena)
-                    </p>
-                    <p className="text-xl font-bold text-blue-600">
-                      ₹
-                      {formatCurrency(
-                        overview?.lifetimeTotals?.totalSalary || 0,
-                      )}
-                    </p>
-                  </div>
-
-                  {/* Total Received (Jo Milega) */}
-                  <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
-                    <p className="text-xs text-green-700 font-medium">
-                      Total Received (Jo Mila)
-                    </p>
-                    <p className="text-xl font-bold text-green-600">
-                      ₹
-                      {formatCurrency(overview?.lifetimeTotals?.totalPaid || 0)}
-                    </p>
-                  </div>
-
-                  {/* Total Recoveries (Jo Kissa) */}
-                  <div className="text-center p-4 bg-orange-50 rounded-lg border border-orange-200">
-                    <p className="text-xs text-orange-700 font-medium">
-                      Total Recoveries (Jo Kissa)
-                    </p>
-                    <p className="text-xl font-bold text-orange-600">
-                      ₹
-                      {formatCurrency(
-                        overview?.lifetimeTotals?.totalRecoveries || 0,
-                      )}
-                    </p>
-                  </div>
-
-                  {/* Net Balance */}
-                  {(() => {
-                    const netPos = overview?.lifetimeTotals?.netPosition || 0;
-                    const balanceColor = getBalanceColor(netPos);
-                    const isOwed = netPos >= 0;
-                    return (
-                      <div
-                        className={`text-center p-4 rounded-lg border ${balanceColor.border} ${balanceColor.bg}`}
-                      >
-                        <p
-                          className={`text-xs font-medium ${balanceColor.label}`}
-                        >
-                          {isOwed ? "Net Company Owes" : "Net You Owe"}
-                        </p>
-                        <p className={`text-xl font-bold ${balanceColor.text}`}>
-                          ₹{formatCurrency(Math.abs(netPos))}
-                        </p>
-                      </div>
-                    );
-                  })()}
+              <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl p-6 text-white shadow-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-lg font-semibold">Current Balance</h3>
+                  <span className="text-blue-200 text-sm">
+                    {overview?.lifetimeBalance >= 0 ? "Receivable" : "Payable"}
+                  </span>
                 </div>
+                <p className="text-4xl font-bold">
+                  ₹{formatCurrency(Math.abs(overview?.lifetimeBalance || 0))}
+                </p>
+                <p className="text-blue-200 text-sm mt-2">
+                  Last updated: {new Date().toLocaleString()}
+                </p>
               </div>
             )}
-
-            {/* Current Month Summary */}
-            {isOverviewLoading ? (
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                {[1, 2, 3, 4].map((i) => (
-                  <div
-                    key={i}
-                    className="bg-white/90 rounded-xl p-6 border border-gray-200/50"
-                  >
-                    <Skeleton height={16} width={100} className="mb-2" />
-                    <Skeleton height={32} width={120} />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              overview?.currentMonth && (
-                <div className="bg-white/90 backdrop-blur-sm rounded-xl p-6 border border-gray-200/50">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                    Current Month Summary
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
-                      <p className="text-sm text-green-700 font-medium">
-                        Gross Salary (Kita Lena)
-                      </p>
-                      <p className="text-2xl font-bold text-green-600">
-                        ₹{formatCurrency(overview?.currentMonth?.gross || 0)}
-                      </p>
-                    </div>
-                    <div className="text-center p-4 bg-orange-50 rounded-lg border border-orange-200">
-                      <p className="text-sm text-orange-700 font-medium">
-                        Recoveries (Jo Kissa)
-                      </p>
-                      <p className="text-2xl font-bold text-orange-600">
-                        ₹
-                        {formatCurrency(
-                          overview?.currentMonth?.deductions || 0,
-                        )}
-                      </p>
-                    </div>
-                    <div className="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
-                      <p className="text-sm text-blue-700 font-medium">
-                        Received (Jo Mila)
-                      </p>
-                      <p className="text-2xl font-bold text-blue-600">
-                        ₹{formatCurrency(overview?.currentMonth?.paid || 0)}
-                      </p>
-                    </div>
-                    {(() => {
-                      const balance = overview?.currentMonth?.balance || 0;
-                      const balanceColor = getBalanceColor(balance);
-                      const isOwed = balance >= 0;
-                      return (
-                        <div
-                          className={`text-center p-4 rounded-lg border ${balanceColor.border} ${balanceColor.bg}`}
-                        >
-                          <p
-                            className={`text-sm font-medium ${balanceColor.label}`}
-                          >
-                            {isOwed ? "Balance Receivable" : "Balance Payable"}
-                          </p>
-                          <p
-                            className={`text-2xl font-bold ${balanceColor.text}`}
-                          >
-                            ₹{formatCurrency(Math.abs(balance))}
-                          </p>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                </div>
-              )
-            )}
-
-            {/* Monthly Breakdown */}
-            <div className="bg-white/90 backdrop-blur-sm rounded-xl p-6 border border-gray-200/50">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Monthly Breakdown
-              </h3>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Month
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Gross
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Recoveries
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Received
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Balance
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {isOverviewLoading
-                      ? Array.from({ length: 6 }).map((_, i) => (
-                          <tr key={i}>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <Skeleton height={16} width={80} />
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <Skeleton height={16} width={60} />
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <Skeleton height={16} width={60} />
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <Skeleton height={16} width={60} />
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <Skeleton height={16} width={60} />
-                            </td>
-                          </tr>
-                        ))
-                      : overview?.monthlyBreakdown.map((month: any) => {
-                          const balanceColor = getBalanceColor(month.balance);
-                          return (
-                            <tr
-                              key={`${month.year}-${month.month}`}
-                              className="hover:bg-gray-50"
-                            >
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                {new Date(
-                                  month.year,
-                                  month.month - 1,
-                                ).toLocaleDateString("en-US", {
-                                  year: "numeric",
-                                  month: "short",
-                                })}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
-                                ₹{formatCurrency(month.gross)}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-orange-600 font-medium">
-                                ₹{formatCurrency(month.deductions)}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600 font-medium">
-                                ₹{formatCurrency(month.paid)}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                <span className={balanceColor.text}>
-                                  {month.balance >= 0
-                                    ? "Receivable"
-                                    : "Payable"}
-                                  : ₹{formatCurrency(Math.abs(month.balance))}
-                                </span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
 
             {/* Recent Transactions */}
             <div className="bg-white/90 backdrop-blur-sm rounded-xl p-6 border border-gray-200/50">

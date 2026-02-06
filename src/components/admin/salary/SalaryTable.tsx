@@ -14,6 +14,7 @@ import { CheckCircle, Clock, FileText, XCircle } from "lucide-react";
 import MarkPaidModal from "@/components/admin/MarkPaidModal";
 import { formatCurrency } from "@/lib/utils";
 import { SalaryRecord } from "@/types/salary";
+import { useRouter } from "next/navigation";
 
 interface SalaryTableProps {
   records: SalaryRecord[];
@@ -72,6 +73,7 @@ export default function SalaryTable({
     month: 0,
     year: 0,
   });
+  const router = useRouter();
   const [markPaidLoading, setMarkPaidLoading] = useState(false);
   const handleOpenMarkPaidModal = (salary: SalaryRecord) => {
     setMarkPaidModal({
@@ -215,7 +217,12 @@ export default function SalaryTable({
 
                   return (
                     <tr key={record.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td
+                        onClick={() =>
+                          router.push(`/admin/users/${record.user.id}`)
+                        }
+                        className="px-6 py-4 whitespace-nowrap"
+                      >
                         <div className="text-sm font-medium text-gray-900">
                           {record.user?.firstName || ""}{" "}
                           {record.user?.lastName || ""}

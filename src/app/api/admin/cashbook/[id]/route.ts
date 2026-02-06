@@ -118,6 +118,7 @@ export async function PUT(
         await tx.salaryLedger.update({
           where: { id: linkedLedger.id },
           data: {
+            createdAt: transactionDate ? new Date(transactionDate) : undefined,
             amount: ledgerAmount,
             reason: description,
           },

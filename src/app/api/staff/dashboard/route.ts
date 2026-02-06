@@ -54,8 +54,8 @@ export async function GET() {
 
     const response = NextResponse.json(dashboardData);
 
-    // Cache for 60 seconds
-    response.headers.set("Cache-Control", "public, s-maxage=60");
+    // Cache for 10 seconds
+    response.headers.set("Cache-Control", "public, s-maxage=10");
 
     return response;
   } catch (error) {

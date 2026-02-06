@@ -96,6 +96,16 @@ export function debounce<T extends (...args: any[]) => any>(
     timeout = setTimeout(() => func(...args), wait);
   };
 }
+export function formatLocalDate(date: string | Date) {
+  return new Date(date).toLocaleDateString("en-CA"); // YYYY-MM-DD
+}
+export function parseISTDate(dateStr: string): Date {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    throw new Error("Invalid date format. Expected YYYY-MM-DD");
+  }
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d, 0, 0, 0));
+}
 
 export function throttle<T extends (...args: any[]) => any>(
   func: T,

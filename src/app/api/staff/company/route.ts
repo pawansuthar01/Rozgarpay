@@ -36,13 +36,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Cache for 1 hour at CDN, 1 hour in browser
     const response = NextResponse.json({
       company: staff.company,
     });
     response.headers.set(
       "Cache-Control",
-      "public, s-maxage=3600, stale-while-revalidate=3600",
+      "public, s-maxage=30, stale-while-revalidate=30",
     );
     return response;
   } catch (error) {

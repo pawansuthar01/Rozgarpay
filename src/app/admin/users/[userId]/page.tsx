@@ -211,7 +211,7 @@ export default function UserProfilePage() {
                     </p>
                   </div>
                   <div className="bg-red-100 p-3 rounded-lg">
-                    <DollarSign className="h-6 w-6 text-red-600" />
+                    <IndianRupee className="h-6 w-6 text-red-600" />
                   </div>
                 </div>
               </div>
@@ -234,7 +234,7 @@ export default function UserProfilePage() {
                         <p
                           className={`text-xl sm:text-2xl font-bold ${balanceColor.text} mt-1`}
                         >
-                          ₹{formatCurrency(Math.abs(netPos))}
+                          ₹{formatCurrency(netPos)}
                         </p>
                       </div>
                       <div className={`${balanceColor.bg} p-3 rounded-lg`}>
@@ -283,7 +283,7 @@ export default function UserProfilePage() {
                       Net Amount
                     </p>
                     <p className="text-xl sm:text-2xl font-bold text-blue-700 mt-1">
-                      {formatCurrency(thisMonthData?.netAmount || 0)}
+                      ₹{formatCurrency(thisMonthData?.netAmount || 0)}
                     </p>
                   </div>
                   <div className="bg-green-50 p-4 rounded-lg">
@@ -291,7 +291,7 @@ export default function UserProfilePage() {
                       Total Paid
                     </p>
                     <p className="text-xl sm:text-2xl font-bold text-green-700 mt-1">
-                      {formatCurrency(thisMonthData?.totalPaid || 0)}
+                      ₹{formatCurrency(thisMonthData?.totalPaid || 0)}
                     </p>
                   </div>
                   <div className="bg-red-50 p-4 rounded-lg">
@@ -299,7 +299,7 @@ export default function UserProfilePage() {
                       Recoveries
                     </p>
                     <p className="text-xl sm:text-2xl font-bold text-red-700 mt-1">
-                      {formatCurrency(thisMonthData?.totalRecovered || 0)}
+                      ₹{formatCurrency(thisMonthData?.totalRecovered || 0)}
                     </p>
                   </div>
                   <div className="bg-yellow-50 p-4 rounded-lg">
@@ -307,7 +307,7 @@ export default function UserProfilePage() {
                       Balance
                     </p>
                     <p className="text-xl sm:text-2xl font-bold text-yellow-700 mt-1">
-                      {formatCurrency(thisMonthData?.balanceAmount || 0)}
+                      ₹{formatCurrency(thisMonthData?.balanceAmount || 0)}
                     </p>
                   </div>
                 </>
@@ -434,10 +434,10 @@ export default function UserProfilePage() {
                         {getMonthName(record.month)} {record.year}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                        {formatCurrency(record.grossAmount)}
+                        ₹{formatCurrency(record.grossAmount)}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 font-medium">
-                        {formatCurrency(record.netAmount)}
+                        ₹{formatCurrency(record.netAmount)}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span

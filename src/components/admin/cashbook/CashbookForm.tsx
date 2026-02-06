@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { X, Save } from "lucide-react";
 import { CreateCashbookEntryRequest } from "@/types/cashbook";
+import { formatLocalDate } from "@/lib/utils";
 
 interface CashbookFormProps {
   onSubmit: (data: CreateCashbookEntryRequest) => void;
@@ -31,8 +32,8 @@ export default function CashbookForm({
     reference: editEntry?.reference,
     notes: editEntry?.notes,
     transactionDate: editEntry?.transactionDate
-      ? new Date(editEntry.transactionDate).toISOString().split("T")[0]
-      : undefined,
+      ? formatLocalDate(editEntry.transactionDate)
+      : formatLocalDate(new Date()),
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -221,8 +222,6 @@ export default function CashbookForm({
                     </label>
                     <input
                       type="number"
-                      step="0.01"
-                      min="0"
                       value={formData.amount}
                       onChange={(e) =>
                         handleChange("amount", parseFloat(e.target.value) || 0)

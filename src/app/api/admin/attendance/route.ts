@@ -70,26 +70,21 @@ export async function GET(request: NextRequest) {
 
     // Date range filter - default to last 30 days
     if (startDate && endDate) {
-      where.attendanceDate = {
-        gte: getDate(new Date(startDate)),
-        lte: getDate(new Date(endDate)),
-      };
+      const start = getDate(new Date(startDate));
+      const end = getDate(new Date(endDate));
+      end.setUTCHours(23, 59, 59, 999);
+      where.attendanceDate = { gte: start, lte: end };
     } else if (startDate) {
-      where.attendanceDate = {
-        gte: getDate(new Date(startDate)),
-      };
+      where.attendanceDate = { gte: getDate(new Date(startDate)) };
     } else if (endDate) {
-      where.attendanceDate = {
-        lte: getDate(new Date(endDate)),
-      };
+      const end = getDate(new Date(endDate));
+      end.setUTCHours(23, 59, 59, 999);
+      where.attendanceDate = { lte: end };
     } else {
-      where.attendanceDate = {
-        gte: getDate(
-          new Date(
-            getDate(new Date()).setDate(getDate(new Date()).getDate() - 30),
-          ),
-        ),
-      };
+      // ✅ DEFAULT LAST 30 DAYS
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      where.attendanceDate = { gte: getDate(thirtyDaysAgo) };
     }
 
     // Calculate pagination
@@ -112,6 +107,7 @@ export async function GET(request: NextRequest) {
           isLate: true,
           user: {
             select: {
+              id: true,
               firstName: true,
               lastName: true,
               phone: true,
@@ -157,8 +153,7 @@ export async function GET(request: NextRequest) {
       { name: "Rejected", value: stats.rejected, color: "#EF4444" },
     ];
 
-    // Build response with caching headers
-    const response = NextResponse.json({
+    return NextResponse.json({
       records,
       pagination: {
         page,
@@ -173,14 +168,6 @@ export async function GET(request: NextRequest) {
         dailyTrends: [],
       },
     });
-
-    // Cache for 15 seconds, stale-while-revalidate for 1 minute
-    response.headers.set(
-      "Cache-Control",
-      "public, s-maxage=15, stale-while-revalidate=60",
-    );
-
-    return response;
   } catch (error) {
     console.error("Attendance fetch error:", error);
     return NextResponse.json(

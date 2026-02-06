@@ -243,6 +243,7 @@ export default function AdminSalaryPage() {
             )}
 
             <SalaryTable
+              showActions={true}
               records={records}
               loading={loading}
               currentPage={currentPage}

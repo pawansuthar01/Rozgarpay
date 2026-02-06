@@ -76,6 +76,13 @@ export function getDate(nowUtc: Date, timeZone: string = "Asia/Kolkata"): Date {
   // Convert local date → UTC before saving to DB
   return fromZonedTime(baseDate, timeZone);
 }
+export function getISTMonthYear(date: Date) {
+  const ist = toZonedTime(date, "Asia/Kolkata");
+  return {
+    month: ist.getMonth() + 1,
+    year: ist.getFullYear(),
+  };
+}
 
 // ================= LOCATION =================
 export function calculateDistance(

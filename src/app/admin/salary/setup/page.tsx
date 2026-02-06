@@ -42,7 +42,6 @@ export default function AdminSalarySetupPage() {
     limit: itemsPerPage,
     search: searchTerm,
   });
-  console.log(data);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 

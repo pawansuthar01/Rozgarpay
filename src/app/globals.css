@@ -58,6 +58,13 @@
 html {
   touch-action: manipulation;
 }
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
 
 /* Prevent zoom on input fields for iOS */
 input,

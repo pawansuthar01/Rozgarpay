@@ -209,6 +209,11 @@ function validateMonth(month: number): void {
     throw new Error(`Invalid month: ${month}. Must be between 1 and 12.`);
   }
 }
+export function getISTMonthRange(year: number, month: number) {
+  const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+  const end = new Date(Date.UTC(year, month, 1, 0, 0, 0));
+  return { start, end };
+}
 
 function validateYear(year: number): void {
   const currentYear = new Date().getFullYear() + 1;
@@ -1005,13 +1010,11 @@ export class SalaryService {
     month: number,
     year: number,
   ): Promise<AttendanceSummary> {
-    const startDate = getDate(new Date(year, month - 1, 1));
-    const endDate = getDate(new Date(year, month, 1));
-
+    const { start, end } = getISTMonthRange(year, month);
     if (user.joiningDate) {
-      const joinDate = new Date(user.joiningDate);
-      if (joinDate > startDate) {
-        startDate.setDate(joinDate.getDate());
+      const join = new Date(user.joiningDate);
+      if (join > start && join < end) {
+        start.setTime(join.getTime());
       }
     }
 
@@ -1025,8 +1028,8 @@ export class SalaryService {
         userId,
         companyId,
         attendanceDate: {
-          gte: startDate,
-          lt: endDate,
+          gte: start,
+          lt: end,
         },
       },
       select: {

@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { salaryService } from "@/lib/salaryService";
 import { authOptions } from "@/lib/auth";
-import { getApprovedWorkingHours, getDate } from "@/lib/attendanceUtils";
+import { getDate, getISTMonthYear } from "@/lib/attendanceUtils";
 import { getCurrentTime } from "@/lib/utils";
 
 // Cache for 30 seconds
@@ -102,12 +102,6 @@ export async function GET(
         attendanceTrends,
       },
     });
-
-    // Cache for 30 seconds
-    response.headers.set(
-      "Cache-Control",
-      "public, s-maxage=30, stale-while-revalidate=60",
-    );
 
     return response;
   } catch (error) {
@@ -260,13 +254,9 @@ export async function PUT(request: NextRequest, { params }: any) {
     // Fire-and-forget salary recalculation
     setImmediate(async () => {
       try {
-        const attendanceLocal = getDate(
-          new Date(updatedAttendance.attendanceDate),
-          "Asia/Kolkata",
+        const { month, year } = getISTMonthYear(
+          updatedAttendance.attendanceDate,
         );
-        const month = attendanceLocal.getMonth() + 1;
-        const year = attendanceLocal.getFullYear();
-
         const existingSalary = await prisma.salary.findUnique({
           where: {
             userId_month_year: {

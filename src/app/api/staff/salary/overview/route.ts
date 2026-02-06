@@ -9,7 +9,6 @@ import {
   calculateTotalRecoveries,
   calculateTotalEarnings,
   roundToTwoDecimals,
-  getMonthName,
 } from "@/lib/salaryService";
 
 export const dynamic = "force-dynamic";
@@ -32,18 +31,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get current month/year in Asia/Kolkata for efficient filtering
-    const nowLocal = toZonedTime(new Date(), "Asia/Kolkata");
-    const currentMonth = nowLocal.getMonth() + 1;
-    const currentYear = nowLocal.getFullYear();
-
-    // Get user info including joining date
+    // Get user info
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { joiningDate: true, firstName: true, lastName: true },
     });
 
-    // Fetch ALL salaries for lifetime calculations (no limit)
+    // Fetch all salaries for lifetime calculations
     const allSalaries = await prisma.salary.findMany({
       where: {
         userId,
@@ -79,10 +73,8 @@ export async function GET(request: NextRequest) {
     });
 
     // ========================================
-    // LIFETIME SUMMARY (Only Salary Ledger)
+    // LIFETIME BALANCE (Net Position)
     // ========================================
-    // Formula: Net Position = Total Net Salary - Total Payments - Total Recoveries
-    // Only count salaryLedger transactions (PAYMENT, RECOVERY, DEDUCTION)
     let lifetimeTotalNetSalary = 0;
     let lifetimeTotalSalaryPayments = 0;
     let lifetimeTotalRecoveries = 0;
@@ -103,73 +95,7 @@ export async function GET(request: NextRequest) {
       lifetimeTotalRecoveries;
 
     // ========================================
-    // CURRENT MONTH (Only Salary Ledger)
-    // ========================================
-    const currentSalary = allSalaries.find(
-      (s) => s.month === currentMonth && s.year === currentYear,
-    );
-
-    const currentMonthData = currentSalary
-      ? {
-          gross: roundToTwoDecimals(
-            calculateTotalEarnings(currentSalary.breakdowns),
-          ),
-          deductions: roundToTwoDecimals(
-            calculateTotalRecoveries(currentSalary.ledger),
-          ),
-          paid: roundToTwoDecimals(
-            calculateTotalPayments(currentSalary.ledger),
-          ),
-          balance: roundToTwoDecimals(
-            calculateSalaryBalance(
-              currentSalary.netAmount,
-              currentSalary.ledger,
-            ),
-          ),
-          earnings: currentSalary.breakdowns.filter((b) =>
-            ["BASE_SALARY", "OVERTIME"].includes(b.type),
-          ),
-          payments: currentSalary.ledger.filter((l) => l.type === "PAYMENT"),
-          extraDeductions: currentSalary.ledger.filter(
-            (l) => l.type === "DEDUCTION" || l.type === "RECOVERY",
-          ),
-        }
-      : {
-          gross: 0,
-          deductions: 0,
-          paid: 0,
-          balance: 0,
-          earnings: [],
-          payments: [],
-          extraDeductions: [],
-        };
-
-    // ========================================
-    // MONTHLY BREAKDOWN
-    // ========================================
-    const recentSalaries = allSalaries.slice(0, 24);
-
-    const monthlyBreakdown = recentSalaries.map((salary) => {
-      const payments = calculateTotalPayments(salary.ledger);
-      const recoveries = calculateTotalRecoveries(salary.ledger);
-      const balance = calculateSalaryBalance(salary.netAmount, salary.ledger);
-      const earnings = calculateTotalEarnings(salary.breakdowns);
-
-      return {
-        month: salary.month,
-        year: salary.year,
-        period: `${getMonthName(salary.month)} ${salary.year}`,
-        gross: roundToTwoDecimals(earnings),
-        deductions: roundToTwoDecimals(recoveries),
-        paid: roundToTwoDecimals(payments),
-        balance: roundToTwoDecimals(balance),
-        net: roundToTwoDecimals(salary.netAmount),
-        status: salary.status,
-      };
-    });
-
-    // ========================================
-    // RECENT TRANSACTIONS (Only Salary Ledger)
+    // RECENT TRANSACTIONS (Only from all salaries)
     // ========================================
     const allLedgers = allSalaries.flatMap((s) =>
       s.ledger.map((l) => ({
@@ -182,7 +108,7 @@ export async function GET(request: NextRequest) {
         (a, b) =>
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       )
-      .slice(0, 50)
+      .slice(0, 10)
       .map((ledger) => ({
         id: ledger.id,
         type: ledger.type,
@@ -193,7 +119,7 @@ export async function GET(request: NextRequest) {
       }));
 
     // ========================================
-    // RESPONSE
+    // RESPONSE - No caching for fresh data
     // ========================================
     return NextResponse.json(
       {
@@ -202,23 +128,15 @@ export async function GET(request: NextRequest) {
           lastName: user?.lastName,
           joiningDate: user?.joiningDate,
         },
-        lifetimeTotals: {
-          // Total Earnings (Net Salary)
-          totalSalary: roundToTwoDecimals(lifetimeTotalNetSalary),
-          // Only Salary Payments (from salaryLedger)
-          totalPaid: roundToTwoDecimals(lifetimeTotalSalaryPayments),
-          // Recoveries from salaryLedger
-          totalRecoveries: roundToTwoDecimals(lifetimeTotalRecoveries),
-          // Net Position
-          netPosition: roundToTwoDecimals(lifetimeNetPosition),
-        },
-        currentMonth: currentMonthData,
-        monthlyBreakdown,
+        lifetimeBalance: roundToTwoDecimals(lifetimeNetPosition),
         recentTransactions,
       },
       {
         headers: {
-          "Cache-Control": "public, s-maxage=120, stale-while-revalidate=60",
+          // Disable all caching for fresh data
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
         },
       },
     );

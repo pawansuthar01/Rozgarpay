@@ -47,10 +47,10 @@ export async function POST(
       );
     }
 
-    // 🔹 Current month salary
-    const now = getDate(new Date());
-    const month = now.getMonth() + 1;
-    const year = now.getFullYear();
+    // 🔹 Determine month/year from the selected recoverDate instead of current date
+    const recoverDateObj = getDate(new Date(recoverDate));
+    const month = recoverDateObj.getMonth() + 1;
+    const year = recoverDateObj.getFullYear();
 
     let salary = await prisma.salary.findFirst({
       where: { userId, companyId, month, year },
@@ -103,6 +103,7 @@ export async function POST(
         data: {
           salaryId: salary!.id,
           userId,
+          createdAt: getDate(new Date(recoverDate)),
           companyId,
           type: "RECOVERY",
           amount: -parsedAmount, // 🔴 negative impact on salary

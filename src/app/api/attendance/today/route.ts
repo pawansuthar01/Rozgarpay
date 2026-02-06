@@ -16,13 +16,20 @@ export async function GET(request: NextRequest) {
     if (!companyId) {
       return NextResponse.json({ error: "Company not found" }, { status: 400 });
     }
-    const attendanceDate = getDate(new Date());
+
+    const today = getDate(new Date());
+    const startOfDay = today;
+    const endOfDay = new Date(today);
+    endOfDay.setUTCHours(23, 59, 59, 999);
 
     const attendanceRecord = await prisma.attendance.findFirst({
       where: {
         userId,
         companyId,
-        attendanceDate,
+        attendanceDate: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
       },
       select: {
         id: true,
@@ -39,8 +46,7 @@ export async function GET(request: NextRequest) {
       attendance: attendanceRecord,
     });
 
-    // Cache for 30 seconds
-    response.headers.set("Cache-Control", "public, s-maxage=30");
+    response.headers.set("Cache-Control", "private, no-store, max-age=0");
 
     return response;
   } catch (error) {

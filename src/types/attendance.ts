@@ -2,6 +2,7 @@ export interface AttendanceRecord {
   id: string;
   userId: string;
   user: {
+    id: string;
     firstName: string | null;
     lastName: string | null;
     phone: string;

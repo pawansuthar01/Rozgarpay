@@ -51,8 +51,8 @@ export function useStaffAttendance(year: number, month: number) {
         throw error;
       }
     },
-    staleTime: 1000 * 60 * 5, // 5 minutes for monthly data
-    gcTime: 1000 * 60 * 30, // 30 minutes cache
+    staleTime: 1000 * 20, // 5 minutes for monthly data
+    gcTime: 1000 * 60, // 30 minutes cache
   });
 }
 
@@ -90,7 +90,7 @@ export function useTodayAttendance() {
       }
     },
     staleTime: 1000 * 30, // 30 seconds - balance freshness with performance
-    gcTime: 1000 * 60 * 5, // 5 minutes cache
+    gcTime: 1000 * 60 * 1, // 5 minutes cache
     refetchOnWindowFocus: true, // Refetch when window regains focus
     retry: 2, // Retry twice on failure
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000), // Exponential backoff
@@ -135,8 +135,8 @@ export function useCompanySettings() {
         throw error;
       }
     },
-    staleTime: 1000 * 60 * 60, // 1 hour - rarely changes
-    gcTime: 1000 * 60 * 60 * 24, // 24 hours cache
+    staleTime: 1000 * 60 * 6, // 1 hour - rarely changes
+    gcTime: 1000 * 60 * 60, // 24 hours cache
   });
 }
 
