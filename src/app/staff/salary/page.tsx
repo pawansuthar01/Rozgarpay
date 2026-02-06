@@ -523,7 +523,7 @@ export default function StaffSalaryOverviewPage() {
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                               <div className="text-center p-4 bg-green-50 rounded-lg">
                                 <p className="text-sm text-green-700 font-medium">
-                                  Earnings (Kita Lena)
+                                  Earnings
                                 </p>
                                 <p className="text-xl font-bold text-green-600">
                                   ₹{formatCurrency(grossEarnings)}
@@ -531,7 +531,7 @@ export default function StaffSalaryOverviewPage() {
                               </div>
                               <div className="text-center p-4 bg-orange-50 rounded-lg">
                                 <p className="text-sm text-orange-700 font-medium">
-                                  Recoveries (Jo Kissa)
+                                  Recoveries
                                 </p>
                                 <p className="text-xl font-bold text-orange-600">
                                   ₹{formatCurrency(totalDeductionsAll)}
@@ -539,7 +539,7 @@ export default function StaffSalaryOverviewPage() {
                               </div>
                               <div className="text-center p-4 bg-blue-50 rounded-lg">
                                 <p className="text-sm text-blue-700 font-medium">
-                                  Received (Jo Mila)
+                                  Received
                                 </p>
                                 <p className="text-xl font-bold text-blue-600">
                                   ₹{formatCurrency(totalPayments)}
