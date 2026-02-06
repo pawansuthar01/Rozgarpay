@@ -146,10 +146,10 @@ export type {
 // ============================================================================
 
 const STALE_TIMES = {
-  LIST: 1000 * 60 * 2, // 2 minutes - changes occasionally
-  TODAY: 1000 * 60 * 1, // 1 minute - changes frequently
-  DETAIL: 1000 * 60 * 5, // 5 minutes - detailed data changes rarely
-  REPORTS: 1000 * 60 * 5, // 5 minutes - reports are expensive
+  LIST: 1000 * 60 * 1, // 1 minute - changes frequently
+  TODAY: 1000 * 30, // 30 seconds - changes frequently
+  DETAIL: 1000 * 60 * 2, // 2 minutes - detailed data changes rarely
+  REPORTS: 1000 * 60 * 2, // 2 minutes - reports are expensive
 } as const;
 
 // ============================================================================
@@ -279,7 +279,7 @@ export function useAttendance(params?: {
         records: [],
         pagination: {
           page: params?.page || 1,
-          limit: params?.limit || 10,
+          limit: params?.limit || 5,
           total: 0,
           totalPages: 0,
         },
@@ -558,7 +558,7 @@ export function useAttendanceReports(params?: {
 }
 
 /**
- * Missing attendance query
+ * Missing attendance query - faster loading with caching
  */
 export function useMissingAttendance(params?: {
   date?: string;
@@ -581,6 +581,19 @@ export function useMissingAttendance(params?: {
       }
       return response.json() as Promise<MissingStaffResponse>;
     },
+    staleTime: 1000 * 30, // 30 seconds - data changes when marked
+    gcTime: 1000 * 60 * 5, // 5 minutes
+    placeholderData: (previousData) =>
+      previousData ?? {
+        missingStaff: [],
+        totalMissing: 0,
+        pagination: {
+          page: params?.page || 1,
+          limit: params?.limit || 5,
+          total: 0,
+          totalPages: 0,
+        },
+      },
   });
 }
 

@@ -87,38 +87,41 @@ export async function POST(
         );
       }
     }
+    const parsedAmount = Math.abs(parseFloat(amount));
 
-    // Add deduction to ledger
-    await prisma.salaryLedger.create({
-      data: {
-        salaryId: salary.id,
-        userId,
-        companyId,
-        type: "DEDUCTION",
-        amount: -Math.abs(parseFloat(amount)), // Negative for deductions
-        reason: description || `Deduction (${cycle})`,
-        createdBy: session.user.id,
-      },
-    });
+    await prisma.$transaction(async (tx) => {
+      // 1️⃣ Create cashbook entry first
+      const cashbookEntry = await tx.cashbookEntry.create({
+        data: {
+          companyId,
+          userId,
+          transactionType: "EXPENSE", // deduction = company recovers money
+          direction: "CREDIT",
+          amount: parsedAmount,
+          reference: salary.id,
+          description: description || `Salary deduction (${cycle})`,
+          notes: `Deduction cycle: ${cycle}`,
+          transactionDate: getDate(new Date(recordDate)),
+          createdBy: session.user.id,
+        },
+      });
 
-    // Create cashbook entry for deduction (CREDIT - company receives money back)
-    await prisma.cashbookEntry.create({
-      data: {
-        companyId,
-        userId,
-        transactionType: "EXPENSE", // Deductions are like expenses recovered
-        direction: "CREDIT",
-        amount: Math.abs(parseFloat(amount)),
-        reference: salary.id,
-        description: description || `Salary deduction (${cycle})`,
-        notes: `Deduction cycle: ${cycle}`,
-        transactionDate: getDate(new Date(recordDate)),
-        createdBy: session.user.id,
-      },
+      await tx.salaryLedger.create({
+        data: {
+          salaryId: salary.id,
+          userId,
+          companyId,
+          type: "DEDUCTION",
+          amount: -parsedAmount,
+          reason: description || `Deduction (${cycle})`,
+          cashbookEntryId: cashbookEntry.id,
+          createdBy: session.user.id,
+        },
+      });
     });
 
     // Create audit log
-    await prisma.auditLog.create({
+    prisma.auditLog.create({
       data: {
         userId: session.user.id,
         action: "CREATED",

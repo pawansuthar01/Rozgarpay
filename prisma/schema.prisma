@@ -402,11 +402,14 @@ model SalaryLedger {
   createdBy   String          @db.Uuid
   createdAt   DateTime        @default(now())
 
+  cashbookEntryId String?  @db.Uuid  
   salary      Salary          @relation(fields: [salaryId], references: [id])
   user        User            @relation("LedgerUser", fields: [userId], references: [id])
   company     Company         @relation(fields: [companyId], references: [id])
   creator     User            @relation("LedgerCreatedBy", fields: [createdBy], references: [id])
+  cashbookEntry   CashbookEntry? @relation(fields: [cashbookEntryId], references: [id])
 
+  @@index([cashbookEntryId])
   @@index([salaryId])
   @@index([userId])
   @@index([companyId])
@@ -438,7 +441,7 @@ model CashbookEntry {
   creator         User                   @relation("CashbookCreator", fields: [createdBy], references: [id])
   reversedEntry   CashbookEntry?         @relation("CashbookReversal", fields: [reversalOf], references: [id], onDelete: Restrict, onUpdate: Restrict)
   reversals       CashbookEntry[]        @relation("CashbookReversal")
-
+  salaryLedgers   SalaryLedger[] 
   @@index([companyId, transactionDate])
   @@index([companyId, direction])
   @@index([companyId, userId])

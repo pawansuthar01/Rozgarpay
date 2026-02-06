@@ -174,10 +174,10 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Cache for 30 seconds, stale-while-revalidate for 2 minutes
+    // Cache for 15 seconds, stale-while-revalidate for 1 minute
     response.headers.set(
       "Cache-Control",
-      "public, s-maxage=30, stale-while-revalidate=120",
+      "public, s-maxage=15, stale-while-revalidate=60",
     );
 
     return response;

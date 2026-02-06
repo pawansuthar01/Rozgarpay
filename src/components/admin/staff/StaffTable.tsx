@@ -5,7 +5,7 @@ import {
   Eye,
   Check,
   X,
-  DollarSign,
+  IndianRupee,
   Calendar,
   FileText,
 } from "lucide-react";

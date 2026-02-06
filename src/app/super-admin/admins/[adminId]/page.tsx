@@ -14,7 +14,7 @@ import {
   PauseCircle,
   ArrowLeft,
   Users,
-  DollarSign,
+  IndianRupee,
   Activity,
   Edit,
   Trash2,
@@ -292,7 +292,7 @@ export default function AdminDetailsPage() {
                   <div className="flex items-center mt-2">
                     <span
                       className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${getStatusColor(
-                        admin.status
+                        admin.status,
                       )}`}
                     >
                       {getStatusIcon(admin.status)}
@@ -396,7 +396,7 @@ export default function AdminDetailsPage() {
                     {admin._count.salaries}
                   </p>
                 </div>
-                <DollarSign className="h-8 w-8 text-purple-600" />
+                <IndianRupee className="h-8 w-8 text-purple-600" />
               </div>
             </div>
           </div>
@@ -468,7 +468,7 @@ export default function AdminDetailsPage() {
                     </label>
                     <span
                       className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(
-                        admin.company.status
+                        admin.company.status,
                       )}`}
                     >
                       {getStatusIcon(admin.company.status)}

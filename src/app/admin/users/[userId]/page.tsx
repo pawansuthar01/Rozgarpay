@@ -3,7 +3,7 @@
 import { useSession } from "next-auth/react";
 import Loading from "@/components/ui/Loading";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Skeleton from "react-loading-skeleton";
@@ -11,132 +11,85 @@ import "react-loading-skeleton/dist/skeleton.css";
 
 import {
   ArrowLeft,
-  User,
-  Mail,
   Phone,
-  Calendar,
-  CheckCircle,
-  XCircle,
-  Clock,
   IndianRupee,
-  UserCheck,
-  UserX,
-  AlertTriangle,
+  Calendar,
   ChevronLeft,
   ChevronRight,
-  RotateCcw,
-  Plus,
+  TrendingUp,
+  Wallet,
+  ChevronDown,
+  Clock,
+  DollarSign,
 } from "lucide-react";
-import SalaryActionModal from "@/components/admin/SalaryActionModal";
-import CashbookForm from "@/components/admin/cashbook/CashbookForm";
-import { CreateCashbookEntryRequest } from "@/types/cashbook";
 import { useUserProfile } from "@/hooks/useUserProfile";
-import { useCreateCashbookEntry } from "@/hooks/useCashbook";
 import { bgColorRadom, formatCurrency } from "@/lib/utils";
-import { useModal } from "@/components/ModalProvider";
-
-interface UserProfile {
-  id: string;
-  firstName: string | null;
-  lastName: string | null;
-  email: string;
-  phone: string;
-  role: string;
-  status: string;
-  createdAt: string;
-  onboardingCompleted: boolean;
-}
-
-interface AttendanceSummary {
-  total: number;
-  approved: number;
-  pending: number;
-  rejected: number;
-  statusData: Array<{ name: string; value: number; color: string }>;
-  monthlyTrend: any[];
-}
-
-interface SalarySummary {
-  totalRecords: number;
-  totalGross: number;
-  totalNet: number;
-  monthlyTrend: any[];
-}
-
-interface UserData {
-  user: UserProfile;
-  attendanceSummary: AttendanceSummary;
-  salarySummary: SalarySummary;
-  attendanceRecords: {
-    data: any[];
-    pagination: { page: number; totalPages: number; total: number };
-  };
-  salaryRecords: {
-    data: any[];
-    pagination: { page: number; totalPages: number; total: number };
-  };
-}
 
 export default function UserProfilePage() {
-  const { data: session } = useSession();
-  const { showMessage } = useModal();
   const params = useParams();
   const router = useRouter();
   const userId = params.userId as string;
 
-  const [salaryPage, setSalaryPage] = useState(1);
-  const [salaryModalOpen, setSalaryModalOpen] = useState(false);
-  const [actionLoading, setActionLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [showThisMonth, setShowThisMonth] = useState(true);
 
-  const { userData, currentMonthData, loading, error, updateStatus } =
-    useUserProfile(userId, salaryPage);
+  const { userData, loading } = useUserProfile(userId, page);
 
-  const handleStatusChange = async (
-    newStatus: "ACTIVE" | "SUSPENDED" | "DEACTIVATED",
-  ) => {
-    if (
-      !confirm(`Are you sure you want to ${newStatus.toLowerCase()} this user?`)
-    ) {
-      return;
-    }
-
-    setActionLoading(true);
-    try {
-      await updateStatus(newStatus);
-    } catch (error) {
-      console.error("Failed to update user status:", error);
-      showMessage("error", "Error", "Failed to update user status");
-    } finally {
-      setActionLoading(false);
-    }
+  const getMonthName = (month: number) => {
+    const date = new Date(2000, month - 1, 1);
+    return date.toLocaleString("default", { month: "short" });
   };
 
-  const handleSalaryAction = (action: string) => {
-    switch (action) {
-      case "add_payment":
-      case "add_earning":
-        router.push(`/admin/users/${userId}/add-payment`);
-        break;
-      case "recover_payment":
-      case "recover_earning":
-        router.push(`/admin/users/${userId}/recover-payment`);
-        break;
-      case "add_deduction":
-        router.push(`/admin/users/${userId}/add-deduction`);
-        break;
-      default:
-        showMessage("info", "UnKnown", `Unknown action: ${action}`);
-    }
-  };
+  const now = new Date();
+  const currentMonthNum = now.getMonth() + 1;
+  const currentYear = now.getFullYear();
+  const thisMonthName = getMonthName(currentMonthNum);
 
-  if (!session || session.user.role !== "ADMIN") {
-    return <Loading />;
-  }
+  const StatsSkeleton = () => (
+    <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200">
+      <div className="flex items-center justify-between">
+        <div>
+          <Skeleton height={12} width={60} />
+          <Skeleton height={28} width={100} className="mt-2" />
+        </div>
+        <Skeleton circle width={40} height={40} />
+      </div>
+    </div>
+  );
+
+  const totalPages = userData?.salaryRecords?.pagination?.totalPages ?? 0;
+  const totals = userData?.totals;
+  const thisMonthData = userData?.thisMonthData;
+  const salaryData = userData?.salaryRecords?.data ?? [];
+
+  // Helper to get color based on balance
+  const getBalanceColor = (balance: number) => {
+    if (balance > 0)
+      return {
+        bg: "bg-green-50",
+        text: "text-green-600",
+        label: "text-green-700",
+        border: "border-green-200",
+      };
+    if (balance < 0)
+      return {
+        bg: "bg-red-50",
+        text: "text-red-600",
+        label: "text-red-700",
+        border: "border-red-200",
+      };
+    return {
+      bg: "bg-gray-50",
+      text: "text-gray-600",
+      label: "text-gray-700",
+      border: "border-gray-200",
+    };
+  };
 
   return (
-    <div className="space-y-6 sm:p-4 md:p-6 max-w-7xl mx-auto">
+    <div className="space-y-6 sm:p-4 md:p-6 max-w-6xl mx-auto">
       {/* Header */}
-      <div className="flex gap-2    sm:items-center sm:justify-between ">
+      <div className="flex gap-2 sm:items-center sm:justify-between">
         <div className="flex items-center space-x-4">
           <Link
             href="/admin/users"
@@ -145,22 +98,23 @@ export default function UserProfilePage() {
             <ArrowLeft className="h-5 w-5 text-gray-600" />
           </Link>
           <div>
-            <h1 className="text-xl  sm:text-2xl md:text-3xl font-bold text-gray-900">
-              User Profile
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900">
+              Salary Overview
             </h1>
             <p className="mt-1 sm:mt-2 text-gray-600 text-sm sm:text-base">
-              View and manage user details
+              View and manage staff salary
             </p>
           </div>
         </div>
         <button
-          onClick={() => setSalaryModalOpen(true)}
+          onClick={() => router.push(`/admin/users/${userId}/add-payment`)}
           className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2 self-start sm:self-auto"
         >
           <IndianRupee className="h-4 w-4" />
-          <span>Salary</span>
+          <span>Add Payment</span>
         </button>
       </div>
+
       {/* User Profile Card */}
       <div className="bg-white shadow-sm rounded-lg border border-gray-200">
         <div className="px-2 py-1 sm:p-6">
@@ -170,27 +124,26 @@ export default function UserProfilePage() {
               <div className="flex-1">
                 <Skeleton height={24} width={200} />
                 <Skeleton height={16} width={150} />
-                <Skeleton height={16} width={120} />
               </div>
             </div>
-          ) : userData ? (
+          ) : userData?.user ? (
             <div className="flex gap-2 items-center space-y-4 sm:space-y-0 sm:space-x-6">
               <div
                 className={`h-16 w-16 ${bgColorRadom()} rounded-full flex items-center justify-center`}
               >
                 <span className="text-xl font-medium text-white">
-                  {userData?.user?.firstName?.charAt(0) ||
-                    userData?.user?.email.charAt(0).toUpperCase()}
+                  {userData.user.firstName?.charAt(0) ||
+                    userData.user.email.charAt(0).toUpperCase()}
                 </span>
               </div>
               <div className="flex-1 items-center">
                 <h2 className="text-xl font-semibold text-gray-900">
-                  {userData?.user?.firstName} {userData?.user?.lastName}
+                  {userData.user.firstName} {userData.user.lastName}
                 </h2>
                 <div className="mt-2 space-y-1 text-sm text-gray-600">
                   <div className="flex items-center">
                     <Phone className="h-4 w-4 mr-2" />
-                    {userData.user?.phone}
+                    {userData.user.phone}
                   </div>
                 </div>
               </div>
@@ -198,101 +151,187 @@ export default function UserProfilePage() {
           ) : null}
         </div>
       </div>
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2  lg:grid-cols-4 gap-4 md:gap-6">
-        <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs  font-medium text-gray-600">
-                Total Attendance
-              </p>
-              {loading ? (
-                <Skeleton height={36} width={50} />
-              ) : (
-                userData?.attendanceSummary && (
-                  <p className="text-xl sm:text-2xl font-bold text-blue-600">
-                    {userData?.attendanceSummary?.total || 0}
-                  </p>
-                )
-              )}
-            </div>
-            <Calendar className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
-          </div>
-        </div>
 
-        <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs  font-medium text-gray-600">Approved</p>
-              {loading ? (
-                <Skeleton height={36} width={50} />
-              ) : (
-                userData?.attendanceSummary && (
-                  <p className="text-xl sm:text-2xl font-bold text-green-600">
-                    {userData?.attendanceSummary?.approved || 0}
-                  </p>
-                )
-              )}
-            </div>
-            <CheckCircle className="h-6 w-6 sm:h-8 sm:w-8 text-green-600" />
-          </div>
-        </div>
+      {/* Lifetime Summary - Salary Only */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <Calendar className="h-5 w-5 text-blue-600" />
+          Lifetime Summary (Salary Only)
+        </h3>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {loading ? (
+            <>
+              <StatsSkeleton />
+              <StatsSkeleton />
+              <StatsSkeleton />
+              <StatsSkeleton />
+            </>
+          ) : (
+            <>
+              <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-gray-600">
+                      Total Salary (Net)
+                    </p>
+                    <p className="text-xl sm:text-2xl font-bold text-blue-600 mt-1">
+                      {formatCurrency(totals?.totalGiven || 0)}
+                    </p>
+                  </div>
+                  <div className="bg-blue-100 p-3 rounded-lg">
+                    <IndianRupee className="h-6 w-6 text-blue-600" />
+                  </div>
+                </div>
+              </div>
 
-        <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-gray-600">Pending</p>
-              {loading ? (
-                <Skeleton height={36} width={50} />
-              ) : (
-                userData?.attendanceSummary && (
-                  <p className="text-xl sm:text-2xl  font-bold text-yellow-600">
-                    {userData?.attendanceSummary?.pending || 0}
-                  </p>
-                )
-              )}
-            </div>
-            <Clock className="h-6 w-6 sm:h-8 sm:w-8 text-yellow-600" />
-          </div>
-        </div>
+              <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-gray-600">
+                      Salary Payments
+                    </p>
+                    <p className="text-xl sm:text-2xl font-bold text-green-600 mt-1">
+                      {formatCurrency(totals?.totalPaid || 0)}
+                    </p>
+                  </div>
+                  <div className="bg-green-100 p-3 rounded-lg">
+                    <TrendingUp className="h-6 w-6 text-green-600" />
+                  </div>
+                </div>
+              </div>
 
-        <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs  font-medium text-gray-600">Amount Paid</p>
-              {loading ? (
-                <Skeleton height={36} width={50} />
-              ) : (
-                <p className="text-xl sm:text-2xl font-bold text-emerald-600">
-                  {(currentMonthData?.totalPaid || 0) > 0
-                    ? formatCurrency(
-                        (currentMonthData?.totalPaid || 0) -
-                          (currentMonthData?.totalRecovered || 0),
-                      )
-                    : 0}
-                </p>
-              )}
-            </div>
-            <IndianRupee className="h-6 w-6 sm:h-8 sm:w-8 text-green-600" />
-          </div>
+              <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-gray-600">
+                      Recoveries
+                    </p>
+                    <p className="text-xl sm:text-2xl font-bold text-red-600 mt-1">
+                      {formatCurrency(totals?.totalRecovered || 0)}
+                    </p>
+                  </div>
+                  <div className="bg-red-100 p-3 rounded-lg">
+                    <DollarSign className="h-6 w-6 text-red-600" />
+                  </div>
+                </div>
+              </div>
+
+              {(() => {
+                const netPos = totals?.netPosition || 0;
+                const balanceColor = getBalanceColor(netPos);
+                const isOwed = netPos >= 0;
+                return (
+                  <div
+                    className={`bg-white p-4 rounded-lg shadow-sm border ${balanceColor.border}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p
+                          className={`text-xs font-medium ${balanceColor.label}`}
+                        >
+                          {isOwed ? "Company Owes Staff" : "Staff Owes Company"}
+                        </p>
+                        <p
+                          className={`text-xl sm:text-2xl font-bold ${balanceColor.text} mt-1`}
+                        >
+                          ₹{formatCurrency(Math.abs(netPos))}
+                        </p>
+                      </div>
+                      <div className={`${balanceColor.bg} p-3 rounded-lg`}>
+                        <Wallet className={`h-6 w-6 ${balanceColor.text}`} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </>
+          )}
         </div>
       </div>
+
+      {/* This Month Section */}
+      <div className="bg-white shadow-sm rounded-lg border border-gray-200">
+        <button
+          onClick={() => setShowThisMonth(!showThisMonth)}
+          className="w-full px-4 py-4 sm:p-6 flex items-center justify-between hover:bg-gray-50 transition-colors"
+        >
+          <div className="flex items-center space-x-3">
+            <h3 className="text-lg font-semibold text-gray-900">
+              This Month (
+              {thisMonthData?.period || `${thisMonthName} ${currentYear}`})
+            </h3>
+          </div>
+          <ChevronDown
+            className={`h-5 w-5 text-gray-500 transition-transform ${showThisMonth ? "rotate-180" : ""}`}
+          />
+        </button>
+
+        {showThisMonth && (
+          <div className="px-4 pb-6 sm:px-6">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {loading ? (
+                <>
+                  <StatsSkeleton />
+                  <StatsSkeleton />
+                  <StatsSkeleton />
+                  <StatsSkeleton />
+                </>
+              ) : (
+                <>
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <p className="text-xs font-medium text-blue-600">
+                      Net Amount
+                    </p>
+                    <p className="text-xl sm:text-2xl font-bold text-blue-700 mt-1">
+                      {formatCurrency(thisMonthData?.netAmount || 0)}
+                    </p>
+                  </div>
+                  <div className="bg-green-50 p-4 rounded-lg">
+                    <p className="text-xs font-medium text-green-600">
+                      Total Paid
+                    </p>
+                    <p className="text-xl sm:text-2xl font-bold text-green-700 mt-1">
+                      {formatCurrency(thisMonthData?.totalPaid || 0)}
+                    </p>
+                  </div>
+                  <div className="bg-red-50 p-4 rounded-lg">
+                    <p className="text-xs font-medium text-red-600">
+                      Recoveries
+                    </p>
+                    <p className="text-xl sm:text-2xl font-bold text-red-700 mt-1">
+                      {formatCurrency(thisMonthData?.totalRecovered || 0)}
+                    </p>
+                  </div>
+                  <div className="bg-yellow-50 p-4 rounded-lg">
+                    <p className="text-xs font-medium text-yellow-600">
+                      Balance
+                    </p>
+                    <p className="text-xl sm:text-2xl font-bold text-yellow-700 mt-1">
+                      {formatCurrency(thisMonthData?.balanceAmount || 0)}
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Quick Actions */}
-      <div className="grid grid-cols-2  lg:grid-cols-5 gap-4 md:gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Link
           href={`/admin/users/${userId}/attendance`}
           className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 cursor-pointer block group"
         >
-          <div className="flex items-center justify-between">
+          <div className="text-center">
             <div>
               <h3 className="text-base md:text-lg font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
-                📅 Attendance
+                Attendance
               </h3>
               <p className="text-xs md:text-sm text-gray-600 mt-1">
                 View daily records
               </p>
             </div>
-            <Calendar className="h-6 w-6 md:h-8 md:w-8 text-blue-600" />
           </div>
         </Link>
 
@@ -300,16 +339,15 @@ export default function UserProfilePage() {
           href={`/admin/users/${userId}/reports`}
           className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 cursor-pointer block group"
         >
-          <div className="flex items-center justify-between">
+          <div className="text-center">
             <div>
-              <h3 className="text-base md:text-lg font-semibold text-gray-900 group-hover:text-green-600 transition-colors">
-                📊 Reports
+              <h3 className="sm:text-xl text-xs font-semibold text-gray-900 group-hover:text-green-600 transition-colors">
+                Reports
               </h3>
               <p className="text-xs md:text-sm text-gray-600 mt-1">
-                Salary & attendance reports
+                Salary reports
               </p>
             </div>
-            <UserCheck className="h-6 w-6 md:h-8 md:w-8 text-green-600" />
           </div>
         </Link>
 
@@ -317,10 +355,10 @@ export default function UserProfilePage() {
           onClick={() => router.push(`/admin/users/${userId}/add-payment`)}
           className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 cursor-pointer group"
         >
-          <div className="flex items-center justify-between">
+          <div className="flex text-center items-center justify-between">
             <div>
-              <h3 className="text-base flex md:text-lg items-center font-semibold text-gray-900 group-hover:text-green-600 transition-colors">
-                <IndianRupee size={16} /> Pay Staff
+              <h3 className=" text-xs sm:text-xl  font-semibold text-gray-900 group-hover:text-green-600 transition-colors">
+                Pay
               </h3>
               <p className="text-xs md:text-sm text-gray-600 mt-1">
                 Company pays staff
@@ -336,7 +374,7 @@ export default function UserProfilePage() {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-base md:text-lg font-semibold text-gray-900 group-hover:text-red-600 transition-colors">
-                🔄 Staff Paid
+                Recover
               </h3>
               <p className="text-xs md:text-sm text-gray-600 mt-1">
                 Staff paid company
@@ -345,169 +383,101 @@ export default function UserProfilePage() {
           </div>
         </button>
       </div>
-      {/* Salary Overview */}
+
+      {/* Salary History */}
       <div className="bg-white shadow-sm rounded-lg border border-gray-200">
         <div className="px-4 py-5 sm:p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Salary Overview
+            Salary History
           </h3>
 
-          {/* This Month Expandable */}
-          <div className="mb-6">
-            <details className="group">
-              <summary className="flex items-center justify-between p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
-                <span className="text-lg font-medium text-gray-900">
-                  This Month
-                </span>
-                <ChevronRight className="h-5 w-5 text-gray-500 group-open:rotate-90 transition-transform" />
-              </summary>
-              <div className="mt-4 p-4 bg-white border border-gray-200 rounded-lg">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-                    <span className="text-sm font-medium text-blue-900">
-                      Total Salary
-                    </span>
-                    <span className="text-lg font-bold text-blue-600">
-                      ₹{formatCurrency(currentMonthData?.netAmount || 0)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-                    <span className="text-sm font-medium text-green-900">
-                      Total Paid
-                    </span>
-                    <span className="text-lg font-bold text-green-600">
-                      ₹{formatCurrency(currentMonthData?.totalPaid || 0)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-red-50 rounded-lg">
-                    <span className="text-sm font-medium text-red-900">
-                      Total Recoveries
-                    </span>
-                    <span className="text-lg font-bold text-red-600">
-                      ₹{formatCurrency(currentMonthData?.totalRecovered || 0)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
-                    <span className="text-sm font-medium text-purple-900">
-                      Balance Amount
-                    </span>
-                    <span className="text-lg font-bold text-purple-600">
-                      ₹{formatCurrency(currentMonthData?.balanceAmount || 0)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </details>
-          </div>
-
-          <h4 className="text-md font-semibold text-gray-900 mb-4">
-            Salary History
-          </h4>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Period
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Gross Amount
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Gross
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Net Amount
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Net
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {loading
-                  ? Array.from({ length: 5 }).map((_, i) => (
-                      <tr key={i}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Skeleton height={16} width={80} />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Skeleton height={16} width={80} />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Skeleton height={16} width={80} />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Skeleton height={16} width={60} />
-                        </td>
-                      </tr>
-                    ))
-                  : userData?.salaryRecords.data &&
-                      userData.salaryRecords.data.length > 0
-                    ? userData.salaryRecords.data.map((record: any) => (
-                        <tr key={record.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {record.month}/{record.year}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            ₹{formatCurrency(record.grossAmount)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            ₹{formatCurrency(record.netAmount)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span
-                              className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                record.status === "PAID"
-                                  ? "bg-green-100 text-green-800"
-                                  : record.status === "PENDING"
-                                    ? "bg-yellow-100 text-yellow-800"
-                                    : "bg-gray-100 text-gray-800"
-                              }`}
-                            >
-                              {record.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))
-                    : !loading && (
-                        <tr>
-                          <td
-                            colSpan={4}
-                            className="px-6 py-4 text-center text-sm text-gray-500"
-                          >
-                            No salary records exist
-                          </td>
-                        </tr>
-                      )}
+                {loading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={i}>
+                      <td className="px-4 py-3">
+                        <Skeleton height={16} width={60} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <Skeleton height={16} width={70} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <Skeleton height={16} width={70} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <Skeleton height={20} width={50} />
+                      </td>
+                    </tr>
+                  ))
+                ) : salaryData.length > 0 ? (
+                  salaryData.map((record) => (
+                    <tr key={record.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                        {getMonthName(record.month)} {record.year}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                        {formatCurrency(record.grossAmount)}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 font-medium">
+                        {formatCurrency(record.netAmount)}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span
+                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${record.status === "PAID" ? "bg-green-100 text-green-800" : record.status === "PENDING" ? "bg-yellow-100 text-yellow-800" : "bg-gray-100 text-gray-800"}`}
+                        >
+                          {record.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="px-4 py-8 text-center text-sm text-gray-500"
+                    >
+                      No salary records found
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
 
-          {/* Salary Pagination */}
-          {userData?.salaryRecords?.pagination?.totalPages !== 0 && (
+          {totalPages > 1 && (
             <div className="flex items-center justify-between mt-6">
               <div className="text-sm text-gray-700">
-                Page {userData?.salaryRecords.pagination.page} of{" "}
-                {userData?.salaryRecords.pagination.totalPages}
+                Page {page} of {totalPages}
               </div>
               <div className="flex items-center space-x-2">
                 <button
-                  onClick={() => setSalaryPage(Math.max(1, salaryPage - 1))}
-                  disabled={salaryPage === 1}
+                  onClick={() => setPage(Math.max(1, page - 1))}
+                  disabled={page === 1}
                   className="px-3 py-2 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
                 <button
-                  onClick={() =>
-                    setSalaryPage(
-                      Math.min(
-                        userData?.salaryRecords.pagination.totalPages || 0,
-                        salaryPage + 1,
-                      ),
-                    )
-                  }
-                  disabled={
-                    salaryPage === userData?.salaryRecords.pagination.totalPages
-                  }
+                  onClick={() => setPage(Math.min(totalPages, page + 1))}
+                  disabled={page === totalPages}
                   className="px-3 py-2 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
                 >
                   <ChevronRight className="h-4 w-4" />
@@ -517,12 +487,6 @@ export default function UserProfilePage() {
           )}
         </div>
       </div>
-      {/* Salary Action Modal */}
-      <SalaryActionModal
-        isOpen={salaryModalOpen}
-        onClose={() => setSalaryModalOpen(false)}
-        onSelectAction={handleSalaryAction}
-      />
     </div>
   );
 }

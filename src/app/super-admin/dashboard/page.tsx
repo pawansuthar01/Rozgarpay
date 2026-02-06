@@ -25,7 +25,7 @@ import {
   Users,
   User,
   BarChart3,
-  DollarSign,
+  IndianRupee,
   FileText,
   Heart,
   ArrowRight,
@@ -213,7 +213,7 @@ export default function SuperAdminDashboard() {
                 {stats?.totalSalaries || 0}
               </p>
             </div>
-            <DollarSign className="h-8 w-8 text-emerald-600" />
+            <IndianRupee className="h-8 w-8 text-emerald-600" />
           </div>
         </div>
 

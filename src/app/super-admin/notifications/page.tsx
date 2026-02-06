@@ -19,7 +19,7 @@ import {
   PieChart,
   BarChart3,
   AlertTriangle,
-  DollarSign,
+  IndianRupee,
   Activity,
   Users,
   Zap,

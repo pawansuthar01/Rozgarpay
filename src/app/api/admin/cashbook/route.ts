@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
-import { CashbookFilters } from "@/types/cashbook";
-import { getDate } from "@/lib/attendanceUtils";
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,90 +15,74 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const page = Math.max(1, parseInt(searchParams.get("page") || "1") || 1);
-    let limit = Math.max(
-      1,
-      Math.min(parseInt(searchParams.get("limit") || "10") || 10, 100),
+    const page = Math.max(1, Number(searchParams.get("page") || 1));
+    const limit = Math.min(
+      100,
+      Math.max(1, Number(searchParams.get("limit") || 10)),
     );
     const sortBy = searchParams.get("sortBy") || "transactionDate";
-    const sortOrder = searchParams.get("sortOrder") || "desc";
+    const sortOrder = searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
 
-    // Get admin's company with minimal fields
-    const admin = await prisma.user.findUnique({
+    const me = await prisma.user.findUnique({
       where: { id: session.user.id },
       select: { companyId: true },
     });
 
-    if (!admin?.companyId) {
+    if (!me?.companyId) {
       return NextResponse.json({ error: "Company not found" }, { status: 400 });
     }
 
-    const companyId = admin.companyId;
+    const companyId = me.companyId;
     const skip = (page - 1) * limit;
 
-    // Build filters
-    const filters: CashbookFilters = {};
-    if (searchParams.get("startDate"))
-      filters.startDate = searchParams.get("startDate")!;
-    if (searchParams.get("endDate"))
-      filters.endDate = searchParams.get("endDate")!;
-    if (searchParams.get("transactionType"))
-      filters.transactionType = searchParams.get("transactionType") as any;
-    if (searchParams.get("direction"))
-      filters.direction = searchParams.get("direction") as any;
-    if (searchParams.get("paymentMode"))
-      filters.paymentMode = searchParams.get("paymentMode") as any;
-    if (searchParams.get("search"))
-      filters.search = searchParams.get("search")!;
-
-    // Build where clause
+    // 🔹 Base where (reversal-safe)
     const where: any = {
       companyId,
-      isReversed: false,
+      isReversed: false, // original reversed entries hidden
     };
 
-    // Role-based filtering
+    // 🔹 Role-based filter
     if (session.user.role === "STAFF") {
       where.userId = session.user.id;
     } else if (searchParams.get("userId")) {
       where.userId = searchParams.get("userId");
     }
 
-    // Apply filters
-    if (filters.startDate || filters.endDate) {
+    // 🔹 Date filter
+    if (searchParams.get("startDate") || searchParams.get("endDate")) {
       where.transactionDate = {};
-      if (filters.startDate)
-        where.transactionDate.gte = getDate(new Date(filters.startDate));
-      if (filters.endDate)
-        where.transactionDate.lte = getDate(new Date(filters.endDate));
+      if (searchParams.get("startDate")) {
+        where.transactionDate.gte = new Date(searchParams.get("startDate")!);
+      }
+      if (searchParams.get("endDate")) {
+        where.transactionDate.lte = new Date(searchParams.get("endDate")!);
+      }
     }
 
-    if (filters.transactionType) {
-      where.transactionType = filters.transactionType;
+    // 🔹 Other filters
+    if (searchParams.get("transactionType")) {
+      where.transactionType = searchParams.get("transactionType");
+    }
+    if (searchParams.get("direction")) {
+      where.direction = searchParams.get("direction");
+    }
+    if (searchParams.get("paymentMode")) {
+      where.paymentMode = searchParams.get("paymentMode");
     }
 
-    if (filters.direction) {
-      where.direction = filters.direction;
-    }
-
-    if (filters.paymentMode) {
-      where.paymentMode = filters.paymentMode;
-    }
-
-    if (filters.search) {
+    if (searchParams.get("search")) {
+      const q = searchParams.get("search")!;
       where.OR = [
-        { description: { contains: filters.search, mode: "insensitive" } },
-        { notes: { contains: filters.search, mode: "insensitive" } },
-        { reference: { contains: filters.search, mode: "insensitive" } },
+        { description: { contains: q, mode: "insensitive" } },
+        { notes: { contains: q, mode: "insensitive" } },
+        { reference: { contains: q, mode: "insensitive" } },
       ];
     }
 
-    // PARALLEL QUERIES: Run independent queries concurrently
+    // 🔥 Parallel queries
     const [total, entries, balanceResult, monthlyResult] = await Promise.all([
-      // Total count
       prisma.cashbookEntry.count({ where }),
 
-      // Entries with selective field fetching
       prisma.cashbookEntry.findMany({
         where,
         select: {
@@ -112,34 +94,21 @@ export async function GET(request: NextRequest) {
           reference: true,
           description: true,
           transactionDate: true,
-          isReversed: true,
           user: {
-            select: {
-              firstName: true,
-              lastName: true,
-            },
+            select: { firstName: true, lastName: true },
           },
         },
-        orderBy: {
-          [sortBy]: sortOrder,
-        },
+        orderBy: { [sortBy]: sortOrder },
         skip,
         take: limit,
       }),
 
-      // Overall balance
       prisma.cashbookEntry.groupBy({
         by: ["direction"],
-        where: {
-          companyId,
-          isReversed: false,
-        },
-        _sum: {
-          amount: true,
-        },
+        where: { companyId, isReversed: false },
+        _sum: { amount: true },
       }),
 
-      // Monthly stats
       prisma.cashbookEntry.groupBy({
         by: ["direction"],
         where: {
@@ -154,37 +123,24 @@ export async function GET(request: NextRequest) {
             ),
           },
         },
-        _sum: {
-          amount: true,
-        },
+        _sum: { amount: true },
       }),
     ]);
 
-    // Calculate balances
+    // 🔹 Balances
     const totalCredit =
-      balanceResult.find((b: any) => b.direction === "CREDIT")?._sum.amount ||
-      0;
+      balanceResult.find((b) => b.direction === "CREDIT")?._sum.amount || 0;
     const totalDebit =
-      balanceResult.find((b: any) => b.direction === "DEBIT")?._sum.amount || 0;
-    const currentBalance = totalCredit - totalDebit;
+      balanceResult.find((b) => b.direction === "DEBIT")?._sum.amount || 0;
 
     const monthlyCredit =
-      monthlyResult.find((b: any) => b.direction === "CREDIT")?._sum.amount ||
-      0;
+      monthlyResult.find((b) => b.direction === "CREDIT")?._sum.amount || 0;
     const monthlyDebit =
-      monthlyResult.find((b: any) => b.direction === "DEBIT")?._sum.amount || 0;
+      monthlyResult.find((b) => b.direction === "DEBIT")?._sum.amount || 0;
 
-    const stats = {
-      currentBalance,
-      totalCredit,
-      totalDebit,
-      monthlyCredit,
-      monthlyDebit,
-      transactionCount: total,
-    };
+    const currentBalance = totalCredit - totalDebit;
 
-    // Build response with caching headers
-    const response = NextResponse.json({
+    return NextResponse.json({
       entries,
       pagination: {
         page,
@@ -192,22 +148,18 @@ export async function GET(request: NextRequest) {
         total,
         totalPages: Math.ceil(total / limit),
       },
-      stats,
-      balance: {
+      stats: {
         currentBalance,
+        totalCredit,
+        totalDebit,
+        monthlyCredit,
+        monthlyDebit,
+      },
+      balance: {
         openingBalance: currentBalance - (monthlyCredit - monthlyDebit),
         closingBalance: currentBalance,
       },
-      filters,
     });
-
-    // Cache for 30 seconds, stale-while-revalidate for 2 minutes
-    response.headers.set(
-      "Cache-Control",
-      "public, s-maxage=30, stale-while-revalidate=120",
-    );
-
-    return response;
   } catch (error) {
     console.error("Cashbook fetch error:", error);
     return NextResponse.json(
@@ -216,7 +168,6 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -238,53 +189,34 @@ export async function POST(request: NextRequest) {
       userId,
     } = body;
 
-    // Validation
-    if (!transactionType || !direction || !amount || !description) {
+    if (!transactionType || !direction || !description) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 },
       );
     }
 
-    if (amount <= 0) {
+    const parsedAmount = Math.abs(Number(amount));
+    if (!parsedAmount || Number.isNaN(parsedAmount)) {
       return NextResponse.json(
         { error: "Amount must be greater than 0" },
         { status: 400 },
       );
     }
 
-    // Validate field lengths
-    if (description && description.length > 500) {
-      return NextResponse.json(
-        { error: "Description must be 500 characters or less" },
-        { status: 400 },
-      );
-    }
-
-    if (notes && notes.length > 1000) {
-      return NextResponse.json(
-        { error: "Notes must be 1000 characters or less" },
-        { status: 400 },
-      );
-    }
-
-    // Get admin's company
-    const admin = await prisma.user.findUnique({
+    const me = await prisma.user.findUnique({
       where: { id: session.user.id },
       select: { companyId: true },
     });
 
-    if (!admin?.companyId) {
+    if (!me?.companyId) {
       return NextResponse.json({ error: "Company not found" }, { status: 400 });
     }
 
-    // If userId provided, verify they belong to the company
+    // 🔹 Validate user (if provided)
     if (userId) {
       const user = await prisma.user.findFirst({
-        where: {
-          id: userId,
-          companyId: admin.companyId,
-        },
+        where: { id: userId, companyId: me.companyId },
         select: { id: true },
       });
 
@@ -296,14 +228,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create cashbook entry with transaction
     const entry = await prisma.cashbookEntry.create({
       data: {
-        companyId: admin.companyId,
+        companyId: me.companyId,
         userId,
         transactionType,
         direction,
-        amount,
+        amount: parsedAmount,
         paymentMode,
         reference,
         description,
@@ -313,17 +244,9 @@ export async function POST(request: NextRequest) {
           : new Date(),
         createdBy: session.user.id,
       },
-      select: {
-        id: true,
-        transactionType: true,
-        direction: true,
-        amount: true,
-        description: true,
-        transactionDate: true,
-      },
     });
 
-    // Create audit log (fire and forget - don't await)
+    // 🔹 Audit (async)
     prisma.auditLog
       .create({
         data: {
@@ -331,12 +254,7 @@ export async function POST(request: NextRequest) {
           action: "CREATED",
           entity: "CashbookEntry",
           entityId: entry.id,
-          meta: {
-            transactionType,
-            direction,
-            amount,
-            description,
-          },
+          meta: { transactionType, direction, amount: parsedAmount },
         },
       })
       .catch(console.error);

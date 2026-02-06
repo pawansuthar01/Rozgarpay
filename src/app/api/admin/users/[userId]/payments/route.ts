@@ -67,7 +67,6 @@ export async function GET(
     );
   }
 }
-
 export async function POST(request: NextRequest, { params }: any) {
   try {
     const session = await getServerSession(authOptions);
@@ -87,6 +86,7 @@ export async function POST(request: NextRequest, { params }: any) {
 
     const body = await request.json();
     const { amount, mode, paymentDate, cycle, description, reference } = body;
+
     if (!amount || !paymentDate) {
       return NextResponse.json(
         { error: "Amount and record date are required" },
@@ -94,41 +94,38 @@ export async function POST(request: NextRequest, { params }: any) {
       );
     }
 
-    // Validate and map payment mode
+    const parsedAmount = Math.abs(parseFloat(amount));
+    if (Number.isNaN(parsedAmount)) {
+      return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
+    }
+
+    // 🔹 Payment mode mapping
     const validModes = ["CASH", "BANK", "UPI", "CHEQUE"];
-    let paymentMode: "CASH" | "BANK" | "UPI" | "CHEQUE" = "BANK"; // default
+    let paymentMode: "CASH" | "BANK" | "UPI" | "CHEQUE" = "BANK";
+
     if (mode) {
       const upperMode = mode.toUpperCase();
       if (validModes.includes(upperMode)) {
-        paymentMode = upperMode as "CASH" | "BANK" | "UPI" | "CHEQUE";
+        paymentMode = upperMode as any;
       } else if (upperMode === "ONLINE") {
-        paymentMode = "BANK"; // Map online to bank
+        paymentMode = "BANK";
       } else {
         return NextResponse.json(
-          {
-            error:
-              "Invalid payment mode. Must be one of: CASH, BANK, UPI, CHEQUE",
-          },
+          { error: "Invalid payment mode" },
           { status: 400 },
         );
       }
     }
 
-    // Get current month salary record
-    const currentDate = getDate(new Date());
-    const currentMonth = currentDate.getMonth() + 1;
-    const currentYear = currentDate.getFullYear();
+    // 🔹 Current month salary
+    const now = getDate(new Date());
+    const month = now.getMonth() + 1;
+    const year = now.getFullYear();
 
     let salary = await prisma.salary.findFirst({
-      where: {
-        userId,
-        companyId,
-        month: currentMonth,
-        year: currentYear,
-      },
+      where: { userId, companyId, month, year },
     });
 
-    // If no salary record exists, create one
     if (!salary) {
       const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -143,8 +140,8 @@ export async function POST(request: NextRequest, { params }: any) {
         data: {
           userId,
           companyId,
-          month: currentMonth,
-          year: currentYear,
+          month,
+          year,
           baseAmount: user.baseSalary || 0,
           grossAmount: user.baseSalary || 0,
           netAmount: user.baseSalary || 0,
@@ -153,55 +150,61 @@ export async function POST(request: NextRequest, { params }: any) {
       });
     }
 
-    // Add payment to ledger
-    await prisma.salaryLedger.create({
-      data: {
-        salaryId: salary.id,
-        userId,
-        companyId,
-        type: "PAYMENT",
-        amount: parseFloat(amount),
-        reason: description || `Payment (${mode}) - Ref: ${reference || "N/A"}`,
-        createdBy: session.user.id,
-      },
-    });
-
-    // Create cashbook entry for payment (DEBIT - company gives money to staff)
-    await prisma.cashbookEntry.create({
-      data: {
-        companyId,
-        userId,
-        transactionType: "ADVANCE", // Since this is additional payment beyond salary
-        direction: "DEBIT",
-        amount: parseFloat(amount),
-        paymentMode,
-        reference: salary.id,
-        description:
-          description || `Additional payment to staff (${paymentMode})`,
-        notes: `Reference: ${reference || "N/A"}`,
-        transactionDate: getDate(new Date(paymentDate)),
-        createdBy: session.user.id,
-      },
-    });
-
-    // Create audit log
-    prisma.auditLog.create({
-      data: {
-        userId: session.user.id,
-        action: "CREATED",
-        entity: "SalaryBreakdown",
-        entityId: salary.id,
-        salaryId: salary.id,
-        meta: {
-          type: "PAYMENT",
-          amount: parseFloat(amount),
-          mode,
-          cycle,
-          description,
-          cashbookEntry: true,
+    // 🔥 MAIN FIX — TRANSACTION WITH DIRECT LINK
+    await prisma.$transaction(async (tx) => {
+      // 1️⃣ Cashbook entry
+      const cashbookEntry = await tx.cashbookEntry.create({
+        data: {
+          companyId,
+          userId,
+          transactionType: "ADVANCE",
+          direction: "DEBIT",
+          amount: parsedAmount,
+          paymentMode,
+          reference: salary!.id,
+          description:
+            description || `Additional payment to staff (${paymentMode})`,
+          notes: `Reference: ${reference || "N/A"}`,
+          transactionDate: getDate(new Date(paymentDate)),
+          createdBy: session.user.id,
         },
-      },
+      });
+
+      // 2️⃣ Salary ledger (linked 🔗)
+      await tx.salaryLedger.create({
+        data: {
+          salaryId: salary!.id,
+          userId,
+          companyId,
+          type: "PAYMENT",
+          amount: parsedAmount,
+          reason:
+            description ||
+            `Payment (${paymentMode}) - Ref: ${reference || "N/A"}`,
+          cashbookEntryId: cashbookEntry.id, // ✅ LINK
+          createdBy: session.user.id,
+        },
+      });
     });
+
+    // 🔹 Audit log (fire & forget)
+    prisma.auditLog
+      .create({
+        data: {
+          userId: session.user.id,
+          action: "CREATED",
+          entity: "SalaryPayment",
+          entityId: salary.id,
+          salaryId: salary.id,
+          meta: {
+            type: "PAYMENT",
+            amount: parsedAmount,
+            mode,
+            cycle,
+          },
+        },
+      })
+      .catch(console.error);
 
     return NextResponse.json({
       success: true,

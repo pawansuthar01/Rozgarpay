@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import authOptions from "@/lib/auth";
-import { getDate } from "@/lib/attendanceUtils";
+import { getApprovedWorkingHours, getDate } from "@/lib/attendanceUtils";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
 
     // Get admin's company with minimal fields
     const admin = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: session.user.id, companyId: session.user.companyId },
       select: { companyId: true },
     });
 
@@ -42,7 +42,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const targetDate = getDate(new Date(`${date}T00:00:00`));
     const startOfDay = getDate(new Date(`${date}T00:00:00`));
     const endOfDay = getDate(new Date(`${date}T23:59:59.999`));
 
@@ -103,10 +102,10 @@ export async function GET(request: NextRequest) {
       totalMissing: total,
     });
 
-    // Cache for 5 minutes (data is date-based and doesn't change frequently)
+    // Cache for 30 seconds (data changes when staff is marked)
     response.headers.set(
       "Cache-Control",
-      "public, s-maxage=300, stale-while-revalidate=600",
+      "public, s-maxage=30, stale-while-revalidate=60",
     );
 
     return response;
@@ -196,24 +195,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Calculate working hours based on status
-    let workingHours: number | undefined;
-    if (
-      status === "APPROVED" &&
-      admin.company.shiftStartTime &&
-      admin.company.shiftEndTime
-    ) {
-      const start = getDate(
-        new Date(`1970-01-01T${admin.company.shiftStartTime}:00`),
-      );
-      const end = getDate(
-        new Date(`1970-01-01T${admin.company.shiftEndTime}:00`),
-      );
-      let diffMs = end.getTime() - start.getTime();
-      if (diffMs < 0) diffMs += 24 * 60 * 60 * 1000;
-      workingHours = Math.max(0, diffMs / (1000 * 60 * 60));
-    } else if (status === "ABSENT" || status === "LEAVE") {
-      workingHours = 0;
-    }
+    let workingHours =
+      status === "ABSENT" || status === "LEAVE"
+        ? 0
+        : status === "APPROVED"
+          ? getApprovedWorkingHours(existingAttendance as any, admin.company)
+          : 0;
 
     // Create attendance record with minimal fields
     const attendance = await prisma.attendance.create({

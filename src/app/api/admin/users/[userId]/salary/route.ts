@@ -87,7 +87,7 @@ export async function GET(
     // Calculate totals from ledger
     const totalPaid = ledgerEntries
       .filter((entry) => entry.type === "PAYMENT")
-      .reduce((sum, entry) => sum + entry.amount, 0);
+      .reduce((sum, e) => sum + Math.abs(e.amount), 0);
 
     const totalRecovered = ledgerEntries
       .filter((entry) => entry.type === "RECOVERY")

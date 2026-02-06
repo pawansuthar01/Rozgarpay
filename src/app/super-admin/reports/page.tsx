@@ -12,7 +12,7 @@ import {
   Eye,
   Calendar,
   BarChart3,
-  DollarSign,
+  IndianRupee,
   Users,
   Plus,
 } from "lucide-react";
@@ -52,7 +52,7 @@ export default function ReportsPage() {
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [companyFilter, setCompanyFilter] = useState("ALL");
   const [companies, setCompanies] = useState<{ id: string; name: string }[]>(
-    []
+    [],
   );
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -71,7 +71,7 @@ export default function ReportsPage() {
       if (res.ok) {
         const data = await res.json();
         setCompanies(
-          data.companies.map((c: any) => ({ id: c.id, name: c.name }))
+          data.companies.map((c: any) => ({ id: c.id, name: c.name })),
         );
       }
     } catch (error) {
@@ -119,7 +119,7 @@ export default function ReportsPage() {
         setStats({
           totalReports: allReports.length,
           attendanceReports: allReports.filter(
-            (r: Report) => r.type === "ATTENDANCE"
+            (r: Report) => r.type === "ATTENDANCE",
           ).length,
           salaryReports: allReports.filter((r: Report) => r.type === "SALARY")
             .length,
@@ -147,7 +147,7 @@ export default function ReportsPage() {
     alert(
       `Report: ${report.title}\nType: ${report.type}\nCompany: ${
         report.company.name
-      }\nCreated: ${new Date(report.createdAt).toLocaleDateString()}`
+      }\nCreated: ${new Date(report.createdAt).toLocaleDateString()}`,
     );
   };
 
@@ -156,7 +156,7 @@ export default function ReportsPage() {
       case "ATTENDANCE":
         return <Calendar className="h-5 w-5 text-blue-600" />;
       case "SALARY":
-        return <DollarSign className="h-5 w-5 text-green-600" />;
+        return <IndianRupee className="h-5 w-5 text-green-600" />;
       case "USER":
         return <Users className="h-5 w-5 text-purple-600" />;
       case "COMPANY":
@@ -244,7 +244,7 @@ export default function ReportsPage() {
                   {stats.salaryReports}
                 </p>
               </div>
-              <DollarSign className="h-8 w-8 text-green-600" />
+              <IndianRupee className="h-8 w-8 text-green-600" />
             </div>
           </div>
 
@@ -414,7 +414,7 @@ export default function ReportsPage() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span
                           className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getReportTypeColor(
-                            report.type
+                            report.type,
                           )}`}
                         >
                           {report.type}
@@ -432,8 +432,8 @@ export default function ReportsPage() {
                                 report.company.status === "ACTIVE"
                                   ? "bg-green-100 text-green-800"
                                   : report.company.status === "SUSPENDED"
-                                  ? "bg-red-100 text-red-800"
-                                  : "bg-gray-100 text-gray-800"
+                                    ? "bg-red-100 text-red-800"
+                                    : "bg-gray-100 text-gray-800"
                               }`}
                             >
                               {report.company.status}

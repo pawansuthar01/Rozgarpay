@@ -3,7 +3,6 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { getDate } from "@/lib/attendanceUtils";
-
 export async function POST(
   request: NextRequest,
   { params }: { params: { userId: string } },
@@ -17,7 +16,8 @@ export async function POST(
 
     const { userId } = params;
     const companyId = session.user.companyId;
-    const { amount, recoverDate, reason } = await request.json();
+    const body = await request.json();
+    const { amount, recoverDate, reason } = body;
 
     if (!companyId) {
       return NextResponse.json(
@@ -26,7 +26,15 @@ export async function POST(
       );
     }
 
-    // Verify user belongs to admin's company
+    const parsedAmount = Math.abs(parseFloat(amount));
+    if (!parsedAmount || !recoverDate || !reason) {
+      return NextResponse.json(
+        { error: "Invalid or missing required fields" },
+        { status: 400 },
+      );
+    }
+
+    // 🔹 Verify user belongs to company
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { companyId: true },
@@ -39,35 +47,22 @@ export async function POST(
       );
     }
 
-    if (!amount || !recoverDate || !reason) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 },
-      );
-    }
+    // 🔹 Current month salary
+    const now = getDate(new Date());
+    const month = now.getMonth() + 1;
+    const year = now.getFullYear();
 
-    // Get the current month salary
-    const currentDate = getDate(new Date());
-    const currentMonth = currentDate.getMonth() + 1;
-    const currentYear = currentDate.getFullYear();
-
-    // Find the salary record for current month
     let salary = await prisma.salary.findFirst({
-      where: {
-        userId,
-        companyId,
-        month: currentMonth,
-        year: currentYear,
-      },
+      where: { userId, companyId, month, year },
     });
 
     if (!salary) {
-      const user = await prisma.user.findUnique({
+      const staff = await prisma.user.findUnique({
         where: { id: userId },
         select: { baseSalary: true, salaryType: true },
       });
 
-      if (!user) {
+      if (!staff) {
         return NextResponse.json({ error: "User not found" }, { status: 404 });
       }
 
@@ -75,62 +70,67 @@ export async function POST(
         data: {
           userId,
           companyId,
-          month: currentMonth,
-          year: currentYear,
-          baseAmount: user.baseSalary || 0,
-          grossAmount: user.baseSalary || 0,
-          netAmount: user.baseSalary || 0,
-          type: user.salaryType || "MONTHLY",
+          month,
+          year,
+          baseAmount: staff.baseSalary || 0,
+          grossAmount: staff.baseSalary || 0,
+          netAmount: staff.baseSalary || 0,
+          type: staff.salaryType || "MONTHLY",
         },
       });
     }
 
-    // Create recovery entry in salary ledger
-    await prisma.salaryLedger.create({
-      data: {
-        salaryId: salary.id,
-        userId,
-        companyId,
-        type: "RECOVERY",
-        amount: -Math.abs(parseFloat(amount)), // Negative amount for recovery
-        reason: `Recovery (${recoverDate}): ${reason}`,
-        createdBy: session.user.id,
-      },
-    });
-
-    // Create cashbook entry for recovery (CREDIT - company receives money back)
-    await prisma.cashbookEntry.create({
-      data: {
-        companyId,
-        userId,
-        transactionType: "RECOVERY",
-        direction: "CREDIT",
-        amount: Math.abs(parseFloat(amount)),
-        reference: salary.id,
-        description: `Payment recovery from staff: ${reason}`,
-        notes: `Recovery date: ${recoverDate}`,
-        transactionDate: getDate(new Date(recoverDate)),
-        createdBy: session.user.id,
-      },
-    });
-
-    // Create audit log
-    await prisma.auditLog.create({
-      data: {
-        userId: session.user.id,
-        action: "CREATED",
-        entity: "SalaryLedger",
-        entityId: salary.id,
-        salaryId: salary.id,
-        meta: {
-          type: "RECOVERY",
-          amount: parseFloat(amount),
-          reason,
-          recoverDate,
-          cashbookEntry: true,
+    // 🔥 MAIN FIX — TRANSACTION + LINK
+    await prisma.$transaction(async (tx) => {
+      // 1️⃣ Cashbook entry (money comes back to company)
+      const cashbookEntry = await tx.cashbookEntry.create({
+        data: {
+          companyId,
+          userId,
+          transactionType: "RECOVERY",
+          direction: "CREDIT",
+          amount: parsedAmount,
+          reference: salary!.id,
+          description: `Payment recovery from staff: ${reason}`,
+          notes: `Recovery date: ${recoverDate}`,
+          transactionDate: getDate(new Date(recoverDate)),
+          createdBy: session.user.id,
         },
-      },
+      });
+
+      // 2️⃣ Salary ledger (linked 🔗)
+      await tx.salaryLedger.create({
+        data: {
+          salaryId: salary!.id,
+          userId,
+          companyId,
+          type: "RECOVERY",
+          amount: -parsedAmount, // 🔴 negative impact on salary
+          reason: `Recovery (${recoverDate}): ${reason}`,
+          cashbookEntryId: cashbookEntry.id, // ✅ LINK
+          createdBy: session.user.id,
+        },
+      });
     });
+
+    // 🔹 Audit log (fire & forget)
+    prisma.auditLog
+      .create({
+        data: {
+          userId: session.user.id,
+          action: "CREATED",
+          entity: "SalaryRecovery",
+          entityId: salary.id,
+          salaryId: salary.id,
+          meta: {
+            type: "RECOVERY",
+            amount: parsedAmount,
+            reason,
+            recoverDate,
+          },
+        },
+      })
+      .catch(console.error);
 
     return NextResponse.json({
       message: "Payment recovered successfully",

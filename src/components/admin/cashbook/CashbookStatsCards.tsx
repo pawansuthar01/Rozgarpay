@@ -11,6 +11,7 @@ export default function CashbookStatsCards({
   stats,
   loading,
 }: CashbookStatsCardsProps) {
+  console.log(stats);
   if (loading) {
     return (
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
@@ -82,8 +83,8 @@ export default function CashbookStatsCards({
                 </p>
                 <p className={`text-md md:text-xl font-bold ${card.color} `}>
                   {card.isCount
-                    ? card.value.toLocaleString()
-                    : `₹${card.value.toLocaleString()}`}
+                    ? card.value?.toLocaleString()
+                    : `₹${card.value?.toLocaleString()}`}
                 </p>
               </div>
               <div className={`p-2 md:p-3 rounded-lg ${card.bgColor} ml-2`}>

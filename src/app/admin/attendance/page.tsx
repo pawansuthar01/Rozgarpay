@@ -12,10 +12,9 @@ import AttendanceTable from "@/components/admin/attendance/AttendanceTable";
 import { useDebounce } from "@/lib/hooks";
 import { useAttendance, useUpdateAttendance, useUpdateStatus } from "@/hooks";
 import Loading from "@/components/ui/Loading";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function AdminAttendancePage() {
-  const { data: session } = useSession();
-
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [startDate, setStartDate] = useState<string>(() => {
@@ -27,7 +26,7 @@ export default function AdminAttendancePage() {
     const today = new Date();
     return today.toISOString().split("T")[0];
   });
-  const [pageLimit, setPageLimit] = useState<number>(10);
+  const [pageLimit, setPageLimit] = useState<number>(5);
   const [sortBy, setSortBy] = useState<string>("attendanceDate");
   const [sortOrder, setSortOrder] = useState<string>("desc");
   const [search, setSearch] = useState<string>("");
@@ -95,16 +94,17 @@ export default function AdminAttendancePage() {
         clearTimeout(existingTimeout);
       }
 
+      // Short timeout as fallback for slow API responses
       loadingRef.current.set(
         attendanceId,
         setTimeout(() => {
           loadingRef.current.delete(attendanceId);
           triggerUpdate();
-        }, 5000),
+        }, 500),
       );
       triggerUpdate();
 
-      // Call API - status will update after response
+      // Call API - status will update optimistically after response
       updateStatus.mutate(
         { attendanceId, data: { status } },
         {
@@ -131,13 +131,12 @@ export default function AdminAttendancePage() {
         clearTimeout(existingTimeout);
       }
 
-      // Short timeout as fallback for slow API responses
       loadingRef.current.set(
         attendanceId,
         setTimeout(() => {
           loadingRef.current.delete(attendanceId);
           triggerUpdate();
-        }, 500),
+        }, 1000),
       );
       triggerUpdate();
 
@@ -157,10 +156,6 @@ export default function AdminAttendancePage() {
     },
     [updateAttendanceMutation, triggerUpdate],
   );
-
-  if (!session || session.user.role !== "ADMIN") {
-    return <Loading />;
-  }
 
   return (
     <div className="min-h-screen bg-gray-50">

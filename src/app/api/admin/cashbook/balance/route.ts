@@ -6,9 +6,9 @@ import { toZonedTime } from "date-fns-tz";
 
 export const dynamic = "force-dynamic";
 
-// Cache for 2 minutes
-const CACHE_CONTROL = "public, s-maxage=120, stale-while-revalidate=600";
+// No cache for instant updates
 
+// No cache for instant updates
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -20,33 +20,31 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get admin's company with minimal fields
-    const admin = await prisma.user.findUnique({
+    // 🔹 Company
+    const me = await prisma.user.findUnique({
       where: { id: session.user.id },
       select: { companyId: true },
     });
 
-    if (!admin?.companyId) {
+    if (!me?.companyId) {
       return NextResponse.json({ error: "Company not found" }, { status: 400 });
     }
 
-    const companyId = admin.companyId;
+    const companyId = me.companyId;
     const nowLocal = toZonedTime(new Date(), "Asia/Kolkata");
     const currentMonth = nowLocal.getMonth() + 1;
     const currentYear = nowLocal.getFullYear();
 
-    // PARALLEL QUERIES: Run all balance queries concurrently
+    // 🔥 PARALLEL QUERIES (reversal-safe)
     const [overallResult, monthlyResult, staffResult] = await Promise.all([
-      // Overall balance
+      // Overall balance (exclude ORIGINAL reversed entries only)
       prisma.cashbookEntry.groupBy({
         by: ["direction"],
         where: {
           companyId,
-          isReversed: false,
+          isReversed: false, // original reversed entries ignored
         },
-        _sum: {
-          amount: true,
-        },
+        _sum: { amount: true },
       }),
 
       // Monthly balance
@@ -60,12 +58,10 @@ export async function GET(request: NextRequest) {
             lt: new Date(currentYear, currentMonth, 1),
           },
         },
-        _sum: {
-          amount: true,
-        },
+        _sum: { amount: true },
       }),
 
-      // Staff-specific balance (if staff user)
+      // Staff balance (only own entries)
       session.user.role === "STAFF"
         ? prisma.cashbookEntry.groupBy({
             by: ["direction"],
@@ -74,50 +70,54 @@ export async function GET(request: NextRequest) {
               userId: session.user.id,
               isReversed: false,
             },
-            _sum: {
-              amount: true,
-            },
+            _sum: { amount: true },
           })
         : Promise.resolve(null),
     ]);
 
-    // Calculate balances
+    // 🔹 Overall
     const totalCredit =
       overallResult.find((b) => b.direction === "CREDIT")?._sum.amount || 0;
     const totalDebit =
       overallResult.find((b) => b.direction === "DEBIT")?._sum.amount || 0;
+
     const currentBalance = totalCredit - totalDebit;
 
+    // 🔹 Monthly
     const monthlyCredit =
       monthlyResult.find((b) => b.direction === "CREDIT")?._sum.amount || 0;
     const monthlyDebit =
       monthlyResult.find((b) => b.direction === "DEBIT")?._sum.amount || 0;
-    const monthlyNet = monthlyCredit - monthlyDebit;
 
+    const monthlyNet = monthlyCredit - monthlyDebit;
     const openingBalance = currentBalance - monthlyNet;
 
-    let personalBalance = null;
+    // 🔹 Staff personal balance
+    let staffBalance = null;
     if (staffResult) {
       const staffCredit =
         staffResult.find((b) => b.direction === "CREDIT")?._sum.amount || 0;
       const staffDebit =
         staffResult.find((b) => b.direction === "DEBIT")?._sum.amount || 0;
-      personalBalance = staffCredit - staffDebit;
+      staffBalance = staffCredit - staffDebit;
     }
 
     const response = NextResponse.json({
-      currentBalance,
       openingBalance,
       closingBalance: currentBalance,
+      currentBalance,
+      totalCredit,
+      totalDebit,
       monthlyCredit,
       monthlyDebit,
       monthlyBalance: monthlyNet,
-      totalCredit,
-      totalDebit,
-      staffBalance: personalBalance,
+      staffBalance,
     });
 
-    response.headers.set("Cache-Control", CACHE_CONTROL);
+    response.headers.set(
+      "Cache-Control",
+      "no-store, no-cache, must-revalidate",
+    );
     return response;
   } catch (error) {
     console.error("Cashbook balance error:", error);

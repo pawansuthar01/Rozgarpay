@@ -221,7 +221,7 @@ export default function SalaryTable({
                           {record.user?.lastName || ""}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {record.user?.email || ""}
+                          {record.user?.phone || ""}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -251,29 +251,15 @@ export default function SalaryTable({
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex items-center space-x-2">
-                          {record.pdfUrl ? (
-                            <div>
-                              <Link
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                href={`${record.pdfUrl}`}
-                                className="text-indigo-600 hover:text-indigo-900 inline-flex items-center px-2 py-1 text-xs font-medium bg-indigo-100 rounded-md"
-                                title="View detailed report"
-                              >
-                                <Eye className="h-3 w-3 mr-1" />
-                                View Report
-                              </Link>
-                            </div>
-                          ) : (
-                            <Link
-                              href={`/admin/users/${record.userId}/reports?month=${record.year}-${String(record.month).padStart(2, "0")}&type=salary`}
-                              className="text-indigo-600 hover:text-indigo-900 inline-flex items-center px-2 py-1 text-xs font-medium bg-indigo-100 rounded-md"
-                              title="View detailed report"
-                            >
-                              <Eye className="h-3 w-3 mr-1" />
-                              View Report
-                            </Link>
-                          )}
+                          <Link
+                            href={`/admin/users/${record.user?.id}/reports?month=${record.year}-${String(record.month).padStart(2, "0")}&type=salary`}
+                            className="text-indigo-600 hover:text-indigo-900 inline-flex items-center px-2 py-1 text-xs font-medium bg-indigo-100 rounded-md"
+                            title="View detailed report"
+                          >
+                            <Eye className="h-3 w-3 mr-1" />
+                            View Report
+                          </Link>
+
                           {record.status === "PENDING" && (
                             <button
                               onClick={() => onRecalculate?.(record.id)}

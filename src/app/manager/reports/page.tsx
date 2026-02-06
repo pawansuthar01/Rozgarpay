@@ -9,7 +9,7 @@ import {
   FileText,
   Download,
   Calendar,
-  DollarSign,
+  IndianRupee,
   BarChart3,
   FileSpreadsheet,
   File,
@@ -162,7 +162,7 @@ export default function ManagerReports() {
       <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-3">
-            <DollarSign className="h-6 w-6 text-green-600" />
+            <IndianRupee className="h-6 w-6 text-green-600" />
             <div>
               <h2 className="text-lg font-semibold text-gray-900">
                 Salary Reports

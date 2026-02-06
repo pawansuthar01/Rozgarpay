@@ -12,7 +12,7 @@ import {
   UserCircle,
   Menu,
   LogOut,
-  DollarSign,
+  IndianRupee,
 } from "lucide-react";
 
 export default function ManagerLayout({
@@ -31,7 +31,7 @@ export default function ManagerLayout({
     },
     { name: "Attendance", href: "/manager/attendance", icon: CheckSquare },
     { name: "Team", href: "/manager/team", icon: Users },
-    { name: "Salary Setup", href: "/manager/salary-setup", icon: DollarSign },
+    { name: "Salary Setup", href: "/manager/salary-setup", icon: IndianRupee },
     { name: "Reports", href: "/manager/reports", icon: FileText },
     {
       name: "Profile",
@@ -48,7 +48,7 @@ export default function ManagerLayout({
     },
     { name: "Team", href: "/manager/team", icon: Users },
     { name: "Attendance", href: "/manager/attendance", icon: CheckSquare },
-    { name: "Salary", href: "/manager/salary-setup", icon: DollarSign },
+    { name: "Salary", href: "/manager/salary-setup", icon: IndianRupee },
     { name: "Reports", href: "/manager/reports", icon: FileText },
   ];
 

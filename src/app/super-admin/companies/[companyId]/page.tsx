@@ -9,7 +9,7 @@ import {
   Calendar,
   Clock,
   FileText,
-  DollarSign,
+  IndianRupee,
   User,
   ArrowLeft,
   Edit,
@@ -296,8 +296,8 @@ export default function CompanyDetailPage() {
               {updating
                 ? "Updating..."
                 : company.status === "ACTIVE"
-                ? "Suspend Company"
-                : "Activate Company"}
+                  ? "Suspend Company"
+                  : "Activate Company"}
             </span>
           </button>
           <Link
@@ -348,7 +348,7 @@ export default function CompanyDetailPage() {
                 {company._count.salaries}
               </p>
             </div>
-            <DollarSign className="h-8 w-8 text-purple-600" />
+            <IndianRupee className="h-8 w-8 text-purple-600" />
           </div>
         </div>
 
@@ -381,7 +381,7 @@ export default function CompanyDetailPage() {
                 </h3>
                 <span
                   className={`px-3 py-1 text-sm rounded-full ${getStatusColor(
-                    company.status
+                    company.status,
                   )}`}
                 >
                   {company.status}
@@ -434,7 +434,7 @@ export default function CompanyDetailPage() {
 
               <div className="bg-purple-50 p-4 rounded-lg">
                 <div className="flex items-center space-x-2">
-                  <DollarSign className="h-5 w-5 text-purple-600" />
+                  <IndianRupee className="h-5 w-5 text-purple-600" />
                   <span className="text-sm font-medium text-purple-600">
                     Salaries
                   </span>
@@ -483,14 +483,14 @@ export default function CompanyDetailPage() {
                     <div className="flex items-center space-x-2 mt-1">
                       <span
                         className={`px-2 py-1 text-xs rounded-full ${getRoleColor(
-                          user.role
+                          user.role,
                         )}`}
                       >
                         {user.role}
                       </span>
                       <span
                         className={`px-2 py-1 text-xs rounded-full ${getStatusColor(
-                          user.status
+                          user.status,
                         )}`}
                       >
                         {user.status}

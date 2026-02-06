@@ -10,7 +10,7 @@ import {
   Users,
   User,
   BarChart3,
-  DollarSign,
+  IndianRupee,
   FileText,
   Search,
   Filter,
@@ -149,8 +149,8 @@ export default function CompaniesPage() {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ status }),
-          })
-        )
+          }),
+        ),
       );
       fetchCompanies();
       fetchStats();
@@ -166,8 +166,8 @@ export default function CompaniesPage() {
         selectedIds.map((id) =>
           fetch(`/api/super-admin/companies/${id}`, {
             method: "DELETE",
-          })
-        )
+          }),
+        ),
       );
       fetchCompanies();
       fetchStats();
@@ -434,7 +434,7 @@ export default function CompaniesPage() {
                               setSelectedIds([...selectedIds, company.id]);
                             } else {
                               setSelectedIds(
-                                selectedIds.filter((id) => id !== company.id)
+                                selectedIds.filter((id) => id !== company.id),
                               );
                             }
                           }}
@@ -457,7 +457,7 @@ export default function CompaniesPage() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span
                           className={`px-2 py-1 text-xs rounded-full ${getStatusColor(
-                            company.status
+                            company.status,
                           )}`}
                         >
                           {company.status}
@@ -475,7 +475,7 @@ export default function CompaniesPage() {
                             </span>
                           </div>
                           <div className="flex items-center space-x-2">
-                            <DollarSign className="h-3 w-3 text-emerald-600" />
+                            <IndianRupee className="h-3 w-3 text-emerald-600" />
                             <span className="text-xs">
                               {company._count.salaries}
                             </span>

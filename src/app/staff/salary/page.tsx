@@ -19,6 +19,8 @@ import {
   Receipt,
   AlertCircle,
   Check,
+  Wallet,
+  IndianRupee,
 } from "lucide-react";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import {
@@ -36,15 +38,23 @@ interface SalaryTransaction {
 }
 
 interface SalaryOverview {
-  totalOwed: number;
-  totalOwe: number;
-  totalGross: number;
-  totalPaid: number;
-  totalDeductions: number;
-  pendingAmount: number;
+  user: {
+    firstName: string | null;
+    lastName: string | null;
+    joiningDate: Date | string | null;
+  };
+  lifetimeTotals: {
+    totalSalary: number; // Kita lena (Gross earnings)
+    totalPaid: number; // Total received
+    totalRecoveries: number; // Total recoveries (deductions)
+    totalOwed: number; // Company owes staff
+    totalOwe: number; // Staff owes company
+    netPosition: number; // Net position (+ = company owes, - = staff owes)
+  };
   monthlyBreakdown: Array<{
     month: number;
     year: number;
+    period?: string;
     gross: number;
     deductions: number;
     paid: number;
@@ -107,6 +117,7 @@ export default function StaffSalaryOverviewPage() {
     isLoading: salariesLoading,
     error: salariesError,
   } = useStaffSalaries(undefined, { enabled: hasLoadedHistory });
+
   const handleTabChange = (tab: "overview" | "history") => {
     setActiveTab(tab);
     if (tab === "history" && !hasLoadedHistory) {
@@ -173,6 +184,30 @@ export default function StaffSalaryOverviewPage() {
     return <Loading />;
   }
 
+  // Helper to get card color based on balance
+  const getBalanceColor = (balance: number) => {
+    if (balance > 0)
+      return {
+        bg: "bg-green-50",
+        text: "text-green-600",
+        label: "text-green-700",
+        border: "border-green-200",
+      };
+    if (balance < 0)
+      return {
+        bg: "bg-red-50",
+        text: "text-red-600",
+        label: "text-red-700",
+        border: "border-red-200",
+      };
+    return {
+      bg: "bg-gray-50",
+      text: "text-gray-600",
+      label: "text-gray-700",
+      border: "border-gray-200",
+    };
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* Header */}
@@ -189,7 +224,6 @@ export default function StaffSalaryOverviewPage() {
           <button
             onClick={generateReport}
             className="px-4 py-2  bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors hidden items-center gap-2"
-            // className="px-4 py-2  bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
           >
             <Download className="h-4 w-4" />
             Generate Report
@@ -234,6 +268,90 @@ export default function StaffSalaryOverviewPage() {
         {/* Overview Tab */}
         {activeTab === "overview" && (
           <div className="space-y-6">
+            {/* Lifetime Summary - Clear & Simple */}
+            {isOverviewLoading ? (
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[1, 2, 3, 4].map((i) => (
+                  <div
+                    key={i}
+                    className="bg-white/90 rounded-xl p-4 border border-gray-200/50"
+                  >
+                    <Skeleton height={14} width={80} className="mb-2" />
+                    <Skeleton height={28} width={100} />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-white/90 backdrop-blur-sm rounded-xl p-6 border border-gray-200/50">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-blue-600" />
+                  Lifetime Summary (Since Joining)
+                </h3>
+
+                {/* Row 1: Earnings & Received */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                  {/* Total Earnings (Kita Lena) */}
+                  <div className="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <p className="text-xs text-blue-700 font-medium">
+                      Total Earnings (Kita Lena)
+                    </p>
+                    <p className="text-xl font-bold text-blue-600">
+                      ₹
+                      {formatCurrency(
+                        overview?.lifetimeTotals?.totalSalary || 0,
+                      )}
+                    </p>
+                  </div>
+
+                  {/* Total Received (Jo Milega) */}
+                  <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
+                    <p className="text-xs text-green-700 font-medium">
+                      Total Received (Jo Mila)
+                    </p>
+                    <p className="text-xl font-bold text-green-600">
+                      ₹
+                      {formatCurrency(overview?.lifetimeTotals?.totalPaid || 0)}
+                    </p>
+                  </div>
+
+                  {/* Total Recoveries (Jo Kissa) */}
+                  <div className="text-center p-4 bg-orange-50 rounded-lg border border-orange-200">
+                    <p className="text-xs text-orange-700 font-medium">
+                      Total Recoveries (Jo Kissa)
+                    </p>
+                    <p className="text-xl font-bold text-orange-600">
+                      ₹
+                      {formatCurrency(
+                        overview?.lifetimeTotals?.totalRecoveries || 0,
+                      )}
+                    </p>
+                  </div>
+
+                  {/* Net Balance */}
+                  {(() => {
+                    const netPos = overview?.lifetimeTotals?.netPosition || 0;
+                    const balanceColor = getBalanceColor(netPos);
+                    const isOwed = netPos >= 0;
+                    return (
+                      <div
+                        className={`text-center p-4 rounded-lg border ${balanceColor.border} ${balanceColor.bg}`}
+                      >
+                        <p
+                          className={`text-xs font-medium ${balanceColor.label}`}
+                        >
+                          {isOwed ? "Net Company Owes" : "Net You Owe"}
+                        </p>
+                        <p className={`text-xl font-bold ${balanceColor.text}`}>
+                          ₹{formatCurrency(Math.abs(netPos))}
+                        </p>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+
+            {/* Current Month Summary */}
             {isOverviewLoading ? (
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 {[1, 2, 3, 4].map((i) => (
@@ -253,62 +371,54 @@ export default function StaffSalaryOverviewPage() {
                     Current Month Summary
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="text-center p-4 bg-green-50 rounded-lg">
+                    <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
                       <p className="text-sm text-green-700 font-medium">
-                        Gross Salary
+                        Gross Salary (Kita Lena)
                       </p>
                       <p className="text-2xl font-bold text-green-600">
                         ₹{formatCurrency(overview?.currentMonth?.gross || 0)}
                       </p>
                     </div>
-                    <div className="text-center p-4 bg-red-50 rounded-lg">
-                      <p className="text-sm text-red-700 font-medium">
-                        Total Deductions
+                    <div className="text-center p-4 bg-orange-50 rounded-lg border border-orange-200">
+                      <p className="text-sm text-orange-700 font-medium">
+                        Recoveries (Jo Kissa)
                       </p>
-                      <p className="text-2xl font-bold text-red-600">
+                      <p className="text-2xl font-bold text-orange-600">
                         ₹
                         {formatCurrency(
                           overview?.currentMonth?.deductions || 0,
                         )}
                       </p>
                     </div>
-                    <div className="text-center p-4 bg-blue-50 rounded-lg">
+                    <div className="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
                       <p className="text-sm text-blue-700 font-medium">
-                        Payments Received
+                        Received (Jo Mila)
                       </p>
                       <p className="text-2xl font-bold text-blue-600">
                         ₹{formatCurrency(overview?.currentMonth?.paid || 0)}
                       </p>
                     </div>
-                    <div
-                      className={`text-center p-4 rounded-lg ${
-                        (overview?.currentMonth?.balance || 0) >= 0
-                          ? "bg-green-50"
-                          : "bg-red-50"
-                      }`}
-                    >
-                      <p
-                        className={`text-sm font-medium ${
-                          (overview?.currentMonth?.balance || 0) >= 0
-                            ? "text-green-700"
-                            : "text-red-700"
-                        }`}
-                      >
-                        Balance
-                      </p>
-                      <p
-                        className={`text-2xl font-bold ${
-                          (overview?.currentMonth?.balance || 0) >= 0
-                            ? "text-green-600"
-                            : "text-red-600"
-                        }`}
-                      >
-                        ₹
-                        {formatCurrency(
-                          Math.abs(overview?.currentMonth?.balance || 0),
-                        )}
-                      </p>
-                    </div>
+                    {(() => {
+                      const balance = overview?.currentMonth?.balance || 0;
+                      const balanceColor = getBalanceColor(balance);
+                      const isOwed = balance >= 0;
+                      return (
+                        <div
+                          className={`text-center p-4 rounded-lg border ${balanceColor.border} ${balanceColor.bg}`}
+                        >
+                          <p
+                            className={`text-sm font-medium ${balanceColor.label}`}
+                          >
+                            {isOwed ? "Balance Receivable" : "Balance Payable"}
+                          </p>
+                          <p
+                            className={`text-2xl font-bold ${balanceColor.text}`}
+                          >
+                            ₹{formatCurrency(Math.abs(balance))}
+                          </p>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               )
@@ -330,10 +440,10 @@ export default function StaffSalaryOverviewPage() {
                         Gross
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Deductions
+                        Recoveries
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Paid
+                        Received
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Balance
@@ -361,43 +471,42 @@ export default function StaffSalaryOverviewPage() {
                             </td>
                           </tr>
                         ))
-                      : overview?.monthlyBreakdown.map((month: any) => (
-                          <tr
-                            key={`${month.year}-${month.month}`}
-                            className="hover:bg-gray-50"
-                          >
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                              {new Date(
-                                month.year,
-                                month.month - 1,
-                              ).toLocaleDateString("en-US", {
-                                year: "numeric",
-                                month: "short",
-                              })}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
-                              ₹{formatCurrency(month.gross)}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium">
-                              ₹{formatCurrency(month.deductions)}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600 font-medium">
-                              ₹{formatCurrency(month.paid)}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                              <span
-                                className={
-                                  month.balance >= 0
-                                    ? "text-green-600"
-                                    : "text-red-600"
-                                }
-                              >
-                                {month.balance >= 0 ? "Receivable" : "Payable"}:
-                                ₹{formatCurrency(Math.abs(month.balance))}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
+                      : overview?.monthlyBreakdown.map((month: any) => {
+                          const balanceColor = getBalanceColor(month.balance);
+                          return (
+                            <tr
+                              key={`${month.year}-${month.month}`}
+                              className="hover:bg-gray-50"
+                            >
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                {new Date(
+                                  month.year,
+                                  month.month - 1,
+                                ).toLocaleDateString("en-US", {
+                                  year: "numeric",
+                                  month: "short",
+                                })}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
+                                ₹{formatCurrency(month.gross)}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-orange-600 font-medium">
+                                ₹{formatCurrency(month.deductions)}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600 font-medium">
+                                ₹{formatCurrency(month.paid)}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                <span className={balanceColor.text}>
+                                  {month.balance >= 0
+                                    ? "Receivable"
+                                    : "Payable"}
+                                  : ₹{formatCurrency(Math.abs(month.balance))}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
                   </tbody>
                 </table>
               </div>
@@ -527,7 +636,7 @@ export default function StaffSalaryOverviewPage() {
                 {Array.from({ length: 3 }).map((_, i) => (
                   <div
                     key={i}
-                    className="bg-white/90 backdrop-blur-sm rounded-xl p-4 border border-gray-200/50"
+                    className="bg-white/90 rounded-xl p-4 border border-gray-200/50"
                   >
                     <Skeleton height={24} className="mb-2" />
                     <Skeleton height={20} />
@@ -614,12 +723,9 @@ export default function StaffSalaryOverviewPage() {
                     const totalDeductionsAll =
                       totalDeductions + totalLedgerDeductions + totalRecoveries;
 
-                    // What company owes (gross earnings)
-                    const companyOwes = grossEarnings;
-                    // What employee owes (deductions + recoveries)
-                    const employeeOwes = totalDeductionsAll;
-                    // Net balance = netAmount - payments
-                    const netPayable = salary.netAmount - totalPayments;
+                    // Net balance - FIXED: Include all recoveries
+                    const netPayable =
+                      salary.netAmount - totalPayments - totalRecoveries;
 
                     return (
                       <div
@@ -674,23 +780,23 @@ export default function StaffSalaryOverviewPage() {
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                               <div className="text-center p-4 bg-green-50 rounded-lg">
                                 <p className="text-sm text-green-700 font-medium">
-                                  Company Owes (Gross)
+                                  Earnings (Kita Lena)
                                 </p>
                                 <p className="text-xl font-bold text-green-600">
-                                  ₹{formatCurrency(companyOwes)}
+                                  ₹{formatCurrency(grossEarnings)}
                                 </p>
                               </div>
-                              <div className="text-center p-4 bg-red-50 rounded-lg">
-                                <p className="text-sm text-red-700 font-medium">
-                                  Employee Owes (Deductions)
+                              <div className="text-center p-4 bg-orange-50 rounded-lg">
+                                <p className="text-sm text-orange-700 font-medium">
+                                  Recoveries (Jo Kissa)
                                 </p>
-                                <p className="text-xl font-bold text-red-600">
-                                  ₹{formatCurrency(employeeOwes)}
+                                <p className="text-xl font-bold text-orange-600">
+                                  ₹{formatCurrency(totalDeductionsAll)}
                                 </p>
                               </div>
                               <div className="text-center p-4 bg-blue-50 rounded-lg">
                                 <p className="text-sm text-blue-700 font-medium">
-                                  Payments Received
+                                  Received (Jo Mila)
                                 </p>
                                 <p className="text-xl font-bold text-blue-600">
                                   ₹{formatCurrency(totalPayments)}
@@ -781,7 +887,7 @@ export default function StaffSalaryOverviewPage() {
                             {/* Deductions */}
                             <div className="mb-4">
                               <h4 className="font-semibold mb-2">
-                                Deductions & Recoveries
+                                Recoveries & Deductions
                               </h4>
                               <div className="space-y-2">
                                 {/* Salary breakdown deductions */}
@@ -795,7 +901,7 @@ export default function StaffSalaryOverviewPage() {
                                         {breakdown.description}
                                       </span>
                                       <span className="font-medium text-red-600">
-                                        ₹
+                                        -₹
                                         {formatCurrency(
                                           Math.abs(breakdown.amount),
                                         )}
@@ -859,7 +965,7 @@ export default function StaffSalaryOverviewPage() {
                                   ledgerDeductions.length === 0 &&
                                   ledgerRecoveries.length === 0 && (
                                     <p className="text-gray-500">
-                                      No deductions or recoveries
+                                      No recoveries or deductions
                                     </p>
                                   )}
                               </div>

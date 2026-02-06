@@ -9,7 +9,7 @@ import "react-loading-skeleton/dist/skeleton.css";
 import {
   Search,
   Users,
-  DollarSign,
+  IndianRupee,
   Settings,
   Save,
   AlertCircle,

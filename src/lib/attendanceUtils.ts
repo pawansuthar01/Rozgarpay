@@ -234,7 +234,7 @@ export function calculateLateMinutes(
 
 export function getApprovedWorkingHours(attendance: any, company: any): number {
   // Case 1: Already calculated (normal punch in/out)
-  if (attendance.workingHours && attendance.workingHours > 0) {
+  if (attendance && attendance.workingHours && attendance.workingHours > 0) {
     return attendance.workingHours;
   }
   // Case 2: Manual approval without punches → full shift hours

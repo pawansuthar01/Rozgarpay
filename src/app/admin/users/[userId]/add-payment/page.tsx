@@ -11,7 +11,7 @@ import {
   ArrowLeft,
   CreditCard,
   Calendar,
-  DollarSign,
+  IndianRupee,
   FileText,
   Save,
 } from "lucide-react";
@@ -95,7 +95,7 @@ export default function AddPaymentPage() {
           {/* Amount */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
-              <DollarSign className="h-4 w-4 mr-2 text-green-600" />
+              <IndianRupee className="h-4 w-4 mr-2 text-green-600" />
               Amount *
             </label>
             <input

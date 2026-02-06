@@ -16,9 +16,9 @@ import { SalaryRecord, SalaryApiResponse } from "@/types/salary";
 // ============================================================================
 
 const STALE_TIMES = {
-  LIST: 1000 * 60 * 2, // 2 minutes
-  DETAIL: 1000 * 60 * 5, // 5 minutes
-  REPORTS: 1000 * 60 * 5, // 5 minutes
+  LIST: 1000 * 30, // 30 seconds - changes frequently
+  DETAIL: 1000 * 60, // 1 minute
+  REPORTS: 1000 * 60, // 2 minutes
 } as const;
 
 // ============================================================================
@@ -229,11 +229,12 @@ export function useAddPayment() {
       }
       return response.json();
     },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["salaries"] });
-      queryClient.invalidateQueries({ queryKey: ["payments"] });
-      queryClient.invalidateQueries({
-        queryKey: ["userProfile", variables.userId],
+    onSuccess: async (_, variables) => {
+      await queryClient.invalidateQueries({ queryKey: ["salaries"] });
+      await queryClient.invalidateQueries({ queryKey: ["payments"] });
+      // Use correct query key for user profile
+      await queryClient.invalidateQueries({
+        queryKey: ["user", variables.userId],
       });
     },
   });
@@ -258,11 +259,12 @@ export function useRecoverPayment() {
       }
       return response.json();
     },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["salaries"] });
-      queryClient.invalidateQueries({ queryKey: ["payments"] });
-      queryClient.invalidateQueries({
-        queryKey: ["userProfile", variables.userId],
+    onSuccess: async (_, variables) => {
+      await queryClient.invalidateQueries({ queryKey: ["salaries"] });
+      await queryClient.invalidateQueries({ queryKey: ["payments"] });
+      // Use correct query key for user profile
+      await queryClient.invalidateQueries({
+        queryKey: ["user", variables.userId],
       });
     },
   });
@@ -284,10 +286,11 @@ export function useAddDeduction() {
       }
       return response.json();
     },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["salaries"] });
-      queryClient.invalidateQueries({
-        queryKey: ["userProfile", variables.userId],
+    onSuccess: async (_, variables) => {
+      await queryClient.invalidateQueries({ queryKey: ["salaries"] });
+      // Use correct query key for user profile
+      await queryClient.invalidateQueries({
+        queryKey: ["user", variables.userId],
       });
     },
   });

@@ -17,7 +17,6 @@ export async function POST(
     }
 
     const { reason, notes } = await request.json();
-
     if (!reason) {
       return NextResponse.json(
         { error: "Reason is required for reversal" },
@@ -25,12 +24,9 @@ export async function POST(
       );
     }
 
-    // Get the original entry
+    // 🔹 Original cashbook entry
     const originalEntry = await prisma.cashbookEntry.findFirst({
-      where: {
-        id,
-        isReversed: false,
-      },
+      where: { id, isReversed: false },
     });
 
     if (!originalEntry) {
@@ -40,29 +36,33 @@ export async function POST(
       );
     }
 
-    // Verify admin owns the company
+    // 🔹 Company ownership check
     const admin = await prisma.user.findUnique({
       where: { id: session.user.id },
-      include: { company: true },
+      select: { companyId: true },
     });
 
-    if (!admin?.company || originalEntry.companyId !== admin.company.id) {
+    if (!admin?.companyId || admin.companyId !== originalEntry.companyId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if there's a linked SalaryLedger entry (reference = salaryId)
-    let linkedLedger = null;
-    if (originalEntry.reference && originalEntry.userId) {
-      linkedLedger = await prisma.salaryLedger.findFirst({
-        where: {
-          salaryId: originalEntry.reference,
-          userId: originalEntry.userId,
-        },
-      });
-    }
+    // 🔹 Find linked salary ledger (NEW → OLD fallback)
+    const linkedLedger =
+      (await prisma.salaryLedger.findFirst({
+        where: { cashbookEntryId: originalEntry.id },
+      })) ??
+      (originalEntry.reference && originalEntry.userId
+        ? await prisma.salaryLedger.findFirst({
+            where: {
+              salaryId: originalEntry.reference,
+              userId: originalEntry.userId,
+            },
+            orderBy: { createdAt: "desc" },
+          })
+        : null);
 
     const result = await prisma.$transaction(async (tx) => {
-      // Create reversal entry (opposite direction)
+      // 1️⃣ Create reversal cashbook entry
       const reversalEntry = await tx.cashbookEntry.create({
         data: {
           companyId: originalEntry.companyId,
@@ -71,7 +71,7 @@ export async function POST(
           direction: originalEntry.direction === "CREDIT" ? "DEBIT" : "CREDIT",
           amount: originalEntry.amount,
           paymentMode: originalEntry.paymentMode,
-          reference: `REVERSAL-${originalEntry.id}`,
+          reference: originalEntry.reference ?? `REVERSAL-${originalEntry.id}`,
           description: `Reversal: ${originalEntry.description}`,
           notes: `Reversal reason: ${reason}${notes ? ` - ${notes}` : ""}`,
           transactionDate: getDate(new Date()),
@@ -80,29 +80,29 @@ export async function POST(
         },
       });
 
-      // Mark original entry as reversed
+      // 2️⃣ Mark original entry reversed
       await tx.cashbookEntry.update({
         where: { id: originalEntry.id },
         data: { isReversed: true },
       });
 
-      // If there's a linked ledger, create a reversal ledger entry
+      // 3️⃣ Reverse salary ledger (if linked)
       if (linkedLedger) {
-        const reversalAmount = -linkedLedger.amount; // Opposite sign
         await tx.salaryLedger.create({
           data: {
             salaryId: linkedLedger.salaryId,
             userId: linkedLedger.userId,
             companyId: linkedLedger.companyId,
             type: linkedLedger.type,
-            amount: reversalAmount,
+            amount: -linkedLedger.amount, // 🔁 opposite impact
             reason: `Reversal: ${linkedLedger.reason}`,
+            cashbookEntryId: reversalEntry.id, // 🔑 LINKED
             createdBy: session.user.id,
           },
         });
       }
 
-      // Create audit log
+      // 4️⃣ Audit log
       await tx.auditLog.create({
         data: {
           userId: session.user.id,

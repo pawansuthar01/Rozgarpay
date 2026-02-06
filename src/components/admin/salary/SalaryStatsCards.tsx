@@ -4,7 +4,7 @@ import {
   FileText,
   Clock,
   CheckCircle,
-  DollarSign,
+  IndianRupee,
   XCircle,
 } from "lucide-react";
 import { SalaryStats } from "@/types/salary";
@@ -113,7 +113,7 @@ export default function SalaryStatsCards({
               </p>
             )}
           </div>
-          <DollarSign className="h-6 w-6 text-purple-600" />
+          <IndianRupee className="h-6 w-6 text-purple-600" />
         </div>
       </div>
     </div>

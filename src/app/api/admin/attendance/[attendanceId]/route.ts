@@ -155,7 +155,13 @@ export async function PUT(request: NextRequest, { params }: any) {
       where: { id: session.user.id },
       select: {
         companyId: true,
-        company: { select: { shiftStartTime: true, shiftEndTime: true } },
+        company: {
+          select: {
+            shiftStartTime: true,
+            shiftEndTime: true,
+            maxDailyHours: true,
+          },
+        },
       },
     });
 
@@ -204,7 +210,11 @@ export async function PUT(request: NextRequest, { params }: any) {
       validStatus === "ABSENT" || validStatus === "LEAVE"
         ? 0
         : validStatus === "APPROVED"
-          ? getApprovedWorkingHours(attendance as any, admin.company)
+          ? await salaryService.getShiftHoursForSalary(
+              admin.company.shiftStartTime,
+              admin.company.shiftEndTime,
+              admin.company.maxDailyHours,
+            )
           : (attendance.workingHours ?? 0);
 
     // Update attendance status

@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const page = Math.max(1, parseInt(searchParams.get("page") || "1") || 1);
     let limit = Math.max(
       1,
-      Math.min(parseInt(searchParams.get("limit") || "10") || 10, 100),
+      Math.min(parseInt(searchParams.get("limit") || "5") || 5, 100),
     );
     const month = searchParams.get("month")
       ? parseInt(searchParams.get("month")!)
@@ -98,9 +98,10 @@ export async function GET(request: NextRequest) {
           createdAt: true,
           user: {
             select: {
+              id: true,
               firstName: true,
               lastName: true,
-              email: true,
+              phone: true,
             },
           },
         },

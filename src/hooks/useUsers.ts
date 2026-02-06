@@ -1,28 +1,10 @@
-/**
- * Optimized Users Hook
- *
- * Performance optimizations:
- * - Optimized stale times
- * - Performance monitoring integration
- * - Placeholder data for smooth loading
- */
-
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { User } from "next-auth";
-import { performanceMonitor } from "@/lib/performanceMonitor";
-
-// ============================================================================
-// Stale Times
-// ============================================================================
+import { useEffect } from "react";
 
 const STALE_TIMES = {
-  LIST: 1000 * 60 * 2, // 2 minutes
-  DETAIL: 1000 * 60 * 5, // 5 minutes
+  LIST: 1000 * 60 * 1, // 1 minute
+  DETAIL: 1000 * 60 * 5,
 } as const;
-
-// ============================================================================
-// Hooks
-// ============================================================================
 
 export function useUsers(
   page: number,
@@ -32,14 +14,25 @@ export function useUsers(
 ) {
   const queryClient = useQueryClient();
 
+  // Prefetch first page for instant load
+  useEffect(() => {
+    queryClient.prefetchQuery({
+      queryKey: ["users", "list", 1, limit, status, ""] as const,
+      queryFn: () =>
+        fetch(`/api/admin/users?page=1&limit=${limit}&status=${status}`).then(
+          (r) => r.json(),
+        ),
+      staleTime: STALE_TIMES.LIST,
+    });
+  }, [limit, status, queryClient]);
+
   const {
-    data: usersData,
+    data,
     isLoading: loading,
     error,
   } = useQuery({
     queryKey: ["users", "list", page, limit, status, search] as const,
     queryFn: async () => {
-      const startTime = performance.now();
       const params = new URLSearchParams({
         page: String(page),
         limit: String(limit),
@@ -47,19 +40,8 @@ export function useUsers(
         search,
       });
       const res = await fetch(`/api/admin/users?${params}`);
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to fetch users");
-      }
-      const data = await res.json();
-      performanceMonitor.recordQueryMetric({
-        queryKey: "users.list",
-        duration: performance.now() - startTime,
-        status: "success",
-        isCacheHit: false,
-        timestamp: Date.now(),
-      });
-      return data;
+      if (!res.ok) throw new Error("Failed to fetch users");
+      return res.json();
     },
     staleTime: STALE_TIMES.LIST,
     placeholderData: (previousData) => previousData,
@@ -71,34 +53,26 @@ export function useUsers(
       newStatus,
     }: {
       userId: string;
-      newStatus: "ACTIVE" | "SUSPENDED" | "DEACTIVATED";
+      newStatus: string;
     }) => {
       const res = await fetch(`/api/admin/users/${userId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to update status");
-      }
+      if (!res.ok) throw new Error("Failed to update status");
       return res.json();
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
-      queryClient.invalidateQueries({ queryKey: ["usersStats"] });
     },
   });
 
-  const users = usersData?.users || [];
-  const totalPages = usersData?.pagination?.totalPages || 1;
+  const users = data?.users || [];
+  const totalPages = data?.pagination?.totalPages || 1;
 
-  const updateStatus = (
-    userId: string,
-    newStatus: "ACTIVE" | "SUSPENDED" | "DEACTIVATED",
-  ) => {
-    return mutation.mutateAsync({ userId, newStatus });
-  };
+  const updateStatus = (userId: string, newStatus: string) =>
+    mutation.mutateAsync({ userId, newStatus });
 
   return {
     users,
@@ -112,19 +86,10 @@ export function useUsers(
 export function useUser(userId: string) {
   return useQuery({
     queryKey: ["user", "detail", userId] as const,
-    queryFn: async (): Promise<User> => {
-      const startTime = performance.now();
+    queryFn: async () => {
       const response = await fetch(`/api/admin/users/${userId}/data`);
       if (!response.ok) throw new Error("Failed to fetch user");
-      const { data } = await response.json();
-      performanceMonitor.recordQueryMetric({
-        queryKey: "users.detail",
-        duration: performance.now() - startTime,
-        status: "success",
-        isCacheHit: false,
-        timestamp: Date.now(),
-      });
-      return data;
+      return response.json();
     },
     staleTime: STALE_TIMES.DETAIL,
     enabled: !!userId,

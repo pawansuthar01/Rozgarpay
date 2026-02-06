@@ -37,6 +37,7 @@ export default function AdminCashbookPage() {
   const [editingEntry, setEditingEntry] = useState<any>(null);
   const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
   const [reversingEntryId, setReversingEntryId] = useState<string | null>(null);
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
 
   // Filters
   const [startDate, setStartDate] = useState<string>("");
@@ -94,7 +95,8 @@ export default function AdminCashbookPage() {
 
   const handleSubmitEntry = (entryData: any) => {
     if (editingEntry) {
-      // Update existing entry - optimistic update
+      // Update existing entry - wait for API response
+      setEditingEntryId(editingEntry.id);
       updateEntryMutation.mutate(
         { entryId: editingEntry.id, data: entryData },
         {
@@ -107,10 +109,13 @@ export default function AdminCashbookPage() {
             console.error("Entry update error:", error);
             showMessage("error", "Error", "Failed to update entry");
           },
+          onSettled: () => {
+            setEditingEntryId(null);
+          },
         },
       );
     } else {
-      // Create new entry - optimistic update
+      // Create new entry - wait for API response
       createEntryMutation.mutate(entryData, {
         onSuccess: () => {
           setShowForm(false);
@@ -130,8 +135,7 @@ export default function AdminCashbookPage() {
   };
 
   const handleReverseEntry = (entryId: string, reason: string) => {
-    // The confirmation is already shown by CashbookTable
-    // Just perform the reversal action - optimistic update
+    // Show loading state and wait for API response
     setReversingEntryId(entryId);
     reverseEntryMutation.mutate(
       { entryId, reason },
@@ -155,7 +159,7 @@ export default function AdminCashbookPage() {
       "Confirm Delete",
       "Are you sure you want to permanently delete this transaction? This action cannot be undone.",
       () => {
-        // Delete entry - optimistic update
+        // Show loading state and wait for API response
         setDeletingEntryId(entryId);
         deleteEntryMutation.mutate(entryId, {
           onSuccess: () => {
@@ -334,6 +338,7 @@ export default function AdminCashbookPage() {
                 userRole={session.user.role}
                 deletingEntryId={deletingEntryId}
                 reversingEntryId={reversingEntryId}
+                editingEntryId={editingEntryId}
                 showConfirm={showConfirm}
               />
             </div>

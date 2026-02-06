@@ -36,7 +36,6 @@ interface User {
 }
 
 export default function AdminUsersPage() {
-  const { data: session } = useSession();
   // Filters
   const router = useRouter();
   const [statusFilter, setStatusFilter] = useState<string>("");
@@ -44,7 +43,7 @@ export default function AdminUsersPage() {
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const itemsPerPage = 5;
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const { users, loading, error, totalPages, updateStatus } = useUsers(
@@ -76,10 +75,6 @@ export default function AdminUsersPage() {
       setActionLoading(null);
     }
   };
-
-  if (!session || session.user.role !== "ADMIN") {
-    return <Loading />;
-  }
 
   return (
     <div className="space-y-6 sm:p-4  md:p-6">

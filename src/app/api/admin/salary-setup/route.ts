@@ -121,96 +121,101 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { staffUpdates } = body;
 
-    if (!Array.isArray(staffUpdates)) {
+    if (!Array.isArray(staffUpdates) || staffUpdates.length === 0) {
       return NextResponse.json(
-        { error: "staffUpdates must be an array" },
+        { error: "staffUpdates must be a non-empty array" },
         { status: 400 },
       );
     }
 
-    // Process updates
-    const results = await Promise.all(
-      staffUpdates.map(async (update) => {
-        const {
-          userId,
-          baseSalary,
-          hourlyRate,
-          dailyRate,
-          salaryType,
-          workingDays,
-          overtimeRate,
-          pfEsiApplicable,
-          joiningDate,
-        } = update;
+    const userIds = staffUpdates.map((u) => u.userId);
 
-        if (!userId) {
-          throw new Error("userId is required");
-        }
+    // BATCH QUERY: Get all user info in a single query instead of N+1 queries
+    const usersBefore = await prisma.user.findMany({
+      where: {
+        id: { in: userIds },
+        companyId,
+        role: { in: ["STAFF", "MANAGER"] },
+      },
+      select: {
+        id: true,
+        salarySetupDone: true,
+        firstName: true,
+        lastName: true,
+      },
+    });
 
-        // Get user info before update
-        const userBefore = await prisma.user.findFirst({
-          where: {
-            id: userId,
-            companyId,
-            role: { in: ["STAFF", "MANAGER"] },
-          },
-          select: {
-            salarySetupDone: true,
-            firstName: true,
-            lastName: true,
-          },
-        });
+    const userMap = new Map(usersBefore.map((u) => [u.id, u]));
 
-        if (!userBefore) {
-          throw new Error(`User ${userId} not found or unauthorized`);
-        }
+    // Validate all users exist
+    const invalidUsers = userIds.filter((id) => !userMap.has(id));
+    if (invalidUsers.length > 0) {
+      return NextResponse.json(
+        { error: `Users not found: ${invalidUsers.join(", ")}` },
+        { status: 400 },
+      );
+    }
 
-        const isFirstTimeSetup = userBefore.salarySetupDone !== true;
+    // Prepare update operations
+    const updateOperations = staffUpdates.map((update) => {
+      const {
+        userId,
+        baseSalary,
+        hourlyRate,
+        dailyRate,
+        salaryType,
+        workingDays,
+        overtimeRate,
+        pfEsiApplicable,
+        joiningDate,
+      } = update;
 
-        // Update user
-        await prisma.user.update({
-          where: { id: userId },
-          data: {
-            salarySetupDone: true,
-            baseSalary: baseSalary ? parseFloat(baseSalary) : null,
-            hourlyRate: hourlyRate ? parseFloat(hourlyRate) : null,
-            dailyRate: dailyRate ? parseFloat(dailyRate) : null,
-            salaryType: salaryType || "MONTHLY",
-            workingDays: workingDays ? parseInt(workingDays) : 26,
-            overtimeRate: overtimeRate ? parseFloat(overtimeRate) : null,
-            pfEsiApplicable:
-              pfEsiApplicable !== undefined ? Boolean(pfEsiApplicable) : true,
-            joiningDate: joiningDate ? new Date(joiningDate) : undefined,
-          },
-        });
+      const userBefore = userMap.get(userId);
+      if (!userBefore) {
+        throw new Error(`User ${userId} not found`);
+      }
 
-        return { userId, isFirstTimeSetup };
-      }),
+      return {
+        where: { id: userId },
+        data: {
+          salarySetupDone: true,
+          baseSalary: baseSalary ? parseFloat(baseSalary) : null,
+          hourlyRate: hourlyRate ? parseFloat(hourlyRate) : null,
+          dailyRate: dailyRate ? parseFloat(dailyRate) : null,
+          salaryType: salaryType || "MONTHLY",
+          workingDays: workingDays ? parseInt(workingDays) : 26,
+          overtimeRate: overtimeRate ? parseFloat(overtimeRate) : null,
+          pfEsiApplicable:
+            pfEsiApplicable !== undefined ? Boolean(pfEsiApplicable) : true,
+          joiningDate: joiningDate ? new Date(joiningDate) : undefined,
+        },
+      };
+    });
+
+    // BATCH UPDATE: Use transaction for atomic operations
+    await prisma.$transaction(
+      updateOperations.map((op) => prisma.user.update(op)),
     );
 
-    // Fire-and-forget notifications
-    for (const result of results) {
-      if (result.isFirstTimeSetup) {
-        // Send notification asynchronously
-        prisma.notification
-          .create({
-            data: {
-              userId: result.userId,
-              companyId,
-              title: "Salary Setup Complete",
-              message:
-                "Your salary configuration has been set up by the admin.",
-              channel: "IN_APP",
-              status: "PENDING",
-            },
-          })
-          .catch(console.error);
-      }
+    // BATCH CREATE: Create all notifications in one query
+    const notificationCreates = usersBefore
+      .filter((u) => u.salarySetupDone !== true)
+      .map((user) => ({
+        userId: user.id,
+        companyId,
+        title: "Salary Setup Complete",
+        message: "Your salary configuration has been set up by the admin.",
+        channel: "IN_APP" as const,
+        status: "PENDING" as const,
+      }));
+
+    if (notificationCreates.length > 0) {
+      await prisma.notification.createMany({ data: notificationCreates });
     }
 
     return NextResponse.json({
       message: "Salary configurations updated successfully",
-      updated: results.length,
+      updated: staffUpdates.length,
     });
   } catch (error) {
     console.error("Admin salary setup POST error:", error);

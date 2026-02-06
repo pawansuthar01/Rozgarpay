@@ -22,6 +22,7 @@ interface CashbookTableProps {
   userRole: string;
   deletingEntryId?: string | null;
   reversingEntryId?: string | null;
+  editingEntryId?: string | null;
   showConfirm?: (title: string, message: string, onConfirm: () => void) => void;
 }
 
@@ -38,6 +39,7 @@ export default function CashbookTable({
   userRole,
   deletingEntryId = null,
   reversingEntryId = null,
+  editingEntryId = null,
   showConfirm,
 }: CashbookTableProps) {
   const formatCurrency = (amount: number) => `₹${amount.toLocaleString()}`;
@@ -190,20 +192,35 @@ export default function CashbookTable({
             )}
 
             {((onEdit && ["ADMIN", "MANAGER"].includes(userRole)) ||
-              (onReverse && userRole === "ADMIN") ||
               (onDelete && userRole === "ADMIN")) &&
               !entry.isReversed && (
                 <div className="mt-2 flex justify-end space-x-3">
                   {onEdit && ["ADMIN", "MANAGER"].includes(userRole) && (
                     <button
                       onClick={() => onEdit(entry)}
-                      className="text-xs text-green-600 hover:text-green-800 flex items-center space-x-1"
+                      disabled={[
+                        reversingEntryId,
+                        deletingEntryId,
+                        editingEntryId,
+                      ].includes(entry.id)}
+                      className="text-xs text-green-600 hover:text-green-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
                     >
-                      <Edit className="h-3 w-3" />
-                      <span>Edit</span>
+                      {[
+                        reversingEntryId,
+                        deletingEntryId,
+                        editingEntryId,
+                      ].includes(entry.id) ? (
+                        <div className="animate-spin h-3 w-3 border border-green-600 border-t-transparent rounded-full"></div>
+                      ) : (
+                        <Edit className="h-3 w-3" />
+                      )}
+                      <span>
+                        {editingEntryId === entry.id ? "Updating..." : "Edit"}
+                      </span>
                     </button>
                   )}
-                  {onReverse && userRole === "ADMIN" && (
+                  {/* Reverse only for non-linked entries */}
+                  {onReverse && userRole === "ADMIN" && !entry.reference && (
                     <button
                       onClick={() => handleReverse(entry)}
                       disabled={[reversingEntryId, deletingEntryId].includes(
@@ -362,39 +379,60 @@ export default function CashbookTable({
                           {onEdit && (
                             <button
                               onClick={() => onEdit(entry)}
-                              className="text-green-600 hover:text-green-900 text-sm flex items-center space-x-1"
-                              title="Edit transaction"
-                            >
-                              <Edit className="h-4 w-4" />
-                              <span>Edit</span>
-                            </button>
-                          )}
-                          {onReverse && userRole === "ADMIN" && (
-                            <button
-                              onClick={() => handleReverse(entry)}
                               disabled={[
                                 reversingEntryId,
                                 deletingEntryId,
+                                editingEntryId,
                               ].includes(entry.id)}
-                              className="text-blue-600 hover:text-blue-900 cursor-pointer  disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center space-x-1"
+                              className="text-green-600 hover:text-green-900 text-sm flex items-center space-x-1 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                               title={
-                                reversingEntryId === entry.id
-                                  ? "Reversing transaction..."
-                                  : "Reverse transaction"
+                                editingEntryId === entry.id
+                                  ? "Updating transaction..."
+                                  : "Edit transaction"
                               }
                             >
-                              {reversingEntryId === entry.id ? (
-                                <div className="animate-spin h-4 w-4 border border-blue-600 border-t-transparent rounded-full"></div>
+                              {editingEntryId === entry.id ? (
+                                <div className="animate-spin h-4 w-4 border border-green-600 border-t-transparent rounded-full"></div>
                               ) : (
-                                <RotateCcw className="h-4 w-4" />
+                                <Edit className="h-4 w-4" />
                               )}
                               <span>
-                                {reversingEntryId === entry.id
-                                  ? "Reversing..."
-                                  : "Reverse"}
+                                {editingEntryId === entry.id
+                                  ? "Updating..."
+                                  : "Edit"}
                               </span>
                             </button>
                           )}
+                          {/* Reverse only for non-linked entries */}
+                          {onReverse &&
+                            userRole === "ADMIN" &&
+                            !entry.reference && (
+                              <button
+                                onClick={() => handleReverse(entry)}
+                                disabled={[
+                                  reversingEntryId,
+                                  deletingEntryId,
+                                ].includes(entry.id)}
+                                className="text-blue-600 hover:text-blue-900 cursor-pointer  disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center space-x-1"
+                                title={
+                                  reversingEntryId === entry.id
+                                    ? "Reversing transaction..."
+                                    : "Reverse transaction"
+                                }
+                              >
+                                {reversingEntryId === entry.id ? (
+                                  <div className="animate-spin h-4 w-4 border border-blue-600 border-t-transparent rounded-full"></div>
+                                ) : (
+                                  <RotateCcw className="h-4 w-4" />
+                                )}
+                                <span>
+                                  {reversingEntryId === entry.id
+                                    ? "Reversing..."
+                                    : "Reverse"}
+                                </span>
+                              </button>
+                            )}
+                          {/* Delete for all entries */}
                           {onDelete && userRole === "ADMIN" && (
                             <button
                               onClick={() => onDelete(entry.id)}

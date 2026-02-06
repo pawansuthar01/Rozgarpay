@@ -235,9 +235,8 @@ function buildWhatsAppComponents(notification: {
       };
     case "salary_setup_pending":
       return {
-        body_1: { type: "text", value: data?.companyName || "N/A" },
+        body_1: { type: "text", value: data?.adminName || "N/A" },
         body_2: { type: "text", value: data?.staffName || "team member" },
-        button_1: { subtype: "url", type: "text", value: "/setup" },
       };
     case "salary_setup_done":
       return {

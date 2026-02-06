@@ -10,7 +10,7 @@ import "react-loading-skeleton/dist/skeleton.css";
 import {
   User,
   Calendar,
-  DollarSign,
+  IndianRupee,
   Clock,
   CheckCircle,
   XCircle,
@@ -312,7 +312,7 @@ export default function StaffProfile() {
       {/* Salary Information */}
       <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
         <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-          <DollarSign className="h-5 w-5 mr-2" />
+          <IndianRupee className="h-5 w-5 mr-2" />
           Salary Information
         </h2>
         <div className="space-y-4">

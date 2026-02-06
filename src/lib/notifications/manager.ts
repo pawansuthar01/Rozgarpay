@@ -370,7 +370,7 @@ export class NotificationManager {
     phone: string,
     channels: NotificationChannel[],
     data: {
-      type: string;
+      type: NotificationType;
       role: string;
       companyName: string;
       staffName?: string;
@@ -413,7 +413,8 @@ export class NotificationManager {
     data: {
       subject?: string;
       message?: string;
-      companyName: string;
+      adminName?: string;
+      companyName?: string;
       staffName?: string;
     },
   ): void {

@@ -26,6 +26,7 @@ export interface SalaryRecord {
   id: string;
   userId: string;
   user: {
+    id: string;
     firstName: string | null;
     lastName: string | null;
     phone: string;

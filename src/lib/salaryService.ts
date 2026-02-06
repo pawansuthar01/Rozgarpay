@@ -7,6 +7,118 @@ import { getDate } from "./attendanceUtils";
 import { getCurrentTime } from "./utils";
 
 // ============================================================================
+// Money Utility Functions (Shared between Admin and Staff)
+// ============================================================================
+
+/**
+ * Round amount to 2 decimal places
+ */
+export function roundToTwoDecimals(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+/**
+ * Format currency for display
+ */
+export function formatCurrency(amount: number, currency = "INR"): string {
+  return new Intl.NumberFormat("en-IN", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+/**
+ * Calculate balance for a salary including ledger adjustments
+ * Positive balance = Company owes employee (receivable)
+ * Negative balance = Employee owes company (payable)
+ */
+export function calculateSalaryBalance(
+  netAmount: number,
+  ledger: Array<{ type: string; amount: number }>,
+): number {
+  const payments = ledger
+    .filter((l) => l.type === "PAYMENT")
+    .reduce((sum, l) => sum + Math.abs(l.amount || 0), 0);
+
+  const recoveries = ledger
+    .filter((l) => l.type === "RECOVERY" || l.type === "DEDUCTION")
+    .reduce((sum, l) => sum + Math.abs(l.amount || 0), 0);
+
+  return roundToTwoDecimals(netAmount - payments - recoveries);
+}
+
+/**
+ * Calculate total payments from ledger
+ */
+export function calculateTotalPayments(
+  ledger: Array<{ type: string; amount: number }>,
+): number {
+  return ledger
+    .filter((l) => l.type === "PAYMENT")
+    .reduce((sum, l) => sum + Math.abs(l.amount || 0), 0);
+}
+
+/**
+ * Calculate total recoveries from ledger
+ */
+export function calculateTotalRecoveries(
+  ledger: Array<{ type: string; amount: number }>,
+): number {
+  return ledger
+    .filter((l) => l.type === "RECOVERY" || l.type === "DEDUCTION")
+    .reduce((sum, l) => sum + Math.abs(l.amount || 0), 0);
+}
+
+/**
+ * Calculate total earnings from salary breakdowns
+ */
+export function calculateTotalEarnings(
+  breakdowns: Array<{ type: string; amount: number }>,
+): number {
+  return breakdowns
+    .filter((b) => ["BASE_SALARY", "OVERTIME", "EARNING"].includes(b.type))
+    .reduce((sum, b) => sum + Math.abs(b.amount || 0), 0);
+}
+
+/**
+ * Calculate total deductions from salary breakdowns
+ */
+export function calculateBreakdownDeductions(
+  breakdowns: Array<{ type: string; amount: number }>,
+): number {
+  return breakdowns
+    .filter((b) =>
+      [
+        "PF_DEDUCTION",
+        "ESI_DEDUCTION",
+        "LATE_PENALTY",
+        "ABSENT_PENALTY",
+        "ABSENCE_DEDUCTION",
+      ].includes(b.type),
+    )
+    .reduce((sum, b) => sum + Math.abs(b.amount || 0), 0);
+}
+
+/**
+ * Get month name from month number
+ */
+export function getMonthName(month: number): string {
+  const date = new Date(2000, month - 1, 1);
+  return date.toLocaleString("default", { month: "short" });
+}
+
+/**
+ * Get current month and year in local timezone
+ */
+export function getCurrentMonthYear(): { month: number; year: number } {
+  const now = new Date();
+  return {
+    month: now.getMonth() + 1,
+    year: now.getFullYear(),
+  };
+}
+
+// ============================================================================
 // Types and Interfaces
 // ============================================================================
 
@@ -114,10 +226,6 @@ function validatePositiveNumber(value: number, fieldName: string): void {
   }
 }
 
-function roundToTwoDecimals(value: number): number {
-  return Math.round(value * 100) / 100;
-}
-
 // ============================================================================
 // Salary Service Class
 // ============================================================================
@@ -148,6 +256,124 @@ export class SalaryService {
     // If netAmount > paid, company owes employee (positive)
     // If netAmount < paid, employee owes company (negative)
     return roundToTwoDecimals(salary.netAmount - paid);
+  }
+
+  /**
+   * Calculate complete salary summary for admin/staff views
+   */
+  async getSalarySummary(salaryId: string) {
+    const salary = await prisma.salary.findUnique({
+      where: { id: salaryId },
+      include: {
+        breakdowns: true,
+        ledger: {
+          orderBy: { createdAt: "desc" },
+        },
+        user: {
+          select: { firstName: true, lastName: true, email: true },
+        },
+      },
+    });
+
+    if (!salary) {
+      return null;
+    }
+
+    const totalPayments = this.calculateTotalPayments(salary.ledger);
+    const totalRecoveries = this.calculateTotalRecoveries(salary.ledger);
+    const totalEarnings = this.calculateTotalEarnings(salary.breakdowns);
+    const breakdownDeductions = this.calculateBreakdownDeductions(
+      salary.breakdowns,
+    );
+    const balance = this.calculateSalaryBalance(salary, salary.ledger);
+
+    return {
+      id: salary.id,
+      userId: salary.userId,
+      userName: `${salary.user.firstName} ${salary.user.lastName}`,
+      month: salary.month,
+      year: salary.year,
+      period: `${getMonthName(salary.month)} ${salary.year}`,
+      earnings: {
+        gross: totalEarnings,
+        breakdown: salary.breakdowns.filter((b) =>
+          ["BASE_SALARY", "OVERTIME", "EARNING"].includes(b.type),
+        ),
+      },
+      deductions: {
+        statutory: breakdownDeductions,
+        ledger: totalRecoveries,
+        total: breakdownDeductions + totalRecoveries,
+      },
+      payments: {
+        total: totalPayments,
+        records: salary.ledger.filter((l) => l.type === "PAYMENT"),
+      },
+      recoveries: {
+        total: totalRecoveries,
+        records: salary.ledger.filter(
+          (l) => l.type === "RECOVERY" || l.type === "DEDUCTION",
+        ),
+      },
+      netAmount: salary.netAmount,
+      paidAmount: totalPayments,
+      balanceAmount: balance,
+      status: salary.status,
+      pdfUrl: salary.pdfUrl,
+      createdAt: salary.createdAt,
+      paidAt: salary.paidAt,
+    };
+  }
+
+  /**
+   * Calculate total payments from ledger
+   */
+  private calculateTotalPayments(
+    ledger: Array<{ type: string; amount: number }>,
+  ): number {
+    return ledger
+      .filter((l) => l.type === "PAYMENT")
+      .reduce((sum, l) => sum + Math.abs(l.amount || 0), 0);
+  }
+
+  /**
+   * Calculate total recoveries from ledger
+   */
+  private calculateTotalRecoveries(
+    ledger: Array<{ type: string; amount: number }>,
+  ): number {
+    return ledger
+      .filter((l) => l.type === "RECOVERY" || l.type === "DEDUCTION")
+      .reduce((sum, l) => sum + Math.abs(l.amount || 0), 0);
+  }
+
+  /**
+   * Calculate total earnings from salary breakdowns
+   */
+  private calculateTotalEarnings(
+    breakdowns: Array<{ type: string; amount: number }>,
+  ): number {
+    return breakdowns
+      .filter((b) => ["BASE_SALARY", "OVERTIME", "EARNING"].includes(b.type))
+      .reduce((sum, b) => sum + Math.abs(b.amount || 0), 0);
+  }
+
+  /**
+   * Calculate total deductions from salary breakdowns
+   */
+  private calculateBreakdownDeductions(
+    breakdowns: Array<{ type: string; amount: number }>,
+  ): number {
+    return breakdowns
+      .filter((b) =>
+        [
+          "PF_DEDUCTION",
+          "ESI_DEDUCTION",
+          "LATE_PENALTY",
+          "ABSENT_PENALTY",
+        ].includes(b.type),
+      )
+      .reduce((sum, b) => sum + Math.abs(b.amount || 0), 0);
   }
 
   /**

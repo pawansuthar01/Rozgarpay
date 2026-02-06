@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import {
-  DollarSign,
+  IndianRupee,
   Calendar,
   Users,
   CheckCircle,
@@ -198,7 +198,7 @@ export default function SalaryReports() {
                   ₹{overallStats.totalSalariesPaid.toLocaleString()}
                 </p>
               </div>
-              <DollarSign className="h-8 w-8 text-green-600" />
+              <IndianRupee className="h-8 w-8 text-green-600" />
             </div>
           </div>
 

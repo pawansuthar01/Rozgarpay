@@ -21,7 +21,7 @@ import {
   CheckCircle,
   XCircle,
   Download,
-  DollarSign,
+  IndianRupee,
   Calendar,
   User,
   ChevronLeft,

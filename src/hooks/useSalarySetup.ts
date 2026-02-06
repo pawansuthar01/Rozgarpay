@@ -92,11 +92,18 @@ export function useSalarySetup(params?: {
 }
 
 // Mutation: Update salary configurations
+interface UpdateSalarySetupResponse {
+  message: string;
+  updated: number;
+}
+
 export function useUpdateSalarySetup() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (data: UpdateSalarySetupRequest) => {
+    mutationFn: async (
+      data: UpdateSalarySetupRequest,
+    ): Promise<UpdateSalarySetupResponse> => {
       const response = await fetch("/api/admin/salary-setup", {
         method: "POST",
         headers: {
@@ -114,7 +121,71 @@ export function useUpdateSalarySetup() {
 
       return response.json();
     },
-    onSuccess: () => {
+    onMutate: async (newUpdates) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["salary-setup"] });
+
+      // Snapshot previous value
+      const previousData = queryClient.getQueryData<SalarySetupResponse>([
+        "salary-setup",
+      ]);
+
+      // Optimistically update the cache
+      if (previousData) {
+        queryClient.setQueryData<SalarySetupResponse>(
+          ["salary-setup"],
+          (old) => {
+            if (!old) return old;
+
+            const updatedStaff = old.staff.map((staffMember) => {
+              const update = newUpdates.staffUpdates.find(
+                (u) => u.userId === staffMember.id,
+              );
+              if (update) {
+                return {
+                  ...staffMember,
+                  baseSalary: update.baseSalary
+                    ? parseFloat(update.baseSalary)
+                    : staffMember.baseSalary,
+                  hourlyRate: update.hourlyRate
+                    ? parseFloat(update.hourlyRate)
+                    : staffMember.hourlyRate,
+                  dailyRate: update.dailyRate
+                    ? parseFloat(update.dailyRate)
+                    : staffMember.dailyRate,
+                  salaryType: update.salaryType || staffMember.salaryType,
+                  workingDays: update.workingDays
+                    ? parseInt(update.workingDays)
+                    : staffMember.workingDays,
+                  overtimeRate: update.overtimeRate
+                    ? parseFloat(update.overtimeRate)
+                    : staffMember.overtimeRate,
+                  pfEsiApplicable:
+                    update.pfEsiApplicable ?? staffMember.pfEsiApplicable,
+                  joiningDate: update.joiningDate || staffMember.joiningDate,
+                };
+              }
+              return staffMember;
+            });
+
+            return {
+              ...old,
+              staff: updatedStaff,
+            };
+          },
+        );
+      }
+
+      return { previousData };
+    },
+    onError: (err, newUpdates, context) => {
+      // Rollback on error
+      if (context?.previousData) {
+        queryClient.setQueryData(["salary-setup"], context.previousData);
+      }
+    },
+    onSettled: () => {
+      // Refetch after mutation
       queryClient.invalidateQueries({ queryKey: ["salary-setup"] });
     },
   });

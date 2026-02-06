@@ -11,7 +11,7 @@ import {
   ArrowLeft,
   RotateCcw,
   Calendar,
-  DollarSign,
+  IndianRupee,
   FileText,
   Save,
   AlertCircle,

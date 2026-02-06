@@ -1,7 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { usersKeys } from "@/lib/queryKeys";
-import { performanceMonitor } from "@/lib/performanceMonitor";
 
 interface UserProfile {
   id: string;
@@ -15,124 +13,69 @@ interface UserProfile {
   onboardingCompleted: boolean;
 }
 
-interface AttendanceSummary {
-  total: number;
-  approved: number;
-  pending: number;
-  rejected: number;
-  statusData: Array<{ name: string; value: number; color: string }>;
-  monthlyTrend: any[];
+interface SalaryTotals {
+  totalGiven: number;
+  totalPending: number;
+  totalPaid: number;
+  totalRecovered: number;
+  netPosition: number;
 }
 
-interface SalarySummary {
-  totalRecords: number;
-  totalGross: number;
-  totalNet: number;
-  monthlyTrend: any[];
+interface CurrentMonthSalary {
+  netAmount: number;
+  totalPaid: number;
+  totalRecovered: number;
+  balanceAmount: number;
+  period?: string;
+  grossAmount?: number;
 }
 
 interface UserData {
   user: UserProfile;
-  attendanceSummary: AttendanceSummary;
-  salarySummary: SalarySummary;
-  attendanceRecords: {
-    data: any[];
-    pagination: { page: number; totalPages: number; total: number };
-  };
+  totals: SalaryTotals;
+  thisMonthData: CurrentMonthSalary;
   salaryRecords: {
     data: any[];
     pagination: { page: number; totalPages: number; total: number };
   };
 }
 
-interface CurrentMonthData {
-  netAmount: number;
-  totalPaid: number;
-  totalRecovered: number;
-  balanceAmount: number;
-}
-
-export function useUserProfile(userId: string, salaryPage: number) {
+export function useUserProfile(userId: string, page: number = 1) {
   const queryClient = useQueryClient();
 
+  useEffect(() => {
+    if (userId) {
+      queryClient.prefetchQuery({
+        queryKey: ["user", userId],
+        queryFn: () =>
+          fetch(`/api/admin/users/${userId}?page=1&limit=5`).then((r) =>
+            r.json(),
+          ),
+        staleTime: 0, // Always refetch
+      });
+    }
+  }, [userId, queryClient]);
+
   const {
-    data: userData,
+    data,
     isLoading: loading,
     error,
   } = useQuery({
-    queryKey: usersKeys.details(userId),
+    queryKey: ["user", userId],
     queryFn: async () => {
-      const startTime = performance.now();
-      try {
-        const response = await fetch(
-          `/api/admin/users/${userId}?salaryPage=${salaryPage}&limit=10`,
-        );
-        if (!response.ok) {
-          const data = await response.json();
-          throw new Error(data.error || "Failed to fetch user data");
-        }
-        const data = (await response.json()) as UserData;
-
-        performanceMonitor.recordQueryMetric({
-          queryKey: `userProfile.${userId}`,
-          duration: performance.now() - startTime,
-          status: "success",
-          isCacheHit: false,
-          timestamp: Date.now(),
-        });
-
-        return data;
-      } catch (error) {
-        performanceMonitor.recordQueryMetric({
-          queryKey: `userProfile.${userId}`,
-          duration: performance.now() - startTime,
-          status: "error",
-          isCacheHit: false,
-          timestamp: Date.now(),
-        });
-        throw error;
+      const response = await fetch(
+        `/api/admin/users/${userId}?page=${page}&limit=5`,
+      );
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to fetch user data");
       }
+      return response.json() as Promise<UserData>;
     },
     enabled: !!userId,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    gcTime: 1000 * 60 * 30, // 30 minutes cache
-  });
-
-  const { data: currentMonthData } = useQuery({
-    queryKey: ["userCurrentMonth", userId],
-    queryFn: async () => {
-      const startTime = performance.now();
-      try {
-        const response = await fetch(`/api/admin/users/${userId}/salary`);
-        if (!response.ok) {
-          const data = await response.json();
-          throw new Error(data.error || "Failed to fetch current month data");
-        }
-        const data = (await response.json()) as CurrentMonthData;
-
-        performanceMonitor.recordQueryMetric({
-          queryKey: `userCurrentMonth.${userId}`,
-          duration: performance.now() - startTime,
-          status: "success",
-          isCacheHit: false,
-          timestamp: Date.now(),
-        });
-
-        return data;
-      } catch (error) {
-        performanceMonitor.recordQueryMetric({
-          queryKey: `userCurrentMonth.${userId}`,
-          duration: performance.now() - startTime,
-          status: "error",
-          isCacheHit: false,
-          timestamp: Date.now(),
-        });
-        throw error;
-      }
-    },
-    enabled: !!userId,
-    staleTime: 1000 * 60 * 2, // 2 minutes
-    gcTime: 1000 * 60 * 10, // 10 minutes cache
+    staleTime: 0, // Always get fresh data
+    gcTime: 1000 * 60 * 2, // 2 minutes
+    refetchOnWindowFocus: true,
   });
 
   const mutation = useMutation({
@@ -146,18 +89,14 @@ export function useUserProfile(userId: string, salaryPage: number) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
-
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to update user status");
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to update user status");
       }
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: usersKeys.details(userId) });
-      queryClient.invalidateQueries({ queryKey: ["userCurrentMonth", userId] });
-      queryClient.invalidateQueries({ queryKey: usersKeys.all });
-      queryClient.invalidateQueries({ queryKey: usersKeys.stats() });
+      queryClient.invalidateQueries({ queryKey: ["user", userId] });
     },
   });
 
@@ -166,8 +105,7 @@ export function useUserProfile(userId: string, salaryPage: number) {
   };
 
   return {
-    userData,
-    currentMonthData,
+    userData: data,
     loading,
     error: error?.message || null,
     updateStatus,

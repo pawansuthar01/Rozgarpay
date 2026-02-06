@@ -1,8 +1,5 @@
 "use client";
 
-import { useSession } from "next-auth/react";
-import Loading from "@/components/ui/Loading";
-
 import { useState } from "react";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
@@ -21,14 +18,13 @@ import {
 import { useModal } from "@/components/ModalProvider";
 
 export default function AdminSalaryPage() {
-  const { data: session } = useSession();
   const { showMessage } = useModal();
 
   // Filters
   const [month, setMonth] = useState<number | null>(null);
   const [year, setYear] = useState<number | null>(new Date().getFullYear());
   const [status, setStatus] = useState<string>("");
-  const [pageLimit, setPageLimit] = useState<number>(10);
+  const [pageLimit, setPageLimit] = useState<number>(5);
   const [sortBy, setSortBy] = useState<string>("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [search, setSearch] = useState<string>("");
@@ -177,10 +173,6 @@ export default function AdminSalaryPage() {
       setRecalculateLoading(null);
     }
   };
-
-  if (!session || session.user.role !== "ADMIN") {
-    return <Loading />;
-  }
 
   return (
     <div className="min-h-screen bg-gray-50">

@@ -11,7 +11,7 @@ import {
   ArrowLeft,
   FileText,
   TrendingUp,
-  DollarSign,
+  IndianRupee,
   Calendar,
   ChevronLeft,
   ChevronRight,
@@ -226,7 +226,7 @@ export default function StaffReportsPage() {
                   : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
               }`}
             >
-              <DollarSign className="h-5 w-5 inline mr-2" />
+              <IndianRupee className="h-5 w-5 inline mr-2" />
               Salary Report
             </button>
           </div>
@@ -474,7 +474,7 @@ export default function StaffReportsPage() {
                       </p>
                     )}
                   </div>
-                  <DollarSign className="h-8 w-8 text-blue-600" />
+                  <IndianRupee className="h-8 w-8 text-blue-600" />
                 </div>
               </div>
 

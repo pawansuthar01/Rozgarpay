@@ -8,7 +8,7 @@ import {
   Calendar,
   Clock,
   FileText,
-  DollarSign,
+  IndianRupee,
   User,
 } from "lucide-react";
 
@@ -116,7 +116,7 @@ export default function CompanyViewModal({
                     </h3>
                     <span
                       className={`px-2 py-1 text-xs rounded-full ${getStatusColor(
-                        company.status
+                        company.status,
                       )}`}
                     >
                       {company.status}
@@ -170,7 +170,7 @@ export default function CompanyViewModal({
 
                 <div className="bg-purple-50 p-4 rounded-lg">
                   <div className="flex items-center space-x-2">
-                    <DollarSign className="h-5 w-5 text-purple-600" />
+                    <IndianRupee className="h-5 w-5 text-purple-600" />
                     <span className="text-sm font-medium text-purple-600">
                       Salaries
                     </span>
@@ -218,7 +218,7 @@ export default function CompanyViewModal({
                       <div className="text-right">
                         <span
                           className={`px-2 py-1 text-xs rounded-full ${getStatusColor(
-                            user.status
+                            user.status,
                           )}`}
                         >
                           {user.status}

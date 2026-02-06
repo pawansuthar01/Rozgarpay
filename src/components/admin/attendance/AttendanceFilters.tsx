@@ -221,9 +221,9 @@ export default function AttendanceFilters({
             onChange={(e) => setPageLimit(Number(e.target.value))}
             className="px-3 py-2 border border-gray-300 rounded-md text-sm"
           >
+            <option value={5}>5 per page</option>
             <option value={10}>10 per page</option>
-            <option value={20}>20 per page</option>
-            <option value={50}>50 per page</option>
+            <option value={25}>25 per page</option>
           </select>
           <select
             value={sortBy}
