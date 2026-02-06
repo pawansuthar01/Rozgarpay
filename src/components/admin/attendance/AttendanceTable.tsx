@@ -89,7 +89,6 @@ export default function AttendanceTable({
   const handleMoreOptions = (attendanceId: string) => {
     const attendance = records.find((r) => r.id === attendanceId);
     if (attendance) {
-      console.log(attendance);
       setSelectedAttendance(attendance);
       setModalOpen(true);
     }

@@ -200,6 +200,7 @@ export default function AttendanceFilters({
               <input
                 type="date"
                 value={endDate}
+                max={new Date().toISOString().split("T")[0]}
                 onChange={(e) => setEndDate(e.target.value)}
                 className="pl-10 pr-4 py-2 border border-gray-300 rounded-md text-sm"
                 placeholder="End Date"

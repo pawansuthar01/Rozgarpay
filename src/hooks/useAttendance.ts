@@ -146,10 +146,10 @@ export type {
 // ============================================================================
 
 const STALE_TIMES = {
-  LIST: 1000 * 60 * 1, // 1 minute - changes frequently
-  TODAY: 1000 * 30, // 30 seconds - changes frequently
-  DETAIL: 1000 * 60 * 2, // 2 minutes - detailed data changes rarely
-  REPORTS: 1000 * 60 * 2, // 2 minutes - reports are expensive
+  LIST: 1000 * 20, // 20seconds - changes frequently
+  TODAY: 1000 * 20, // 30 seconds - changes frequently
+  DETAIL: 1000 * 20, // 1 minutes - detailed data changes rarely
+  REPORTS: 1000 * 20, // 1 minutes - reports are expensive
 } as const;
 
 // ============================================================================
@@ -273,29 +273,6 @@ export function useAttendance(params?: {
     queryFn: () => fetchAttendance(params),
     staleTime: STALE_TIMES.LIST,
     gcTime: 1000 * 60 * 10,
-    // Placeholder data for instant UI feedback while loading
-    placeholderData: (previousData) =>
-      previousData ?? {
-        records: [],
-        pagination: {
-          page: params?.page || 1,
-          limit: params?.limit || 5,
-          total: 0,
-          totalPages: 0,
-        },
-        stats: {
-          totalRecords: 0,
-          pending: 0,
-          approved: 0,
-          rejected: 0,
-          absent: 0,
-          leave: 0,
-        },
-        charts: {
-          statusDistribution: [],
-          dailyTrends: [],
-        },
-      },
   });
 }
 
@@ -583,17 +560,6 @@ export function useMissingAttendance(params?: {
     },
     staleTime: 1000 * 30, // 30 seconds - data changes when marked
     gcTime: 1000 * 60 * 5, // 5 minutes
-    placeholderData: (previousData) =>
-      previousData ?? {
-        missingStaff: [],
-        totalMissing: 0,
-        pagination: {
-          page: params?.page || 1,
-          limit: params?.limit || 5,
-          total: 0,
-          totalPages: 0,
-        },
-      },
   });
 }
 

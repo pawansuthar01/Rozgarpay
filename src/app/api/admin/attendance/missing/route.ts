@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import authOptions from "@/lib/auth";
 import { getApprovedWorkingHours, getDate } from "@/lib/attendanceUtils";
+import { salaryService } from "@/lib/salaryService";
+import { toZonedTime } from "date-fns-tz";
 
 export const dynamic = "force-dynamic";
 
@@ -221,12 +223,45 @@ export async function POST(request: NextRequest) {
       },
       select: {
         id: true,
+
         attendanceDate: true,
         status: true,
-        user: { select: { firstName: true, lastName: true } },
+        user: { select: { id: true, firstName: true, lastName: true } },
       },
     });
+    setImmediate(async () => {
+      const attendanceLocal = toZonedTime(
+        new Date(attendance.attendanceDate),
+        "Asia/Kolkata",
+      );
+      const month = attendanceLocal.getMonth() + 1;
+      const year = attendanceLocal.getFullYear();
 
+      const existingSalary = await prisma.salary.findUnique({
+        where: {
+          userId_month_year: {
+            userId: attendance.user.id,
+            month,
+            year,
+          },
+        },
+      });
+
+      if (
+        existingSalary &&
+        existingSalary.status === "PENDING" &&
+        !existingSalary.lockedAt
+      ) {
+        await salaryService.recalculateSalary(existingSalary.id);
+      } else if (!existingSalary && admin?.companyId) {
+        await salaryService.generateSalary({
+          userId: attendance.user.id,
+          companyId: admin.companyId,
+          month,
+          year,
+        });
+      }
+    });
     // Create audit log (fire-and-forget)
     prisma.auditLog
       .create({

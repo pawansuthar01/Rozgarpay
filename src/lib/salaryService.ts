@@ -440,7 +440,6 @@ export class SalaryService {
         month,
         year,
       );
-
       // Calculate salary components
       const calculation = await this.calculateSalaryComponents(
         user,

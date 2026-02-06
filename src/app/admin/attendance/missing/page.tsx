@@ -3,7 +3,7 @@
 import { useSession } from "next-auth/react";
 import Loading from "@/components/ui/Loading";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import {
@@ -34,15 +34,16 @@ export default function MissingAttendancePage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageLimit, setPageLimit] = useState(5);
 
-  // Track optimistic updates - staff removed instantly
-  const [optimisticRemoved, setOptimisticRemoved] = useState<Set<string>>(
+  // Track which staff members are currently being processed (loading)
+  const [processingStaff, setProcessingStaff] = useState<Set<string>>(
     new Set(),
   );
 
   // Use the custom hooks
   const {
     data: missingData,
-    isLoading: loading,
+    isLoading,
+    isFetching,
     error: fetchError,
   } = useMissingAttendance({
     date: selectedDate,
@@ -52,11 +53,20 @@ export default function MissingAttendancePage() {
 
   const markAttendanceMutation = useMarkAttendance();
 
-  // Optimistically remove staff from list immediately
+  // Format date safely - only on client side
+  const formattedDate = useMemo(() => {
+    try {
+      return new Date(selectedDate).toLocaleDateString();
+    } catch {
+      return selectedDate;
+    }
+  }, [selectedDate]);
+
+  // Handle mark attendance - show loading until API response
   const handleMarkAttendance = useCallback(
     (userId: string, status: "APPROVED" | "ABSENT" | "LEAVE" = "APPROVED") => {
-      // INSTANT: Remove from UI immediately
-      setOptimisticRemoved((prev) => new Set([...prev, userId]));
+      // Show loading on the specific staff member's buttons
+      setProcessingStaff((prev) => new Set([...prev, userId]));
 
       markAttendanceMutation.mutate(
         {
@@ -67,20 +77,21 @@ export default function MissingAttendancePage() {
         },
         {
           onError: () => {
-            // ROLLBACK: Add back if error
-            setOptimisticRemoved((prev) => {
+            // Remove loading state from this staff member on error
+            setProcessingStaff((prev) => {
               const next = new Set(prev);
               next.delete(userId);
               return next;
             });
           },
-          onSettled: () => {
-            // Clear after settled
-            setOptimisticRemoved((prev) => {
+          onSuccess: () => {
+            // API response received - clear processing state
+            setProcessingStaff((prev) => {
               const next = new Set(prev);
               next.delete(userId);
               return next;
             });
+            // Query will refetch automatically due to invalidation
           },
         },
       );
@@ -88,11 +99,8 @@ export default function MissingAttendancePage() {
     [markAttendanceMutation, selectedDate],
   );
 
-  // Filter out optimistically removed staff
-  const displayStaff =
-    missingData?.missingStaff?.filter(
-      (staff) => !optimisticRemoved.has(staff.id),
-    ) ?? [];
+  // Show all staff from API - staff will be removed when query refetches after mutation
+  const displayStaff = missingData?.missingStaff ?? [];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -139,10 +147,11 @@ export default function MissingAttendancePage() {
               type="date"
               id="date"
               value={selectedDate}
+              max={new Date().toISOString().split("T")[0]}
               onChange={(e) => {
                 setSelectedDate(e.target.value);
                 setCurrentPage(1);
-                setOptimisticRemoved(new Set());
+                setProcessingStaff(new Set());
               }}
               className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
@@ -160,17 +169,16 @@ export default function MissingAttendancePage() {
                 <div>
                   <p className="text-sm text-gray-600">Missing Attendance</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {loading
+                    {isLoading || isFetching
                       ? "..."
-                      : (missingData?.totalMissing || 0) -
-                        optimisticRemoved.size}
+                      : missingData?.totalMissing || 0}
                   </p>
                 </div>
               </div>
               <div className="text-right">
                 <p className="text-sm text-gray-600">Date</p>
                 <p className="text-lg font-semibold text-gray-900">
-                  {new Date(selectedDate).toLocaleDateString()}
+                  {formattedDate}
                 </p>
               </div>
             </div>
@@ -202,24 +210,33 @@ export default function MissingAttendancePage() {
           </div>
 
           <div className="divide-y divide-gray-200">
-            {loading ? (
+            {isLoading || isFetching ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <div key={i} className="px-6 py-4">
-                  <Skeleton height={20} width="60%" />
-                  <Skeleton height={16} width="40%" className="mt-2" />
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <Skeleton circle height={40} width={40} />
+                      <div>
+                        <Skeleton height={20} width={150} />
+                        <Skeleton height={16} width={100} className="mt-1" />
+                      </div>
+                    </div>
+                    <div className="flex space-x-2">
+                      <Skeleton height={36} width={80} />
+                      <Skeleton height={36} width={80} />
+                      <Skeleton height={36} width={80} />
+                    </div>
+                  </div>
                 </div>
               ))
             ) : displayStaff.length === 0 ? (
               <div className="px-6 py-8 text-center">
                 <CheckCircle className="mx-auto h-12 w-12 text-green-400" />
                 <h3 className="mt-2 text-sm font-medium text-gray-900">
-                  {optimisticRemoved.size > 0
-                    ? "Processing..."
-                    : "All staff have marked attendance"}
+                  All staff have marked attendance
                 </h3>
                 <p className="mt-1 text-sm text-gray-500">
-                  No missing attendance records for{" "}
-                  {new Date(selectedDate).toLocaleDateString()}
+                  No missing attendance records for {formattedDate}
                 </p>
               </div>
             ) : (
@@ -243,10 +260,10 @@ export default function MissingAttendancePage() {
                         onClick={() =>
                           handleMarkAttendance(staff.id, "APPROVED")
                         }
-                        disabled={optimisticRemoved.has(staff.id)}
+                        disabled={processingStaff.has(staff.id)}
                         className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-1 text-sm"
                       >
-                        {optimisticRemoved.has(staff.id) ? (
+                        {processingStaff.has(staff.id) ? (
                           <Clock className="h-4 w-4 animate-spin" />
                         ) : (
                           <Check className="h-4 w-4" />
@@ -255,10 +272,10 @@ export default function MissingAttendancePage() {
                       </button>
                       <button
                         onClick={() => handleMarkAttendance(staff.id, "ABSENT")}
-                        disabled={optimisticRemoved.has(staff.id)}
+                        disabled={processingStaff.has(staff.id)}
                         className="bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-1 text-sm"
                       >
-                        {optimisticRemoved.has(staff.id) ? (
+                        {processingStaff.has(staff.id) ? (
                           <Clock className="h-4 w-4 animate-spin" />
                         ) : (
                           <Check className="h-4 w-4" />
@@ -267,10 +284,10 @@ export default function MissingAttendancePage() {
                       </button>
                       <button
                         onClick={() => handleMarkAttendance(staff.id, "LEAVE")}
-                        disabled={optimisticRemoved.has(staff.id)}
+                        disabled={processingStaff.has(staff.id)}
                         className="bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-1 text-sm"
                       >
-                        {optimisticRemoved.has(staff.id) ? (
+                        {processingStaff.has(staff.id) ? (
                           <Clock className="h-4 w-4 animate-spin" />
                         ) : (
                           <Check className="h-4 w-4" />

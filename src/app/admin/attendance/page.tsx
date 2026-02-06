@@ -1,8 +1,6 @@
 "use client";
 
-import { useSession } from "next-auth/react";
-
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useMemo } from "react";
 import { XCircle, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import AttendanceStatsCards from "@/components/admin/attendance/AttendanceStatsCards";
@@ -11,8 +9,6 @@ import AttendanceFilters from "@/components/admin/attendance/AttendanceFilters";
 import AttendanceTable from "@/components/admin/attendance/AttendanceTable";
 import { useDebounce } from "@/lib/hooks";
 import { useAttendance, useUpdateAttendance, useUpdateStatus } from "@/hooks";
-import Loading from "@/components/ui/Loading";
-import { useQueryClient } from "@tanstack/react-query";
 
 export default function AdminAttendancePage() {
   // Filters
@@ -38,7 +34,8 @@ export default function AdminAttendancePage() {
   // Use the custom hooks
   const {
     data: attendanceData,
-    isLoading: loading,
+    isLoading,
+    isFetching,
     error: fetchError,
   } = useAttendance({
     page: currentPage,
@@ -186,11 +183,6 @@ export default function AdminAttendancePage() {
                 <AlertTriangle className="h-4 w-4" />
                 <span>Check Missing</span>
               </Link>
-              <div className="bg-white  hidden md:flex px-3 py-2 rounded-lg shadow-sm border border-gray-200">
-                <span className="text-sm text-gray-600">
-                  Last updated: {new Date().toLocaleTimeString()}
-                </span>
-              </div>
             </div>
           </div>
         </div>
@@ -199,7 +191,7 @@ export default function AdminAttendancePage() {
         <div className="mb-8">
           <AttendanceStatsCards
             stats={attendanceData?.stats || null}
-            loading={loading}
+            loading={isLoading || isFetching}
           />
         </div>
 
@@ -240,7 +232,7 @@ export default function AdminAttendancePage() {
           <div className="px-4 md:px-6 pb-6">
             <AttendanceTable
               records={attendanceData?.records || []}
-              loading={loading}
+              loading={isLoading || isFetching}
               isRowLoading={isRowLoading}
               onAttendanceAction={handleAttendanceAction}
               onMoreOptions={handleMoreOptions}
