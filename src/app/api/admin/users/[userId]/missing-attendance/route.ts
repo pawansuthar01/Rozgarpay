@@ -23,24 +23,10 @@ export async function GET(
     const startDateStr = searchParams.get("startDate");
     const endDateStr = searchParams.get("endDate");
 
-    console.log("Missing attendance API called:");
-    console.log("URL:", request.url);
-    console.log("Route userId:", routeUserId);
-    console.log("startDate:", startDateStr);
-    console.log("endDate:", endDateStr);
-
     // Use route userId, fallback to query param if needed
     const userId = routeUserId || searchParams.get("userId");
 
     if (!userId || !startDateStr || !endDateStr) {
-      console.log(
-        "Missing required parameters - userId:",
-        userId,
-        "startDate:",
-        startDateStr,
-        "endDate:",
-        endDateStr,
-      );
       return NextResponse.json(
         { error: "User ID, start date, and end date are required" },
         { status: 400 },

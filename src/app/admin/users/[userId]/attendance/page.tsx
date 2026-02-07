@@ -20,12 +20,14 @@ import {
   Eye,
   AlertTriangle,
   X,
+  ClockIcon,
 } from "lucide-react";
-import { formatDate, formatTime } from "@/lib/utils";
+import { formatDate, formatLocalDate, formatTime } from "@/lib/utils";
 import AttendancePDFGenerator from "@/components/AttendancePDFGenerator";
 import {
   useAttendance,
   useUpdateStatus,
+  useUpdateAttendance,
   useMarkAttendance,
   useUserMissingAttendance,
 } from "@/hooks";
@@ -71,12 +73,12 @@ export default function UserAttendancePage() {
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [startDate, setStartDate] = useState<string>(() => {
     const today = new Date();
-    today.setDate(today.getDate() - 30);
+    today.setDate(today.getDate() - 2);
     return today.toISOString().split("T")[0];
   });
   const [endDate, setEndDate] = useState<string>(() => {
     const today = new Date();
-    return today.toISOString().split("T")[0];
+    return formatLocalDate(today);
   });
   const [pageLimit, setPageLimit] = useState<number>(10);
 
@@ -109,11 +111,13 @@ export default function UserAttendancePage() {
     page: currentPage,
     limit: pageLimit,
     userId: userId,
-    date: startDate,
+    startDate: startDate,
+    endDate: endDate,
     status: statusFilter || undefined,
   });
 
   const updateStatus = useUpdateStatus();
+  const useUpdate = useUpdateAttendance();
   const markAttendanceMutation = useMarkAttendance();
 
   // Fetch missing attendance data using hook
@@ -223,7 +227,7 @@ export default function UserAttendancePage() {
     async (attendanceId: string, updates: any) => {
       setLoadingRows((prev) => new Set(prev).add(attendanceId));
 
-      updateStatus.mutate(
+      useUpdate.mutate(
         { attendanceId, data: updates },
         {
           onSettled: () => {
@@ -236,7 +240,7 @@ export default function UserAttendancePage() {
         },
       );
     },
-    [updateStatus],
+    [useUpdate],
   );
 
   // Mark missing attendance
@@ -368,7 +372,7 @@ export default function UserAttendancePage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 py-3 md:py-6">
+      <div className="max-w-7xl mx-auto  sm:px-4 lg:px-6  md:py-6">
         {/* Header */}
         <div className="mb-4 md:mb-6">
           <div className="flex items-center space-x-3 mb-4">
@@ -449,6 +453,7 @@ export default function UserAttendancePage() {
                   setCurrentPage(1);
                   setMissingPage(1);
                 }}
+                max={formatLocalDate(new Date())}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
@@ -651,7 +656,9 @@ export default function UserAttendancePage() {
                       {markingAttendance.has(missing.date) ? (
                         <Loader2 className="h-3 w-3 animate-spin" />
                       ) : (
-                        <span className="text-xs">L</span>
+                        <span className="text-xs">
+                          <ClockIcon className="h-3 w-3" />
+                        </span>
                       )}
                       <span>Leave</span>
                     </button>
@@ -684,6 +691,9 @@ export default function UserAttendancePage() {
                     Hours
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Ot
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
@@ -703,6 +713,9 @@ export default function UserAttendancePage() {
                       </td>
                       <td className="px-4 py-4">
                         <div className="h-6 bg-gray-200 rounded w-16 animate-pulse"></div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="h-4 bg-gray-200 rounded w-12 animate-pulse"></div>
                       </td>
                       <td className="px-4 py-4">
                         <div className="h-4 bg-gray-200 rounded w-12 animate-pulse"></div>
@@ -790,6 +803,11 @@ export default function UserAttendancePage() {
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                           {record.workingHours
                             ? `${record.workingHours.toFixed(2)}h`
+                            : "-"}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {record.overtimeHours
+                            ? `${record.overtimeHours.toFixed(2)}h`
                             : "-"}
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">

@@ -8,6 +8,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { CashbookEntry } from "@/types/cashbook";
+import { useRouter } from "next/navigation";
 
 interface CashbookTableProps {
   entries: CashbookEntry[];
@@ -43,7 +44,7 @@ export default function CashbookTable({
   showConfirm,
 }: CashbookTableProps) {
   const formatCurrency = (amount: number) => `₹${amount.toLocaleString()}`;
-
+  const router = useRouter();
   const formatDate = (dateString: string) => {
     // Convert UTC date to Indian timezone (Asia/Kolkata, UTC+5:30)
     const date = new Date(dateString);
@@ -167,7 +168,7 @@ export default function CashbookTable({
                   <p className="font-medium">User</p>
                   <p>
                     {entry.user.firstName} {entry.user.lastName} (
-                    {entry.user.email})
+                    {entry.user.phone})
                   </p>
                 </div>
               )}
@@ -353,12 +354,17 @@ export default function CashbookTable({
                 {userRole !== "STAFF" && (
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {entry.user ? (
-                      <div>
+                      <div
+                        onClick={() =>
+                          router.push(`/admin/users/${entry?.user?.id}`)
+                        }
+                        className="cursor-pointer"
+                      >
                         <p className="font-medium">
                           {entry.user.firstName} {entry.user.lastName}
                         </p>
                         <p className="text-gray-500 text-xs">
-                          {entry.user.email}
+                          {entry.user.phone}
                         </p>
                       </div>
                     ) : (

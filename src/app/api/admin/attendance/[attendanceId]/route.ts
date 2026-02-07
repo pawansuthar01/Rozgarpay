@@ -6,7 +6,6 @@ import { authOptions } from "@/lib/auth";
 import { getDate, getISTMonthYear } from "@/lib/attendanceUtils";
 import { getCurrentTime } from "@/lib/utils";
 
-// Cache for 30 seconds
 export const dynamic = "force-dynamic";
 
 export async function GET(
@@ -227,6 +226,7 @@ export async function PUT(request: NextRequest, { params }: any) {
         id: true,
         status: true,
         workingHours: true,
+        overtimeHours: true,
         userId: true,
         attendanceDate: true,
         user: { select: { firstName: true, lastName: true } },

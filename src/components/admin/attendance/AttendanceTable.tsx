@@ -355,7 +355,11 @@ export default function AttendanceTable({
                   className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
                 >
                   <div className="flex justify-between items-start mb-3">
-                    <div>
+                    <div
+                      onClick={() =>
+                        router.push(`/admin/users/${record.user.id}`)
+                      }
+                    >
                       <h3 className="text-sm font-semibold text-gray-900">
                         {record.user.firstName} {record.user.lastName}
                       </h3>

@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
           description: true,
           transactionDate: true,
           user: {
-            select: { firstName: true, lastName: true },
+            select: { firstName: true, lastName: true, id: true, phone: true },
           },
         },
         orderBy: { [sortBy]: sortOrder },

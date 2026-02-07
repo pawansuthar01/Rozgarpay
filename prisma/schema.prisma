@@ -382,6 +382,7 @@ model SalaryBreakdown {
   amount      Float
   hours       Float?   // Applicable for overtime, working hours
   quantity    Float?   // Number of days, minutes, etc.
+  rate    Float?   // Number of  quantity * rate == amount , , etc.
   createdAt   DateTime @default(now())
 
   salary Salary @relation(fields: [salaryId], references: [id])

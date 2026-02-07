@@ -24,6 +24,11 @@ import {
 } from "lucide-react";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import {
+  isDeductionType,
+  formatAmountWithSign,
+  getAmountColor,
+} from "@/lib/salaryService";
+import {
   useGenerateSalaryReport,
   useStaffSalaries,
   useStaffSalaryOverview,
@@ -423,6 +428,7 @@ export default function StaffSalaryOverviewPage() {
                           "PF_DEDUCTION",
                           "ESI_DEDUCTION",
                           "LATE_PENALTY",
+                          "ABSENT_PENALTY",
                           "ABSENCE_DEDUCTION",
                         ].includes(b.type),
                       ) || [];

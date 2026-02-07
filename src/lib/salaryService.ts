@@ -11,6 +11,45 @@ import { getCurrentTime } from "./utils";
 // ============================================================================
 
 /**
+ * Check if a salary breakdown type is a deduction/penalty (should display with minus sign)
+ */
+export function isDeductionType(type: string): boolean {
+  const deductionTypes = [
+    "PF_DEDUCTION",
+    "ESI_DEDUCTION",
+    "LATE_PENALTY",
+    "ABSENT_PENALTY",
+    "ABSENCE_DEDUCTION",
+    "DEDUCTION",
+    "RECOVERY",
+  ];
+  return deductionTypes.includes(type);
+}
+
+/**
+ * Get formatted amount with sign for display
+ */
+export function formatAmountWithSign(amount: number, type: string): string {
+  const isDeduction = isDeductionType(type);
+  const formattedAmount = formatCurrency(Math.abs(amount));
+  if (isDeduction) {
+    return `-₹${formattedAmount}`;
+  }
+  return `+₹${formattedAmount}`;
+}
+
+/**
+ * Get color class based on amount and type
+ */
+export function getAmountColor(amount: number, type: string): string {
+  const isDeduction = isDeductionType(type);
+  if (isDeduction) {
+    return "text-red-600";
+  }
+  return "text-green-600";
+}
+
+/**
  * Round amount to 2 decimal places
  */
 export function roundToTwoDecimals(value: number): number {
@@ -1182,9 +1221,10 @@ export class SalaryService {
       penaltyAmount += latePenalty;
       breakdowns.push({
         type: "LATE_PENALTY",
-        description: "Late Arrival Penalty",
+        description: `Late Arrival Penalty (${company.latePenaltyPerMinute}₹/min)`,
         amount: latePenalty,
         quantity: attendance.lateMinutes,
+        rate: company.latePenaltyPerMinute,
       });
     }
 
@@ -1199,9 +1239,10 @@ export class SalaryService {
       penaltyAmount += absentPenalty;
       breakdowns.push({
         type: "ABSENT_PENALTY",
-        description: "Absent Days Penalty",
+        description: `Absent Days Penalty (${company.absentPenaltyPerDay}₹/day)`,
         amount: absentPenalty,
         quantity: attendance.absentDays,
+        rate: company.absentPenaltyPerDay,
       });
     }
 
@@ -1219,8 +1260,9 @@ export class SalaryService {
         deductions += pfDeduction;
         breakdowns.push({
           type: "PF_DEDUCTION",
-          description: "Provident Fund",
+          description: `Provident Fund (${company.pfPercentage}%)`,
           amount: pfDeduction,
+          rate: company.pfPercentage,
         });
       }
 
@@ -1231,8 +1273,9 @@ export class SalaryService {
         deductions += esiDeduction;
         breakdowns.push({
           type: "ESI_DEDUCTION",
-          description: "Employee State Insurance",
+          description: `Employee State Insurance (${company.esiPercentage}%)`,
           amount: esiDeduction,
+          rate: company.esiPercentage,
         });
       }
     }
@@ -1364,7 +1407,7 @@ export class SalaryService {
 
     breakdowns.push({
       type: "OVERTIME",
-      description: "Overtime Pay",
+      description: `Overtime Pay (${overtimeRate}/H)`,
       amount: overtimePay,
       hours: attendance.overtimeHours,
       quantity: attendance.overtimeHours,
@@ -1386,7 +1429,7 @@ export class SalaryService {
     const metaData = meta || {};
 
     try {
-      await prisma.auditLog.create({
+      prisma.auditLog.create({
         data: {
           userId,
           action,

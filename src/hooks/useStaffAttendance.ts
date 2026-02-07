@@ -3,10 +3,30 @@ import { attendanceKeys } from "@/lib/queryKeys";
 import { performanceMonitor } from "@/lib/performanceMonitor";
 
 interface AttendanceRecord {
+  id: string;
   date: string;
-  status: "PENDING" | "APPROVED" | "REJECTED" | null;
+  status: "PENDING" | "APPROVED" | "REJECTED" | "ABSENT" | "LEAVE" | null;
   punchIn: string | null;
   punchOut: string | null;
+  workingHours: number | null;
+  overtimeHours: number | null;
+  lateMinutes: number | null;
+  isLate: boolean | null;
+  requiresApproval: boolean;
+  approvalReason: string | null;
+  rejectionReason: string | null;
+  approvedAt: string | null;
+  hasRecord: boolean;
+}
+interface MonthsStats {
+  total: number;
+  pendingDays: number;
+  noMarkedDays: number;
+  presentDays: number;
+  absentDays: number;
+  leaveDays: number;
+  totalWorkingHours: number;
+  totalOvertimeHours: number;
 }
 
 interface CompanySettings {
@@ -29,7 +49,10 @@ export function useStaffAttendance(year: number, month: number) {
         if (!response.ok) {
           throw new Error("Failed to fetch attendance data");
         }
-        const data = (await response.json()) as AttendanceRecord[];
+        const data = (await response.json()) as {
+          records: AttendanceRecord[];
+          summary: MonthsStats;
+        };
 
         performanceMonitor.recordQueryMetric({
           queryKey: `staff.attendance.${year}.${month}`,
@@ -51,8 +74,8 @@ export function useStaffAttendance(year: number, month: number) {
         throw error;
       }
     },
-    staleTime: 1000 * 20, // 5 minutes for monthly data
-    gcTime: 1000 * 60, // 30 minutes cache
+    staleTime: 1000 * 20,
+    gcTime: 1000 * 60,
   });
 }
 

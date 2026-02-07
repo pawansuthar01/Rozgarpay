@@ -55,6 +55,7 @@ export async function GET(request: NextRequest) {
           select: {
             type: true,
             amount: true,
+            description: true,
           },
         },
         // Only include ledger when filtering by specific month/year

@@ -66,16 +66,17 @@ export async function GET(request: NextRequest) {
       include: {
         user: {
           select: {
+            id: true,
             firstName: true,
             lastName: true,
-            email: true,
+            phone: true,
           },
         },
         creator: {
           select: {
             firstName: true,
             lastName: true,
-            email: true,
+            phone: true,
           },
         },
       },

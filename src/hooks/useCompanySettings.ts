@@ -21,10 +21,16 @@ interface Company {
   locationRadius: number;
   overtimeThresholdHours: number;
   nightPunchInWindowHours: number;
+  defaultSalaryType: string;
+  overtimeMultiplier: number;
   enableLatePenalty: boolean;
   latePenaltyPerMinute: number;
   enableAbsentPenalty: boolean;
+  halfDayThresholdHours: number;
   absentPenaltyPerDay: number;
+  pfPercentage: number;
+  esiPercentage: number;
+  status: string;
 }
 
 interface CompanyResponse {

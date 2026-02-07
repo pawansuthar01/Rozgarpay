@@ -150,6 +150,9 @@ async function fetchAttendance(
   if (params?.limit) searchParams.set("limit", String(params.limit));
   if (params?.userId) searchParams.set("userId", String(params.userId));
   if (params?.date) searchParams.set("date", String(params.date));
+  if (params?.startDate)
+    searchParams.set("startDate", String(params.startDate));
+  if (params?.endDate) searchParams.set("endDate", String(params.endDate));
   if (params?.status) searchParams.set("status", String(params.status));
   if (params?.search) searchParams.set("search", String(params.search));
   if (params?.sortBy) searchParams.set("sortBy", String(params.sortBy));
@@ -253,6 +256,8 @@ export function useAttendance(params?: {
   page?: number;
   limit?: number;
   userId?: string;
+  startDate?: string;
+  endDate?: string;
   date?: string;
   status?: string;
   search?: string;

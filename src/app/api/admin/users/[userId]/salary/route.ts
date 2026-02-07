@@ -149,24 +149,6 @@ export async function GET(
       });
     }
 
-    // Calculate totals from filtered ledger entries
-    const totalPaid = ledgerEntries
-      .filter((entry) => entry.type === "PAYMENT")
-      .reduce((sum, e) => sum + Math.abs(e.amount), 0);
-
-    const totalRecovered = ledgerEntries
-      .filter((entry) => entry.type === "RECOVERY")
-      .reduce((sum, entry) => sum + Math.abs(entry.amount), 0);
-
-    const totalDeductions = ledgerEntries
-      .filter((entry) => entry.type === "DEDUCTION")
-      .reduce((sum, entry) => sum + Math.abs(entry.amount), 0);
-
-    // Get unique salary IDs from filtered ledger entries
-    const relevantSalaryIdsFromLedger = [
-      ...new Set(ledgerEntries.map((e) => e.salaryId)),
-    ];
-
     // Get salaries whose month is in the selected date range (for Gross/Net calculation)
     const relevantSalaries = allSalaries.filter((s) =>
       isMonthInRange(s.month, s.year),
@@ -251,13 +233,15 @@ export async function GET(
       }));
 
     // Build breakdown ONLY from salaries whose month is in the selected date range
+
     const allBreakdowns: Array<{
       type: string;
       description: string;
       amount: number;
+      quantity?: number;
+      rate?: number;
       category: string;
     }> = [];
-
     relevantSalaries.forEach((salary) => {
       if (salary.breakdowns && Array.isArray(salary.breakdowns)) {
         salary.breakdowns.forEach((item: any) => {

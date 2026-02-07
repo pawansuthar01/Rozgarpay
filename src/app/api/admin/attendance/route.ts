@@ -13,8 +13,8 @@ export async function GET(request: NextRequest) {
     if (!session || session.user.role !== "ADMIN") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
     const { searchParams } = new URL(request.url);
+
     const page = Math.max(1, parseInt(searchParams.get("page") || "1") || 1);
     let limit = parseInt(searchParams.get("limit") || "10") || 10;
     limit = Math.max(1, Math.min(limit, 100));
@@ -81,12 +81,11 @@ export async function GET(request: NextRequest) {
       end.setUTCHours(23, 59, 59, 999);
       where.attendanceDate = { lte: end };
     } else {
-      // ✅ DEFAULT LAST 30 DAYS
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       where.attendanceDate = { gte: getDate(thirtyDaysAgo) };
     }
-
+    console.log(status, startDate, endDate, where.attendanceDate);
     // Calculate pagination
     const skip = (page - 1) * limit;
 
@@ -104,6 +103,7 @@ export async function GET(request: NextRequest) {
           punchOutImageUrl: true,
           status: true,
           workingHours: true,
+          overtimeHours: true,
           isLate: true,
           user: {
             select: {

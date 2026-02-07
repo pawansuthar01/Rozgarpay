@@ -241,12 +241,12 @@ export default function AdminLayout({
 
         {/* Page content */}
         <main className="flex-1 lg:mb-0 mb-10 overflow-y-auto bg-gray-50">
-          <div className="p-6 lg:p-8">{children}</div>
+          <div className=" sm:mb-0 mb-5 p-3 sm:p-6 lg:p-8">{children}</div>
         </main>
       </div>
 
       {/* Bottom navigation for mobile */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 lg:hidden z-40">
+      <nav className="fixed bottom-0 left-0  right-0 bg-white border-t border-gray-200 lg:hidden z-40">
         <div className="flex justify-around items-center h-16 px-2">
           {bottomNavigation.map((item) => {
             const Icon = item.icon;

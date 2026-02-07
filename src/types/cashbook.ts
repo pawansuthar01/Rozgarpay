@@ -29,14 +29,15 @@ export interface CashbookEntry {
   createdAt: string;
   // Relations
   user?: {
+    id: string;
     firstName: string | null;
     lastName: string | null;
-    email: string;
+    phone: string;
   };
   creator: {
     firstName: string | null;
     lastName: string | null;
-    email: string;
+    phone: string;
   };
 }
 

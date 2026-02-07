@@ -173,7 +173,7 @@ export async function GET(
       // Move to next day
       currentDate.setDate(currentDate.getDate() + 1);
     }
-
+    console.log("All days records:", allDaysRecords.length);
     // Calculate summary
     const totalDays = allDaysRecords.length;
     const presentDays = allDaysRecords.filter(
@@ -192,6 +192,10 @@ export async function GET(
           (record.status === "PRESENT" || record.status === "APPROVED")),
     ).length;
 
+    const totalWorkingHours = attendanceRecords.reduce(
+      (sum, record) => sum + (record.workingHours || 0),
+      0,
+    );
     return NextResponse.json({
       user,
       totalDays,
@@ -199,6 +203,7 @@ export async function GET(
       presentDays,
       absentDays,
       lateDays,
+      totalWorkingHours,
       attendanceRecords: allDaysRecords,
     });
   } catch (error) {

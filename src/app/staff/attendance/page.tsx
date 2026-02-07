@@ -1,16 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ChevronLeft,
-  ChevronRight,
   CheckCircle,
   AlertCircle,
   XCircle,
-  Minus,
   CalendarOff,
   ClockAlert,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  History,
+  Filter,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import PunchModal from "@/components/PunchModal";
 import {
@@ -24,20 +27,7 @@ import {
 } from "@/hooks/useStaffDashboard";
 import { useModal } from "@/components/ModalProvider";
 import { useQueryClient } from "@tanstack/react-query";
-
-interface AttendanceRecord {
-  date: string;
-  status: "PENDING" | "APPROVED" | "REJECTED" | null;
-  punchIn: string | null;
-  punchOut: string | null;
-}
-
-interface CalendarDay {
-  date: Date;
-  attendance: AttendanceRecord | null;
-  isCurrentMonth: boolean;
-  isToday: boolean;
-}
+import { convertSeconds } from "@/lib/utils";
 
 interface ValidationData {
   valid: boolean;
@@ -48,11 +38,20 @@ interface ValidationData {
   isLate?: boolean;
 }
 
+type StatusType =
+  | "all"
+  | "present"
+  | "absent"
+  | "leave"
+  | "pending"
+  | "no-record";
+
 export default function StaffAttendancePage() {
   const router = useRouter();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [modalOpen, setModalOpen] = useState(false);
   const [punchType, setPunchType] = useState<"in" | "out">("in");
+  const [statusFilter, setStatusFilter] = useState<StatusType>("all");
 
   const { showMessage } = useModal();
   const queryClient = useQueryClient();
@@ -65,95 +64,7 @@ export default function StaffAttendancePage() {
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth() + 1;
 
-  // Check salary setup - redirect if not configured
-  const { data: dashboardData, isLoading: dashboardLoading } =
-    useStaffDashboard();
-
-  const { data: attendanceData = [], isLoading: attendanceLoading } =
-    useStaffAttendance(year, month);
-  const { data: todaysAttendance } = useTodayAttendance();
-  const punchMutation = useStaffPunchAttendance();
-  const generateCalendarDays = (): CalendarDay[] => {
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-
-    const firstDay = new Date(year, month, 1);
-    const startDate = new Date(firstDay);
-    startDate.setDate(startDate.getDate() - firstDay.getDay()); // Start from Sunday
-
-    const days: CalendarDay[] = [];
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    for (let i = 0; i < 42; i++) {
-      // 6 weeks * 7 days
-      const date = new Date(startDate);
-      date.setDate(startDate.getDate() + i);
-
-      const attendance =
-        attendanceData.find((record) => {
-          const recordDate = new Date(record.date);
-          return recordDate.toDateString() === date.toDateString();
-        }) || null;
-
-      days.push({
-        date,
-        attendance,
-        isCurrentMonth: date.getMonth() === month,
-        isToday: date.toDateString() === today.toDateString(),
-      });
-    }
-
-    return days;
-  };
-
-  const getStatusDisplay = (status: string | null) => {
-    switch (status) {
-      case "APPROVED":
-        return {
-          bgColor: "bg-green-100 border-green-300",
-          textColor: "text-green-800",
-          icon: <CheckCircle className="h-4 w-4 text-green-600" />,
-          label: "Present",
-        };
-      case "REJECTED":
-        return {
-          bgColor: "bg-red-100 border-red-300",
-          textColor: "text-red-800",
-          icon: <XCircle className="h-4 w-4 text-red-600" />,
-          label: "Absent",
-        };
-      case "PENDING":
-        return {
-          bgColor: "bg-yellow-100 border-yellow-300",
-          textColor: "text-yellow-800",
-          icon: <AlertCircle className="h-4 w-4 text-yellow-600" />,
-          label: "Pending",
-        };
-      case "LEAVE":
-        return {
-          bgColor: "bg-yellow-100 border-yellow-300",
-          textColor: "text-yellow-800",
-          icon: <CalendarOff className="h-4 w-4 text-gray-600" />,
-          label: "leave",
-        };
-      case "ABSENT":
-        return {
-          bgColor: "bg-yellow-100 border-yellow-300",
-          textColor: "text-red-800",
-          icon: <XCircle className="h-4 w-4 text-red-600" />,
-          label: "absent",
-        };
-      default:
-        return {
-          bgColor: "bg-gray-50 border-gray-200",
-          textColor: "text-gray-400",
-          icon: <Minus className="h-4 w-4 text-gray-400" />,
-          label: "No Record",
-        };
-    }
-  };
-
+  // Navigate months
   const navigateMonth = (direction: "prev" | "next") => {
     setCurrentDate((prev) => {
       const newDate = new Date(prev);
@@ -164,6 +75,171 @@ export default function StaffAttendancePage() {
       }
       return newDate;
     });
+  };
+
+  // Check salary setup - redirect if not configured
+  const { data: dashboardData, isLoading: dashboardLoading } =
+    useStaffDashboard();
+
+  const { data: attendanceData, isLoading: attendanceLoading } =
+    useStaffAttendance(year, month);
+  const { data: todaysAttendance } = useTodayAttendance();
+  const punchMutation = useStaffPunchAttendance();
+
+  const filteredAttendance = useMemo(() => {
+    if (!attendanceData?.records) return [];
+
+    if (statusFilter === "all") return attendanceData.records;
+
+    return attendanceData.records.filter((record) => {
+      switch (statusFilter) {
+        case "present":
+          // Present: has record with APPROVED status (regardless of punchIn/punchOut)
+          return record.hasRecord && record.status === "APPROVED";
+        case "absent":
+          // Absent: has record with REJECTED or ABSENT status
+          return (
+            record.hasRecord &&
+            (record.status === "REJECTED" || record.status === "ABSENT")
+          );
+        case "leave":
+          // Leave: has record with LEAVE status
+          return record.hasRecord && record.status === "LEAVE";
+        case "pending":
+          // Pending: has record with PENDING status
+          return record.hasRecord && record.status === "PENDING";
+        case "no-record":
+          // No record: doesn't have any record
+          return !record.hasRecord;
+        default:
+          return true;
+      }
+    });
+  }, [attendanceData?.records, statusFilter]);
+
+  // Calculate stats
+  const stats = useMemo(() => {
+    const total = attendanceData?.summary.total;
+    const pending = attendanceData?.summary.pendingDays;
+    const noRecord = attendanceData?.summary.noMarkedDays;
+    const present = attendanceData?.summary.presentDays;
+    const absent = attendanceData?.summary.absentDays;
+    const leave = attendanceData?.summary.leaveDays;
+    const totalWorkingHours = attendanceData?.summary.totalWorkingHours;
+    const totalOvertimeHours = attendanceData?.summary.totalOvertimeHours;
+
+    return {
+      total,
+      pending,
+      present,
+      noRecord,
+      absent,
+      leave,
+
+      totalWorkingHours,
+      totalOvertimeHours,
+    };
+  }, [attendanceData]);
+
+  const getStatusDisplay = (status: string | null, hasRecord: boolean) => {
+    if (!hasRecord || !status) {
+      return {
+        bgColor: "bg-gray-100",
+        textColor: "text-gray-600",
+        borderColor: "border-gray-200",
+        icon: <AlertCircle className="h-4 w-4 text-gray-400" />,
+        label: "No Record",
+      };
+    }
+    switch (status) {
+      case "APPROVED":
+        return {
+          bgColor: "bg-green-100",
+          textColor: "text-green-800",
+          borderColor: "border-green-200",
+          icon: <CheckCircle className="h-4 w-4 text-green-600" />,
+          label: "Present",
+        };
+      case "REJECTED":
+        return {
+          bgColor: "bg-red-100",
+          textColor: "text-red-800",
+          borderColor: "border-red-200",
+          icon: <XCircle className="h-4 w-4 text-red-600" />,
+          label: "Absent",
+        };
+      case "PENDING":
+        return {
+          bgColor: "bg-amber-100",
+          textColor: "text-amber-800",
+          borderColor: "border-amber-200",
+          icon: <AlertCircle className="h-4 w-4 text-amber-600" />,
+          label: "Pending",
+        };
+      case "LEAVE":
+        return {
+          bgColor: "bg-blue-100",
+          textColor: "text-blue-800",
+          borderColor: "border-blue-200",
+          icon: <CalendarOff className="h-4 w-4 text-blue-600" />,
+          label: "Leave",
+        };
+      case "ABSENT":
+        return {
+          bgColor: "bg-gray-100",
+          textColor: "text-gray-800",
+          borderColor: "border-gray-200",
+          icon: <XCircle className="h-4 w-4 text-gray-600" />,
+          label: "Absent",
+        };
+      default:
+        return {
+          bgColor: "bg-gray-100",
+          textColor: "text-gray-600",
+          borderColor: "border-gray-200",
+          icon: <AlertCircle className="h-4 w-4 text-gray-400" />,
+          label: "No Record",
+        };
+    }
+  };
+
+  const formatTime = (dateStr: string | null) => {
+    if (!dateStr) return "--:--";
+    return new Date(dateStr).toLocaleTimeString("en-IN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  };
+
+  const formatDate = (dateStr: string) => {
+    // Parse date string carefully to avoid timezone issues
+    const [yearStr, monthStr, dayStr] = dateStr.split("-");
+    const date = new Date(
+      parseInt(yearStr),
+      parseInt(monthStr) - 1,
+      parseInt(dayStr),
+    );
+    return date.toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      weekday: "short",
+    });
+  };
+
+  const isToday = (dateStr: string) => {
+    const today = new Date();
+    const [yearStr, monthStr, dayStr] = dateStr.split("-");
+    const date = new Date(
+      parseInt(yearStr),
+      parseInt(monthStr) - 1,
+      parseInt(dayStr),
+    );
+    return (
+      date.getDate() === today.getDate() &&
+      date.getMonth() === today.getMonth() &&
+      date.getFullYear() === today.getFullYear()
+    );
   };
 
   const handlePunchClick = (type: "in" | "out") => {
@@ -203,8 +279,6 @@ export default function StaffAttendancePage() {
     }
   };
 
-  const calendarDays = generateCalendarDays();
-
   // Show loading or salary pending state
   if (
     !dashboardLoading &&
@@ -212,9 +286,8 @@ export default function StaffAttendancePage() {
     !dashboardData.salarySetup?.isConfigured
   ) {
     return (
-      <div className=" min-h-screen">
+      <div className="min-h-screen bg-gray-50">
         <div className="max-w-sm md:max-w-2xl mx-auto px-4 py-6">
-          {/* Salary Pending State */}
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
             <div className="flex items-start space-x-4">
               <div className="flex-shrink-0">
@@ -243,11 +316,11 @@ export default function StaffAttendancePage() {
 
   if (attendanceLoading) {
     return (
-      <div className=" ">
+      <div className="min-h-screen bg-gray-50">
         <div className="max-w-sm md:max-w-2xl mx-auto px-2 py-3 space-y-2">
           <div className="animate-pulse space-y-2">
-            <div className="h-28 bg-white/90 rounded-2xl "></div>
-            <div className="h-64 bg-white/90 rounded-2xl "></div>
+            <div className="h-28 bg-white/90 rounded-2xl"></div>
+            <div className="h-64 bg-white/90 rounded-2xl"></div>
           </div>
         </div>
       </div>
@@ -255,178 +328,263 @@ export default function StaffAttendancePage() {
   }
 
   return (
-    <div className=" ">
-      <div className="max-w-sm md:max-w-2xl mx-auto px-2 py-3 space-y-2">
-        {/* Header with Punch Buttons */}
-        <div className="bg-white rounded-2xl  p-3">
-          <div className="text-center mb-3">
-            <h1 className="text-xl font-bold text-gray-900 mb-1">Attendance</h1>
-            <p className="text-gray-600 text-xs">Track your daily work hours</p>
+    <div className="min-h-screen bg-gray-50">
+      <div className="md:max-w-2xl mx-auto px-2 py-3 space-y-2">
+        {/* Header Card with Month Navigation */}
+        <div className="bg-white rounded-2xl p-3 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <button
+              onClick={() => navigateMonth("prev")}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors active:bg-gray-200"
+            >
+              <ChevronLeft className="h-5 w-5 text-gray-600" />
+            </button>
+            <div className="text-center">
+              <h1 className="text-xl font-bold text-gray-900">My Attendance</h1>
+              <p className="text-gray-600 text-xs">
+                {currentDate.toLocaleDateString("en-IN", {
+                  month: "long",
+                  year: "numeric",
+                })}
+              </p>
+            </div>
+            <button
+              onClick={() => navigateMonth("next")}
+              disabled={currentDate.getMonth() === new Date().getMonth()}
+              className={`p-2 rounded-lg transition-colors ${
+                currentDate.getMonth() === new Date().getMonth()
+                  ? "opacity-50 cursor-not-allowed"
+                  : "hover:bg-gray-100 active:bg-gray-200"
+              }`}
+            >
+              <ChevronRight className="h-5 w-5 text-gray-600" />
+            </button>
           </div>
 
           {/* Punch Buttons or Status Display */}
           {todaysAttendance?.punchOut == null &&
           todaysAttendance?.status == "PENDING" ? (
-            // Show only Punch Out button if session is open (punched in but not out)
             <div className="flex justify-center">
               <button
                 onClick={() => handlePunchClick("out")}
-                className="bg-gradient-to-r from-red-500 to-red-600 text-white py-3 px-6 rounded-xl font-semibold hover:from-red-600 hover:to-red-700 transition-all duration-200  active:scale-95 flex flex-col items-center space-y-1"
+                className="bg-gradient-to-r from-red-500 to-red-600 text-white py-3 px-6 rounded-xl font-semibold hover:from-red-600 hover:to-red-700 transition-all duration-200 active:scale-95 flex flex-col items-center space-y-1 w-full max-w-xs"
               >
-                <CheckCircle className="h-5 w-5" />
+                <ArrowUpCircle className="h-5 w-5" />
                 <span className="text-xs">Punch Out</span>
               </button>
             </div>
           ) : todaysAttendance ? (
             <div className="bg-gray-50 rounded-lg p-4 text-center">
               <div className="flex items-center justify-center space-x-2 mb-2">
-                {getStatusDisplay(todaysAttendance.status).icon}
+                {getStatusDisplay(todaysAttendance.status, true).icon}
                 <span className="text-sm font-semibold text-gray-900">
-                  {getStatusDisplay(todaysAttendance.status).label}
+                  {getStatusDisplay(todaysAttendance.status, true).label}
                 </span>
               </div>
-              <div className="text-xs text-gray-600 space-y-1">
-                <div>
-                  Punch In:{" "}
-                  {todaysAttendance.punchIn
-                    ? new Date(todaysAttendance.punchIn).toLocaleTimeString()
-                    : "N/A"}
+              <div className="flex justify-center gap-4 text-xs text-gray-600">
+                <div className="flex items-center gap-1">
+                  <ArrowDownCircle className="h-3 w-3" />
+                  {formatTime(todaysAttendance.punchIn)}
                 </div>
-                <div>
-                  Punch Out:{" "}
-                  {todaysAttendance.punchOut
-                    ? new Date(todaysAttendance.punchOut).toLocaleTimeString()
-                    : "N/A"}
+                <div className="flex items-center gap-1">
+                  <ArrowUpCircle className="h-3 w-3" />
+                  {formatTime(todaysAttendance.punchOut)}
                 </div>
               </div>
-              {todaysAttendance.status === "APPROVED" && (
-                <div className="mt-2 text-xs text-green-600 font-medium">
-                  ✓ Attendance approved
-                </div>
-              )}
-              {todaysAttendance.punchOut &&
-                todaysAttendance.status !== "APPROVED" && (
-                  <div className="mt-2 text-xs text-blue-600 font-medium">
-                    ✓ Attendance completed for today
-                  </div>
-                )}
             </div>
           ) : (
-            // Show Punch In button if no attendance record exists for today
             <div className="flex justify-center">
               <button
                 onClick={() => handlePunchClick("in")}
-                className="bg-gradient-to-r from-green-500 to-green-600 text-white py-3 px-6 rounded-xl font-semibold hover:from-green-600 hover:to-green-700 transition-all duration-200  active:scale-95 flex flex-col items-center space-y-1"
+                className="bg-gradient-to-r from-green-500 to-green-600 text-white py-3 px-6 rounded-xl font-semibold hover:from-green-600 hover:to-green-700 transition-all duration-200 active:scale-95 flex flex-col items-center space-y-1 w-full max-w-xs"
               >
-                <CheckCircle className="h-5 w-5" />
+                <ArrowDownCircle className="h-5 w-5" />
                 <span className="text-xs">Punch In</span>
               </button>
             </div>
           )}
         </div>
 
-        {/* Calendar Card - Full Width */}
-        <div className="bg-white rounded-2xl  p-2">
-          {/* Month Navigation - Compact */}
-          <div className="flex items-center justify-between mb-3">
-            <button
-              onClick={() => navigateMonth("prev")}
-              className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors active:bg-gray-200"
+        <div className="grid grid-cols-3 gap-2">
+          <div className="bg-white rounded-xl  p-3 shadow-sm text-center">
+            <div className="text-2xl font-bold text-green-600">
+              {stats.present}
+            </div>
+            <div className="text-xs text-gray-600">Present</div>
+          </div>
+          <div className="bg-white rounded-xl p-3 shadow-sm text-center">
+            <div className="text-2xl font-bold text-red-600">
+              {stats.absent}
+            </div>
+            <div className="text-xs text-gray-600">Absent</div>
+          </div>
+          <div className="bg-white rounded-xl p-3 shadow-sm text-center">
+            <div className="text-2xl font-bold text-blue-600">
+              {stats.leave}
+            </div>
+            <div className="text-xs text-gray-600">Leave</div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="bg-white rounded-xl p-3 shadow-sm text-center">
+            <div className="text-2xl font-bold text-amber-600">
+              {stats.totalOvertimeHours}
+            </div>
+            <div className="text-xs text-gray-600">total overtime</div>
+          </div>
+          <div className="bg-white rounded-xl p-3 shadow-sm text-center">
+            <div className="text-2xl font-bold text-gray-600">
+              {stats.totalWorkingHours}
+            </div>
+            <div className="text-xs text-gray-600">total working time</div>
+          </div>
+        </div>
+
+        {/* Filter Dropdown */}
+        <div className="bg-white rounded-xl p-3 shadow-sm">
+          <div className="relative">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as StatusType)}
+              className="w-full appearance-none bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 pr-10 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
-              <ChevronLeft className="h-4 w-4 text-gray-600" />
-            </button>
-            <h2 className="text-base font-bold text-gray-900">
-              {currentDate.toLocaleString("default", {
-                month: "short",
-                year: "numeric",
-              })}
+              <option value="all">All ({stats?.total})</option>
+              <option value="present">Present ({stats?.present})</option>
+              <option value="absent">Absent ({stats?.absent})</option>
+              <option value="leave">Leave ({stats?.leave})</option>
+              <option value="pending">Pending ({stats?.pending})</option>
+              <option value="no-record">No Record ({stats?.noRecord})</option>
+            </select>
+            <Filter className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+          </div>
+        </div>
+
+        {/* Attendance List */}
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+            <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
+              <History className="h-4 w-4" />
+              Attendance History
             </h2>
-            <button
-              onClick={() => navigateMonth("next")}
-              className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors active:bg-gray-200"
-            >
-              <ChevronRight className="h-4 w-4 text-gray-600" />
-            </button>
           </div>
 
-          {/* Day Headers - Minimal */}
-          <div className="grid grid-cols-7 gap-0.5 mb-2">
-            {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
-              <div
-                key={index}
-                className="p-1 text-center text-xs font-semibold text-gray-500"
-              >
-                {day}
-              </div>
-            ))}
-          </div>
+          {filteredAttendance?.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">
+              <CalendarOff className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+              <p className="text-sm">No attendance records found</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {filteredAttendance?.map((record) => {
+                const statusDisplay = getStatusDisplay(
+                  record.status,
+                  record.hasRecord,
+                );
+                const showOvertime =
+                  record.hasRecord &&
+                  record.overtimeHours != null &&
+                  record.overtimeHours > 0;
+                const showWorkingHours =
+                  record.hasRecord &&
+                  record.workingHours != null &&
+                  record.workingHours > 0;
+                const showLate =
+                  record.hasRecord &&
+                  record.lateMinutes != null &&
+                  record.lateMinutes > 0;
+                const showApprovalPending =
+                  record.hasRecord &&
+                  record.requiresApproval &&
+                  record.status == "PENDING";
 
-          {/* Calendar Grid - Max Width Usage */}
-          <div className="grid grid-cols-7 gap-0.5">
-            {calendarDays.map((day, index) => {
-              const statusDisplay = getStatusDisplay(
-                day.attendance?.status || null,
-              );
-              return (
-                <div
-                  key={index}
-                  className={`aspect-square rounded-md border transition-all duration-200 active:scale-95 ${
-                    day.isCurrentMonth
-                      ? day.isToday
-                        ? "bg-blue-200 border-blue-600 shadow-sm"
-                        : `${statusDisplay.bgColor} border-gray-200`
-                      : "bg-gray-50 border-gray-100"
-                  }`}
-                >
-                  <div className="h-full flex flex-col items-center justify-center p-0.5">
-                    <span
-                      className={`text-xs font-bold leading-tight ${
-                        day.isCurrentMonth
-                          ? day.isToday
-                            ? "text-blue-700"
-                            : "text-gray-900"
-                          : "text-gray-400"
-                      }`}
-                    >
-                      {day.date.getDate()}
-                    </span>
+                return (
+                  <div
+                    key={record.id}
+                    className={`p-4 transition-colors ${
+                      isToday(record.date)
+                        ? "bg-blue-50/50"
+                        : "hover:bg-gray-50"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${statusDisplay.bgColor} ${statusDisplay.borderColor}`}
+                        >
+                          {statusDisplay.icon}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span
+                              className={`font-semibold text-sm ${
+                                isToday(record.date)
+                                  ? "text-blue-700"
+                                  : "text-gray-900"
+                              }`}
+                            >
+                              {formatDate(record.date)}
+                              {isToday(record.date) && (
+                                <span className="ml-2 text-xs text-blue-600 font-medium">
+                                  (Today)
+                                </span>
+                              )}
+                            </span>
+                            {showOvertime && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                                +{record.overtimeHours!.toFixed(1)}h OT
+                              </span>
+                            )}
+                          </div>
 
-                    {day.attendance && (
-                      <div className="flex flex-col items-center mt-0.5">
-                        <div className="scale-50">{statusDisplay.icon}</div>
+                          {record.hasRecord ? (
+                            <>
+                              <div className="flex items-center gap-3 text-xs text-gray-600">
+                                <div className="flex items-center gap-1">
+                                  <ArrowDownCircle className="h-3 w-3 text-green-600" />
+                                  {formatTime(record.punchIn)}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <ArrowUpCircle className="h-3 w-3 text-red-600" />
+                                  {formatTime(record.punchOut)}
+                                </div>
+                              </div>
+                              {showWorkingHours && (
+                                <div className="mt-1 text-xs text-gray-500">
+                                  Working: {record.workingHours!.toFixed(1)}h
+                                </div>
+                              )}
+                              {showLate && (
+                                <div className="mt-1 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                                  Late:{" "}
+                                  {convertSeconds(
+                                    record?.lateMinutes ?? 0 * 60,
+                                  )}
+                                </div>
+                              )}
+                              {showApprovalPending && (
+                                <div className="mt-1 text-xs text-amber-600">
+                                  Awaiting approval
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <div className="text-xs text-gray-400">
+                              No attendance recorded
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    )}
+                      <div
+                        className={`px-2 py-1 rounded-full text-xs font-medium ${statusDisplay.bgColor} ${statusDisplay.textColor}`}
+                      >
+                        {statusDisplay.label}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Legend - Ultra Compact */}
-          <div className="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-gray-200">
-            <div className="flex items-center space-x-1">
-              <CheckCircle className="h-3 w-3 text-green-600" />
-              <span className="text-xs font-medium text-gray-700">Present</span>
+                );
+              })}
             </div>
-            <div className="flex items-center space-x-1">
-              <AlertCircle className="h-3 w-3 text-yellow-600" />
-              <span className="text-xs font-medium text-gray-700">Pending</span>
-            </div>
-            <div className="flex items-center space-x-1">
-              <XCircle className="h-3 w-3 text-red-600" />
-              <span className="text-xs font-medium text-gray-700">Absent</span>
-            </div>
-            <div className="flex items-center space-x-1">
-              <CalendarOff className="h-3 w-3 text-gray-600" />
-              <span className="text-xs font-medium text-gray-700">Leave</span>
-            </div>
-            <div className="flex items-center space-x-1">
-              <Minus className="h-3 w-3 text-gray-400" />
-              <span className="text-xs font-medium text-gray-700">
-                No Record
-              </span>
-            </div>
-          </div>
+          )}
         </div>
       </div>
 

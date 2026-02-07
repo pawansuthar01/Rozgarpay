@@ -116,42 +116,47 @@ export async function PATCH(request: NextRequest) {
       "pfPercentage",
       "esiPercentage",
     ];
-    if (!body.shiftStartTime || !body.shiftEndTime) {
-      return NextResponse.json(
-        { error: "Both shiftStartTime and shiftEndTime are required" },
-        { status: 400 },
-      );
-    }
+    // Only validate shift times if they are being updated
+    if (body.shiftStartTime || body.shiftEndTime) {
+      if (!body.shiftStartTime || !body.shiftEndTime) {
+        return NextResponse.json(
+          { error: "Both shiftStartTime and shiftEndTime are required" },
+          { status: 400 },
+        );
+      }
 
-    if (!isValidTime(body.shiftStartTime) || !isValidTime(body.shiftEndTime)) {
-      return NextResponse.json(
-        { error: "Shift time must be in HH:mm format" },
-        { status: 400 },
-      );
-    }
+      if (
+        !isValidTime(body.shiftStartTime) ||
+        !isValidTime(body.shiftEndTime)
+      ) {
+        return NextResponse.json(
+          { error: "Shift time must be in HH:mm format" },
+          { status: 400 },
+        );
+      }
 
-    const [sh, sm] = body.shiftStartTime.split(":").map(Number);
-    const [eh, em] = body.shiftEndTime.split(":").map(Number);
+      const [sh, sm] = body.shiftStartTime.split(":").map(Number);
+      const [eh, em] = body.shiftEndTime.split(":").map(Number);
 
-    const start = sh * 60 + sm;
-    const end = eh * 60 + em;
+      const start = sh * 60 + sm;
+      const end = eh * 60 + em;
 
-    if (end <= start) {
-      return NextResponse.json(
-        {
-          error:
-            "Invalid shift time: shiftEndTime must be after shiftStartTime",
-        },
-        { status: 400 },
-      );
-    }
-    const shiftHours = (end - start) / 60;
-
-    if (body.maxDailyHours && shiftHours > body.maxDailyHours) {
-      return NextResponse.json(
-        { error: "Shift duration exceeds maxDailyHours" },
-        { status: 400 },
-      );
+      if (end <= start) {
+        return NextResponse.json(
+          {
+            error:
+              "Invalid shift time: shiftEndTime must be after shiftStartTime",
+          },
+          { status: 400 },
+        );
+      }
+      // Don't override maxDailyHours if not being updated
+      if (body.maxDailyHours && (end - start) / 60 > body.maxDailyHours) {
+        return NextResponse.json(
+          { error: "Shift duration exceeds maxDailyHours" },
+          { status: 400 },
+        );
+      }
     }
 
     for (const field of numericFields) {
@@ -188,38 +193,79 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Update company with only provided fields
+    // Build update data conditionally
+    const updateData: Record<string, any> = {};
+
+    if (body.description !== undefined)
+      updateData.description = body.description;
+    if (body.shiftStartTime) updateData.shiftStartTime = body.shiftStartTime;
+    if (body.shiftEndTime) updateData.shiftEndTime = body.shiftEndTime;
+    if (body.gracePeriodMinutes !== undefined)
+      updateData.gracePeriodMinutes = body.gracePeriodMinutes;
+    if (body.minWorkingHours !== undefined)
+      updateData.minWorkingHours = body.minWorkingHours;
+    if (body.maxDailyHours !== undefined)
+      updateData.maxDailyHours = body.maxDailyHours;
+    if (body.autoPunchOutBufferMinutes !== undefined)
+      updateData.autoPunchOutBufferMinutes = body.autoPunchOutBufferMinutes;
+    if (body.locationLat !== undefined)
+      updateData.locationLat = body.locationLat;
+    if (body.locationLng !== undefined)
+      updateData.locationLng = body.locationLng;
+    if (body.locationRadius !== undefined)
+      updateData.locationRadius = body.locationRadius;
+    if (body.overtimeThresholdHours !== undefined)
+      updateData.overtimeThresholdHours = body.overtimeThresholdHours;
+    if (body.nightPunchInWindowHours !== undefined)
+      updateData.nightPunchInWindowHours = body.nightPunchInWindowHours;
+    if (body.defaultSalaryType)
+      updateData.defaultSalaryType = body.defaultSalaryType;
+    if (body.overtimeMultiplier !== undefined)
+      updateData.overtimeMultiplier = body.overtimeMultiplier;
+    if (body.enableLatePenalty !== undefined)
+      updateData.enableLatePenalty = body.enableLatePenalty;
+    if (body.latePenaltyPerMinute !== undefined)
+      updateData.latePenaltyPerMinute = body.latePenaltyPerMinute;
+    if (body.enableAbsentPenalty !== undefined)
+      updateData.enableAbsentPenalty = body.enableAbsentPenalty;
+    if (body.halfDayThresholdHours !== undefined)
+      updateData.halfDayThresholdHours = body.halfDayThresholdHours;
+    if (body.absentPenaltyPerDay !== undefined)
+      updateData.absentPenaltyPerDay = body.absentPenaltyPerDay;
+    if (body.pfPercentage !== undefined)
+      updateData.pfPercentage = body.pfPercentage;
+    if (body.esiPercentage !== undefined)
+      updateData.esiPercentage = body.esiPercentage;
+
     const updatedCompany = await prisma.company.update({
       where: { id: admin.companyId },
-      data: {
-        shiftStartTime: body.shiftStartTime,
-        shiftEndTime: body.shiftEndTime,
-        gracePeriodMinutes: body.gracePeriodMinutes,
-        minWorkingHours: body.minWorkingHours,
-        maxDailyHours: body.maxDailyHours ?? shiftHours,
-        autoPunchOutBufferMinutes: body.autoPunchOutBufferMinutes,
-        locationLat: body.locationLat,
-        locationLng: body.locationLng,
-        locationRadius: body.locationRadius,
-        overtimeThresholdHours: body.overtimeThresholdHours,
-        nightPunchInWindowHours: body.nightPunchInWindowHours,
-        defaultSalaryType: body.defaultSalaryType,
-        overtimeMultiplier: body.overtimeMultiplier,
-        enableLatePenalty: body.enableLatePenalty,
-        latePenaltyPerMinute: body.latePenaltyPerMinute,
-        enableAbsentPenalty: body.enableAbsentPenalty,
-        halfDayThresholdHours: body.halfDayThresholdHours,
-        absentPenaltyPerDay: body.absentPenaltyPerDay,
-        pfPercentage: body.pfPercentage,
-        esiPercentage: body.esiPercentage,
-      },
+      data: updateData,
       select: {
         id: true,
         name: true,
+        description: true,
+        logo: true,
         shiftStartTime: true,
         shiftEndTime: true,
         gracePeriodMinutes: true,
         minWorkingHours: true,
         maxDailyHours: true,
+        autoPunchOutBufferMinutes: true,
+        locationLat: true,
+        locationLng: true,
+        locationRadius: true,
+        overtimeThresholdHours: true,
+        nightPunchInWindowHours: true,
+        defaultSalaryType: true,
+        overtimeMultiplier: true,
+        enableLatePenalty: true,
+        latePenaltyPerMinute: true,
+        enableAbsentPenalty: true,
+        halfDayThresholdHours: true,
+        absentPenaltyPerDay: true,
+        pfPercentage: true,
+        esiPercentage: true,
+        status: true,
       },
     });
 

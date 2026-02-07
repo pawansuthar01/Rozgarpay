@@ -24,6 +24,11 @@ import {
   formatCurrency,
   formatLocalDate,
 } from "@/lib/utils";
+import {
+  isDeductionType,
+  formatAmountWithSign,
+  getAmountColor,
+} from "@/lib/salaryService";
 import AttendancePDFGenerator from "@/components/AttendancePDFGenerator";
 import SalaryPDFGenerator from "@/components/SalaryPDFGenerator";
 import {
@@ -939,7 +944,9 @@ export default function UserReportsPage() {
                         <div className="flex items-center gap-3">
                           <div
                             className={`w-2 h-2 rounded-full ${
-                              item.amount >= 0 ? "bg-green-500" : "bg-red-500"
+                              isDeductionType(item.type)
+                                ? "bg-red-500"
+                                : "bg-green-500"
                             }`}
                           ></div>
                           <div>
@@ -953,12 +960,12 @@ export default function UserReportsPage() {
                           </div>
                         </div>
                         <p
-                          className={`text-sm font-semibold ${
-                            item.amount >= 0 ? "text-green-600" : "text-red-600"
-                          }`}
+                          className={`text-sm font-semibold ${getAmountColor(
+                            item.amount,
+                            item.type,
+                          )}`}
                         >
-                          {item.amount >= 0 ? "+" : "-"}₹
-                          {formatCurrency(Math.abs(item.amount))}
+                          {formatAmountWithSign(item.amount, item.type)}
                         </p>
                       </div>
                     ))}

@@ -179,15 +179,14 @@ export default function AdminUsersPage() {
                     </tr>
                   ))
                 : users.map((user: User) => (
-                    <tr
-                      key={user.id}
-                      onClick={() => router.push(`/admin/users/${user.id}`)}
-                      className="hover:bg-gray-50 cursor-pointer"
-                    >
+                    <tr key={user.id} className="hover:bg-gray-50 ">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
+                        <div
+                          onClick={() => router.push(`/admin/users/${user.id}`)}
+                          className="flex items-center  cursor-pointer "
+                        >
                           <div
-                            className={`h-8 w-8  ${bgColorRadom()}  rounded-full flex items-center justify-center`}
+                            className={`h-8 w-8 ${bgColorRadom()}  rounded-full flex items-center justify-center`}
                           >
                             <span
                               className={`text-sm font-medium text-white  `}

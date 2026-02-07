@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import Skeleton from "react-loading-skeleton";
@@ -18,6 +18,9 @@ import {
   Settings as SettingsIcon,
   AlertTriangle,
   Loader2,
+  Camera,
+  Info,
+  Percent,
 } from "lucide-react";
 import MessageModal from "@/components/MessageModal";
 import {
@@ -25,10 +28,10 @@ import {
   useUpdateCompanySettings,
 } from "@/hooks/useCompanySettings";
 import ImageUpload from "@/components/ImageUpload";
-import { formatDate, formatDateTime, formatTime } from "@/lib/utils";
 import Loading from "@/components/ui/Loading";
 
-interface AttendanceSettings {
+interface CompanySettings {
+  description: string;
   shiftStartTime: string;
   shiftEndTime: string;
   gracePeriodMinutes: number;
@@ -40,11 +43,15 @@ interface AttendanceSettings {
   locationRadius: number;
   overtimeThresholdHours: number;
   nightPunchInWindowHours: number;
+  defaultSalaryType: string;
+  overtimeMultiplier: number;
   enableLatePenalty: boolean;
-
   latePenaltyPerMinute: number;
   enableAbsentPenalty: boolean;
+  halfDayThresholdHours: number;
   absentPenaltyPerDay: number;
+  pfPercentage: number;
+  esiPercentage: number;
 }
 
 export default function AdminSettingsPage() {
@@ -54,9 +61,10 @@ export default function AdminSettingsPage() {
   const queryClient = useQueryClient();
 
   const company = companyData?.company;
-  const attendanceSettings: AttendanceSettings = {
-    shiftStartTime: company?.shiftStartTime || "--:--",
-    shiftEndTime: company?.shiftEndTime || "--:--",
+  const settings: CompanySettings = {
+    description: company?.description || "",
+    shiftStartTime: company?.shiftStartTime || "09:00",
+    shiftEndTime: company?.shiftEndTime || "18:00",
     gracePeriodMinutes: company?.gracePeriodMinutes || 0,
     minWorkingHours: company?.minWorkingHours || 0.0,
     maxDailyHours: company?.maxDailyHours || 0.0,
@@ -66,16 +74,20 @@ export default function AdminSettingsPage() {
     locationRadius: company?.locationRadius || 0.0,
     overtimeThresholdHours: company?.overtimeThresholdHours || 0.0,
     nightPunchInWindowHours: company?.nightPunchInWindowHours || 0.0,
+    defaultSalaryType: company?.defaultSalaryType || "MONTHLY",
+    overtimeMultiplier: company?.overtimeMultiplier || 1.5,
     enableLatePenalty: company?.enableLatePenalty || false,
     latePenaltyPerMinute: company?.latePenaltyPerMinute || 0,
     enableAbsentPenalty: company?.enableAbsentPenalty || false,
+    halfDayThresholdHours: company?.halfDayThresholdHours || 4.0,
     absentPenaltyPerDay: company?.absentPenaltyPerDay || 0,
+    pfPercentage: company?.pfPercentage || 0,
+    esiPercentage: company?.esiPercentage || 0,
   };
 
   const [editing, setEditing] = useState<string | null>(null);
-  const [saving, setSaving] = useState<string | null>(null); // Track which section is saving
-  const [tempAttendanceSettings, setTempAttendanceSettings] =
-    useState<AttendanceSettings>(attendanceSettings);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [tempSettings, setTempSettings] = useState<CompanySettings>(settings);
   const [messageModal, setMessageModal] = useState<{
     isOpen: boolean;
     type: "success" | "error" | "warning" | "info";
@@ -90,19 +102,19 @@ export default function AdminSettingsPage() {
 
   const handleEdit = (section: string) => {
     setEditing(section);
-    setTempAttendanceSettings(attendanceSettings);
+    setTempSettings(settings);
   };
 
   const handleSave = async (section: string) => {
     setSaving(section);
     try {
-      await updateSettingsMutation.mutateAsync(tempAttendanceSettings);
+      await updateSettingsMutation.mutateAsync(tempSettings);
       setEditing(null);
       setMessageModal({
         isOpen: true,
         type: "success",
         title: "Settings Saved",
-        message: "Attendance settings have been updated successfully.",
+        message: "Settings have been updated successfully.",
       });
     } catch (error: any) {
       console.error("Failed to save settings:", error);
@@ -119,7 +131,7 @@ export default function AdminSettingsPage() {
 
   const handleCancel = () => {
     setEditing(null);
-    setTempAttendanceSettings(attendanceSettings);
+    setTempSettings(settings);
   };
 
   const handleLogoUpload = async (file: File) => {
@@ -136,8 +148,13 @@ export default function AdminSettingsPage() {
       throw new Error(error.error || "Failed to upload company logo");
     }
 
-    // Fixed BUG-006: Invalidate queries instead of full page reload
     queryClient.invalidateQueries({ queryKey: ["companySettings"] });
+    setMessageModal({
+      isOpen: true,
+      type: "success",
+      title: "Logo Updated",
+      message: "Company logo has been updated successfully.",
+    });
   };
 
   const handleLogoDelete = async () => {
@@ -150,814 +167,946 @@ export default function AdminSettingsPage() {
       throw new Error(error.error || "Failed to delete company logo");
     }
 
-    // Fixed BUG-006: Invalidate queries instead of full page reload
     queryClient.invalidateQueries({ queryKey: ["companySettings"] });
+    setMessageModal({
+      isOpen: true,
+      type: "success",
+      title: "Logo Deleted",
+      message: "Company logo has been removed.",
+    });
   };
 
   if (!session || session.user.role !== "ADMIN") {
     return <Loading />;
   }
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-4">
+        <div className="max-w-4xl mx-auto space-y-4">
+          <Skeleton height={60} className="rounded-lg" />
+          <Skeleton height={200} className="rounded-lg" />
+          <Skeleton height={300} className="rounded-lg" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-4 flex items-center justify-center">
+        <div className="text-center text-red-600">
+          <AlertTriangle className="h-12 w-12 mx-auto mb-2" />
+          <p>Failed to load settings</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen ">
-      <div className="max-w-6xl mx-auto px-4 py-6 space-y-6 md:space-y-8">
+    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
+      <div className="max-w-4xl mx-auto space-y-4 md:space-y-6">
         {/* Header */}
-        <div className="bg-white rounded-lg p-6 md:p-8">
-          <div className="text-center">
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
-              Settings
+        <div className="bg-white rounded-xl p-5 md:p-6 shadow-sm">
+          <div className="flex items-center space-x-3 mb-2">
+            <SettingsIcon className="h-6 w-6 text-blue-600" />
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900">
+              Company Settings
             </h1>
-            <p className="text-gray-600 text-base md:text-lg">
-              Configure attendance & payroll rules
-            </p>
           </div>
+          <p className="text-gray-600 text-sm md:text-base ml-9">
+            Manage your company information and all settings
+          </p>
         </div>
 
-        {/* Company Info */}
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl md:text-2xl font-semibold text-gray-900 flex items-center">
-            <Building className="h-6 w-6 mr-3 text-blue-600" />
-            Company Information
-          </h2>
-        </div>
-        <div className="bg-white gap-2  sm:flex rounded-lg p-6 md:p-8">
-          {/* Company Logo */}
-          <div className="mb-6 flex flex-col ">
-            <h3 className="text-xm sm:text-lg  font-medium text-gray-900 mb-4 text-center">
-              Company Logo
-            </h3>
-            <ImageUpload
-              disabled
-              currentImage={company?.logo}
-              onUpload={handleLogoUpload}
-              onDelete={handleLogoDelete}
-              type="logo"
-              size="md"
-            />
+        {/* Company Info Section */}
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center space-x-3">
+            <Building className="h-5 w-5 text-blue-600" />
+            <h2 className="text-lg font-semibold text-gray-900">
+              Company Information
+            </h2>
           </div>
-
-          {/* Company Details */}
-          {isLoading ? (
-            <div className="space-y-4">
-              <Skeleton height={20} width={250} />
-              <Skeleton height={16} width={200} />
-              <Skeleton height={16} width={220} />
-            </div>
-          ) : company ? (
-            <div className="flex flex-col gap-4">
-              <div className=" rounded-lg p-4">
-                <p className="text-sm font-medium text-gray-700 mb-1">
-                  Company Name
-                </p>
-                <p className="text-lg font-semibold text-gray-900">
-                  {company.name}
+          <div className="p-5">
+            <div className="flex flex-col sm:flex-row gap-6">
+              {/* Company Logo */}
+              <div className="flex-shrink-0">
+                <ImageUpload
+                  currentImage={company?.logo}
+                  onUpload={handleLogoUpload}
+                  onDelete={handleLogoDelete}
+                  type="logo"
+                  size="lg"
+                />
+                <p className="text-center text-xs text-gray-500 mt-2">
+                  Click to upload logo
                 </p>
               </div>
 
-              <div className=" rounded-lg p-4">
-                <p className="text-sm font-medium text-gray-700 mb-1">
-                  description
-                </p>
-                <p className="text-lg font-semibold text-gray-900">
-                  {company.description}
-                </p>
+              {/* Company Details */}
+              <div className="flex-1 space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                    Company Name
+                  </label>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {company?.name}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Contact super-admin to change name
+                  </p>
+                </div>
+
+                {/* Description - Editable */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide">
+                      Description
+                    </label>
+                    {editing !== "description" && (
+                      <button
+                        onClick={() => handleEdit("description")}
+                        className="text-blue-600 hover:text-blue-700 text-xs flex items-center space-x-1"
+                      >
+                        <Edit className="h-3 w-3" />
+                        <span>Edit</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {editing === "description" ? (
+                    <div className="space-y-3">
+                      <textarea
+                        value={tempSettings.description || ""}
+                        onChange={(e) =>
+                          setTempSettings({
+                            ...tempSettings,
+                            description: e.target.value,
+                          })
+                        }
+                        rows={3}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Enter company description..."
+                      />
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleSave("description")}
+                          disabled={saving === "description"}
+                          className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center space-x-1"
+                        >
+                          {saving === "description" ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Save className="h-3 w-3" />
+                          )}
+                          <span>Save</span>
+                        </button>
+                        <button
+                          onClick={handleCancel}
+                          disabled={saving === "description"}
+                          className="px-3 py-1.5 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 disabled:opacity-50 flex items-center space-x-1"
+                        >
+                          <X className="h-3 w-3" />
+                          <span>Cancel</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-gray-900 text-sm">
+                      {company?.description || (
+                        <span className="text-gray-400 italic">
+                          No description added
+                        </span>
+                      )}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
-          ) : null}
+          </div>
         </div>
 
         {/* Shift Settings */}
-        <div className="bg-white rounded-lg p-6 md:p-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl md:text-2xl font-semibold text-gray-900 flex items-center">
-              <Clock className="h-6 w-6 mr-3 text-green-600" />
-              Shift Settings
-            </h2>
-            {editing === "shift" ? (
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => handleSave("shift")}
-                  disabled={saving === "shift"}
-                  className="px-4 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg font-medium transition-colors flex items-center space-x-2 disabled:opacity-50"
-                  aria-label="Save shift settings"
-                >
-                  {saving === "shift" ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  <span className="hidden sm:inline">
-                    {saving === "shift" ? "Saving..." : "Save"}
-                  </span>
-                </button>
-                <button
-                  onClick={handleCancel}
-                  disabled={saving === "shift"}
-                  className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-medium transition-colors flex items-center space-x-2 disabled:opacity-50"
-                  aria-label="Cancel editing"
-                >
-                  <X className="h-4 w-4" />
-                  <span className="hidden sm:inline">Cancel</span>
-                </button>
-              </div>
-            ) : (
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <Clock className="h-5 w-5 text-green-600" />
+              <h2 className="text-lg font-semibold text-gray-900">
+                Shift Timings
+              </h2>
+            </div>
+            {editing !== "shift" && (
               <button
                 onClick={() => handleEdit("shift")}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors flex items-center space-x-2"
-                aria-label="Edit shift settings"
+                className="text-blue-600 hover:text-blue-700 text-sm flex items-center space-x-1"
               >
                 <Edit className="h-4 w-4" />
                 <span className="hidden sm:inline">Edit</span>
               </button>
             )}
           </div>
-
-          {editing === "shift" ? (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-base font-medium text-gray-700 mb-2">
-                    Start Time
-                  </label>
-                  <input
-                    type="time"
-                    value={tempAttendanceSettings.shiftStartTime || ""}
-                    onChange={(e) =>
-                      setTempAttendanceSettings({
-                        ...tempAttendanceSettings,
-                        shiftStartTime: e.target.value,
-                      })
-                    }
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  />
+          <div className="p-5">
+            {editing === "shift" ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Start Time
+                    </label>
+                    <input
+                      type="time"
+                      value={tempSettings.shiftStartTime || ""}
+                      onChange={(e) =>
+                        setTempSettings({
+                          ...tempSettings,
+                          shiftStartTime: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      End Time
+                    </label>
+                    <input
+                      type="time"
+                      value={tempSettings.shiftEndTime || ""}
+                      onChange={(e) =>
+                        setTempSettings({
+                          ...tempSettings,
+                          shiftEndTime: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-base font-medium text-gray-700 mb-2">
-                    End Time
-                  </label>
-                  <input
-                    type="time"
-                    value={tempAttendanceSettings.shiftEndTime || ""}
-                    onChange={(e) =>
-                      setTempAttendanceSettings({
-                        ...tempAttendanceSettings,
-                        shiftEndTime: e.target.value,
-                      })
-                    }
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Grace Period (minutes)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="120"
+                      value={tempSettings.gracePeriodMinutes ?? ""}
+                      onChange={(e) =>
+                        setTempSettings({
+                          ...tempSettings,
+                          gracePeriodMinutes: parseInt(e.target.value) || 0,
+                        })
+                      }
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Night Shift Window (hours)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="1"
+                      max="4"
+                      value={tempSettings.nightPunchInWindowHours ?? ""}
+                      onChange={(e) =>
+                        setTempSettings({
+                          ...tempSettings,
+                          nightPunchInWindowHours:
+                            parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-base font-medium text-gray-700 mb-2">
-                    Late Arrival Grace Period (minutes)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="120"
-                    value={tempAttendanceSettings.gracePeriodMinutes ?? ""}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setTempAttendanceSettings({
-                        ...tempAttendanceSettings,
-                        gracePeriodMinutes:
-                          value === "" ? 0 : parseInt(value) || 0,
-                      });
-                    }}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  />
-                  <p className="text-sm text-gray-500 mt-2">
-                    Day shift: Staff can punch in up to this many minutes late
-                  </p>
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <button
+                    onClick={() => handleSave("shift")}
+                    disabled={saving === "shift"}
+                    className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center space-x-2"
+                  >
+                    {saving === "shift" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
+                    <span>Save Changes</span>
+                  </button>
+                  <button
+                    onClick={handleCancel}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 flex items-center space-x-2"
+                  >
+                    <X className="h-4 w-4" />
+                    <span>Cancel</span>
+                  </button>
                 </div>
-                <div>
-                  <label className="block text-base font-medium text-gray-700 mb-2">
-                    Night Shift Punch-in Window (hours)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="1"
-                    max="4"
-                    value={tempAttendanceSettings.nightPunchInWindowHours ?? ""}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setTempAttendanceSettings({
-                        ...tempAttendanceSettings,
-                        nightPunchInWindowHours:
-                          value === "" ? 0.0 : parseFloat(value) || 0.0,
-                      });
-                    }}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  />
-                  <p className="text-sm text-gray-500 mt-2">
-                    Night shift: Max hours after start time to allow punch-in
-                  </p>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className=" rounded-lg p-4">
-                <p className="text-base font-medium text-gray-700 mb-1">
-                  Shift Hours
-                </p>
-                <p className="text-xl font-bold text-gray-900">
-                  {attendanceSettings.shiftStartTime} -{" "}
-                  {attendanceSettings.shiftEndTime}
-                </p>
-              </div>
-              <div className=" rounded-lg p-4">
-                <p className="text-base font-medium text-gray-700 mb-1">
-                  Day Shift Grace Period
-                </p>
-                <p className="text-xl font-bold text-gray-900">
-                  {attendanceSettings.gracePeriodMinutes} minutes
-                </p>
-                <p className="text-sm text-gray-600">Late arrival allowance</p>
-              </div>
-              <div className=" rounded-lg p-4">
-                <p className="text-base font-medium text-gray-700 mb-1">
-                  Night Shift Window
-                </p>
-                <p className="text-xl font-bold text-gray-900">
-                  {attendanceSettings.nightPunchInWindowHours}h
-                </p>
-                <p className="text-sm text-gray-600">Max hours to punch in</p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Working Hours Settings */}
-        <div className="bg-white rounded-lg p-6 md:p-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl md:text-2xl font-semibold text-gray-900 flex items-center">
-              <Timer className="h-6 w-6 mr-3 text-orange-600" />
-              Working Hours Policy
-            </h2>
-            {editing === "hours" ? (
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => handleSave("hours")}
-                  disabled={saving === "hours"}
-                  className="px-4 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg font-medium transition-colors flex items-center space-x-2 disabled:opacity-50"
-                >
-                  {saving === "hours" ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  <span className="hidden sm:inline">
-                    {saving === "hours" ? "Saving..." : "Save"}
-                  </span>
-                </button>
-                <button
-                  onClick={handleCancel}
-                  disabled={saving === "hours"}
-                  className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-medium transition-colors flex items-center space-x-2 disabled:opacity-50"
-                >
-                  <X className="h-4 w-4" />
-                  <span className="hidden sm:inline">Cancel</span>
-                </button>
               </div>
             ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 mb-1">Start Time</p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {settings.shiftStartTime}
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 mb-1">End Time</p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {settings.shiftEndTime}
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 mb-1">Grace Period</p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {settings.gracePeriodMinutes}m
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 mb-1">Night Window</p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {settings.nightPunchInWindowHours}h
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Working Hours */}
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <Timer className="h-5 w-5 text-orange-600" />
+              <h2 className="text-lg font-semibold text-gray-900">
+                Working Hours Policy
+              </h2>
+            </div>
+            {editing !== "hours" && (
               <button
                 onClick={() => handleEdit("hours")}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors flex items-center space-x-2"
+                className="text-blue-600 hover:text-blue-700 text-sm flex items-center space-x-1"
               >
                 <Edit className="h-4 w-4" />
                 <span className="hidden sm:inline">Edit</span>
               </button>
             )}
           </div>
-
-          {editing === "hours" ? (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div>
-                  <label className="block text-base font-medium text-gray-700 mb-2">
-                    Minimum Working Hours
-                  </label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="0"
-                    max="12"
-                    value={tempAttendanceSettings.minWorkingHours ?? ""}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setTempAttendanceSettings({
-                        ...tempAttendanceSettings,
-                        minWorkingHours:
-                          value === "" ? 0.0 : parseFloat(value) || 0.0,
-                      });
-                    }}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  />
-                  <p className="text-sm text-gray-500 mt-1">
-                    Hours required to count as working day
+          <div className="p-5">
+            {editing === "hours" ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Min Working Hours
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      max="12"
+                      value={tempSettings.minWorkingHours ?? ""}
+                      onChange={(e) =>
+                        setTempSettings({
+                          ...tempSettings,
+                          minWorkingHours: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Max Daily Hours
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      max="24"
+                      value={tempSettings.maxDailyHours ?? ""}
+                      onChange={(e) =>
+                        setTempSettings({
+                          ...tempSettings,
+                          maxDailyHours: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Auto Punch-out Buffer (min)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="120"
+                      value={tempSettings.autoPunchOutBufferMinutes ?? ""}
+                      onChange={(e) =>
+                        setTempSettings({
+                          ...tempSettings,
+                          autoPunchOutBufferMinutes:
+                            parseInt(e.target.value) || 0,
+                        })
+                      }
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <button
+                    onClick={() => handleSave("hours")}
+                    disabled={saving === "hours"}
+                    className="px-4 py-2 bg-orange-600 text-white text-sm rounded-lg hover:bg-orange-700 disabled:opacity-50 flex items-center space-x-2"
+                  >
+                    {saving === "hours" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
+                    <span>Save Changes</span>
+                  </button>
+                  <button
+                    onClick={handleCancel}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 flex items-center space-x-2"
+                  >
+                    <X className="h-4 w-4" />
+                    <span>Cancel</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 mb-1">Min Hours</p>
+                  <p className="text-xl font-bold text-gray-900">
+                    {settings.minWorkingHours}h
                   </p>
                 </div>
-                <div>
-                  <label className="block text-base font-medium text-gray-700 mb-2">
-                    Maximum Daily Hours
-                  </label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="0"
-                    max="24"
-                    value={tempAttendanceSettings.maxDailyHours ?? ""}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setTempAttendanceSettings({
-                        ...tempAttendanceSettings,
-                        maxDailyHours:
-                          value === "" ? 0.0 : parseFloat(value) || 0.0,
-                      });
-                    }}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  />
-                  <p className="text-sm text-gray-500 mt-1">
-                    Safety limit for daily work hours
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 mb-1">Max Hours</p>
+                  <p className="text-xl font-bold text-gray-900">
+                    {settings.maxDailyHours}h
                   </p>
                 </div>
-                <div>
-                  <label className="block text-base font-medium text-gray-700 mb-2">
-                    Auto Punch-out Buffer
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="120"
-                    value={
-                      tempAttendanceSettings.autoPunchOutBufferMinutes ?? ""
-                    }
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setTempAttendanceSettings({
-                        ...tempAttendanceSettings,
-                        autoPunchOutBufferMinutes:
-                          value === "" ? 0 : parseInt(value) || 30,
-                      });
-                    }}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  />
-                  <p className="text-sm text-gray-500 mt-1">
-                    Minutes after shift end for auto punch-out
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 mb-1">Auto Punch-out</p>
+                  <p className="text-xl font-bold text-gray-900">
+                    {settings.autoPunchOutBufferMinutes}m
                   </p>
                 </div>
               </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className=" rounded-lg p-4">
-                <p className="text-base font-medium text-gray-700 mb-1">
-                  Min Working Hours
-                </p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {attendanceSettings.minWorkingHours}h
-                </p>
-                <p className="text-sm text-gray-600">
-                  Required to count as working day
-                </p>
-              </div>
-              <div className=" rounded-lg p-4">
-                <p className="text-base font-medium text-gray-700 mb-1">
-                  Max Daily Hours
-                </p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {attendanceSettings.maxDailyHours}h
-                </p>
-                <p className="text-sm text-gray-600">
-                  Safety limit for work hours
-                </p>
-              </div>
-              <div className=" rounded-lg p-4">
-                <p className="text-base font-medium text-gray-700 mb-1">
-                  Auto Punch-out
-                </p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {attendanceSettings.autoPunchOutBufferMinutes}m
-                </p>
-                <p className="text-sm text-gray-600">Buffer after shift end</p>
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Location Settings */}
-        <div className="bg-white rounded-lg p-6 md:p-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl md:text-2xl font-semibold text-gray-900 flex items-center">
-              <MapPin className="h-6 w-6 mr-3 text-red-600" />
-              Location Validation
-            </h2>
-            {editing === "location" ? (
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => handleSave("location")}
-                  disabled={saving === "location"}
-                  className="px-4 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg font-medium transition-colors flex items-center space-x-2 disabled:opacity-50"
-                >
-                  {saving === "location" ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  <span className="hidden sm:inline">
-                    {saving === "location" ? "Saving..." : "Save"}
-                  </span>
-                </button>
-                <button
-                  onClick={handleCancel}
-                  disabled={saving === "location"}
-                  className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-medium transition-colors flex items-center space-x-2 disabled:opacity-50"
-                >
-                  <X className="h-4 w-4" />
-                  <span className="hidden sm:inline">Cancel</span>
-                </button>
-              </div>
-            ) : (
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <MapPin className="h-5 w-5 text-red-600" />
+
+              <h2 className="text-lg   font-semibold text-gray-900">
+                Location Validation{" "}
+                <span className="text-xs text-gray-500 font-medium">
+                  (coming soon){" "}
+                </span>
+              </h2>
+            </div>
+
+            {editing !== "location" && (
               <button
+                disabled
                 onClick={() => handleEdit("location")}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors flex items-center space-x-2"
+                className="text-blue-600 hover:text-blue-700 text-sm flex items-center space-x-1"
               >
                 <Edit className="h-4 w-4" />
                 <span className="hidden sm:inline">Edit</span>
               </button>
             )}
           </div>
-
-          {editing === "location" ? (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="p-5">
+            {editing === "location" ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Office Latitude
+                    </label>
+                    <input
+                      type="number"
+                      step="0.000001"
+                      value={tempSettings.locationLat ?? ""}
+                      onChange={(e) =>
+                        setTempSettings({
+                          ...tempSettings,
+                          locationLat: e.target.value
+                            ? parseFloat(e.target.value)
+                            : undefined,
+                        })
+                      }
+                      placeholder="e.g., 28.6139"
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Office Longitude
+                    </label>
+                    <input
+                      type="number"
+                      step="0.000001"
+                      value={tempSettings.locationLng ?? ""}
+                      onChange={(e) =>
+                        setTempSettings({
+                          ...tempSettings,
+                          locationLng: e.target.value
+                            ? parseFloat(e.target.value)
+                            : undefined,
+                        })
+                      }
+                      placeholder="e.g., 77.2090"
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500"
+                    />
+                  </div>
+                </div>
                 <div>
-                  <label className="block text-base font-medium text-gray-700 mb-2">
-                    Office Latitude
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    GPS Radius (meters)
                   </label>
                   <input
                     type="number"
-                    step="0.000001"
-                    value={tempAttendanceSettings.locationLat ?? ""}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setTempAttendanceSettings({
-                        ...tempAttendanceSettings,
-                        locationLat:
-                          value === "" ? undefined : parseFloat(value),
-                      });
-                    }}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                    placeholder="e.g., 28.6139"
+                    min="10"
+                    max="1000"
+                    value={tempSettings.locationRadius ?? ""}
+                    onChange={(e) =>
+                      setTempSettings({
+                        ...tempSettings,
+                        locationRadius: parseFloat(e.target.value) || 100,
+                      })
+                    }
+                    className="w-full sm:w-40 px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500"
                   />
                 </div>
-                <div>
-                  <label className="block text-base font-medium text-gray-700 mb-2">
-                    Office Longitude
-                  </label>
-                  <input
-                    type="number"
-                    step="0.000001"
-                    value={tempAttendanceSettings.locationLng ?? ""}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setTempAttendanceSettings({
-                        ...tempAttendanceSettings,
-                        locationLng:
-                          value === "" ? undefined : parseFloat(value),
-                      });
-                    }}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                    placeholder="e.g., 77.2090"
-                  />
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <button
+                    onClick={() => handleSave("location")}
+                    disabled={saving === "location"}
+                    className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center space-x-2"
+                  >
+                    {saving === "location" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
+                    <span>Save Changes</span>
+                  </button>
+                  <button
+                    onClick={handleCancel}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 flex items-center space-x-2"
+                  >
+                    <X className="h-4 w-4" />
+                    <span>Cancel</span>
+                  </button>
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-base font-medium text-gray-700 mb-2">
-                  GPS Validation Radius (meters)
-                </label>
-                <input
-                  type="number"
-                  min="10"
-                  max="1000"
-                  value={tempAttendanceSettings.locationRadius ?? ""}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setTempAttendanceSettings({
-                      ...tempAttendanceSettings,
-                      locationRadius:
-                        value === "" ? 0.0 : parseFloat(value) || 100.0,
-                    });
-                  }}
-                  className="w-full md:w-1/2 px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                />
-                <p className="text-sm text-gray-500 mt-2">
-                  Staff must be within this radius of office coordinates to
-                  punch in/out
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className=" rounded-lg p-4">
-                <p className="text-base font-medium text-gray-700 mb-1">
-                  Office Coordinates
-                </p>
-                <p className="text-lg font-bold text-gray-900">
-                  {attendanceSettings.locationLat &&
-                  attendanceSettings.locationLng
-                    ? `${attendanceSettings.locationLat.toFixed(4)}, ${attendanceSettings.locationLng.toFixed(4)}`
-                    : "Not configured"}
-                </p>
-                <p className="text-sm text-gray-600">
-                  GPS location for validation
-                </p>
-              </div>
-              <div className=" rounded-lg p-4">
-                <p className="text-base font-medium text-gray-700 mb-1">
-                  Validation Radius
-                </p>
-                <p className="text-lg font-bold text-gray-900">
-                  {attendanceSettings.locationRadius}m
-                </p>
-                <p className="text-sm text-gray-600">
-                  Allowed distance from office
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Overtime Settings */}
-        <div className="bg-white rounded-lg p-6 md:p-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl md:text-2xl font-semibold text-gray-900 flex items-center">
-              <IndianRupee className="h-6 w-6 mr-3 text-purple-600" />
-              Overtime Policy
-            </h2>
-            {editing === "overtime" ? (
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => handleSave("overtime")}
-                  disabled={saving === "overtime"}
-                  className="px-4 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg font-medium transition-colors flex items-center space-x-2 disabled:opacity-50"
-                >
-                  {saving === "overtime" ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  <span className="hidden sm:inline">
-                    {saving === "overtime" ? "Saving..." : "Save"}
-                  </span>
-                </button>
-                <button
-                  onClick={handleCancel}
-                  disabled={saving === "overtime"}
-                  className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-medium transition-colors flex items-center space-x-2 disabled:opacity-50"
-                >
-                  <X className="h-4 w-4" />
-                  <span className="hidden sm:inline">Cancel</span>
-                </button>
               </div>
             ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 mb-1">Coordinates</p>
+                  <p className="text-sm font-medium text-gray-900">
+                    {settings.locationLat && settings.locationLng
+                      ? `${settings.locationLat.toFixed(4)}, ${settings.locationLng.toFixed(4)}`
+                      : "Not configured"}
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 mb-1">GPS Radius</p>
+                  <p className="text-lg font-bold text-gray-900">
+                    {settings.locationRadius}m
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Salary Settings */}
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <IndianRupee className="h-5 w-5 text-green-600" />
+              <h2 className="text-lg font-semibold text-gray-900">
+                Salary Settings
+              </h2>
+            </div>
+            {editing !== "salary" && (
               <button
-                onClick={() => handleEdit("overtime")}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors flex items-center space-x-2"
+                onClick={() => handleEdit("salary")}
+                className="text-blue-600 hover:text-blue-700 text-sm flex items-center space-x-1"
               >
                 <Edit className="h-4 w-4" />
                 <span className="hidden sm:inline">Edit</span>
               </button>
             )}
           </div>
-
-          {editing === "overtime" ? (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-base font-medium text-gray-700 mb-2">
-                  Overtime Approval Threshold (hours)
-                </label>
-                <input
-                  type="number"
-                  step="0.5"
-                  min="0"
-                  max="8"
-                  value={tempAttendanceSettings.overtimeThresholdHours ?? ""}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setTempAttendanceSettings({
-                      ...tempAttendanceSettings,
-                      overtimeThresholdHours:
-                        value === "" ? 2.0 : parseFloat(value) || 2.0,
-                    });
-                  }}
-                  className="w-full md:w-1/2 px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                />
-                <p className="text-sm text-gray-500 mt-2">
-                  Additional hours beyond regular shift that require manager
-                  approval for overtime pay (1.5x rate)
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className=" rounded-lg p-6">
-              <p className="text-base font-medium text-gray-700 mb-2">
-                Overtime Approval Threshold
-              </p>
-              <p className="text-3xl font-bold text-gray-900 mb-2">
-                {attendanceSettings.overtimeThresholdHours}h
-              </p>
-              <p className="text-sm text-gray-600">
-                Hours worked beyond regular shift requiring approval for 1.5x
-                overtime pay
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Penalty Settings */}
-        <div className="bg-white rounded-lg p-6 md:p-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl md:text-2xl font-semibold text-gray-900 flex items-center">
-              <AlertTriangle className="h-6 w-6 mr-3 text-red-600" />
-              Penalty Policy
-            </h2>
-            {editing === "penalty" ? (
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => handleSave("penalty")}
-                  disabled={saving === "penalty"}
-                  className="px-4 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg font-medium transition-colors flex items-center space-x-2 disabled:opacity-50"
-                >
-                  {saving === "penalty" ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  <span className="hidden sm:inline">
-                    {saving === "penalty" ? "Saving..." : "Save"}
-                  </span>
-                </button>
-                <button
-                  onClick={handleCancel}
-                  disabled={saving === "penalty"}
-                  className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-medium transition-colors flex items-center space-x-2 disabled:opacity-50"
-                >
-                  <X className="h-4 w-4" />
-                  <span className="hidden sm:inline">Cancel</span>
-                </button>
+          <div className="p-5">
+            {editing === "salary" ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Default Salary Type
+                    </label>
+                    <select
+                      value={tempSettings.defaultSalaryType || "MONTHLY"}
+                      onChange={(e) =>
+                        setTempSettings({
+                          ...tempSettings,
+                          defaultSalaryType: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                    >
+                      <option value="MONTHLY">Monthly</option>
+                      <option value="HOURLY">Hourly</option>
+                      <option value="DAILY">Daily</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Overtime Multiplier
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="1"
+                      max="3"
+                      value={tempSettings.overtimeMultiplier ?? ""}
+                      onChange={(e) =>
+                        setTempSettings({
+                          ...tempSettings,
+                          overtimeMultiplier: parseFloat(e.target.value) || 1.5,
+                        })
+                      }
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      e.g., 1.5 for 1.5x overtime rate
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Half Day Threshold (hours)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      max="8"
+                      value={tempSettings.halfDayThresholdHours ?? ""}
+                      onChange={(e) =>
+                        setTempSettings({
+                          ...tempSettings,
+                          halfDayThresholdHours:
+                            parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Overtime Threshold (hours)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      max="8"
+                      value={tempSettings.overtimeThresholdHours ?? ""}
+                      onChange={(e) =>
+                        setTempSettings({
+                          ...tempSettings,
+                          overtimeThresholdHours:
+                            parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      PF Percentage
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="30"
+                      value={tempSettings.pfPercentage ?? ""}
+                      onChange={(e) =>
+                        setTempSettings({
+                          ...tempSettings,
+                          pfPercentage: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      ESI Percentage
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="10"
+                      value={tempSettings.esiPercentage ?? ""}
+                      onChange={(e) =>
+                        setTempSettings({
+                          ...tempSettings,
+                          esiPercentage: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <button
+                    onClick={() => handleSave("salary")}
+                    disabled={saving === "salary"}
+                    className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center space-x-2"
+                  >
+                    {saving === "salary" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
+                    <span>Save Changes</span>
+                  </button>
+                  <button
+                    onClick={handleCancel}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 flex items-center space-x-2"
+                  >
+                    <X className="h-4 w-4" />
+                    <span>Cancel</span>
+                  </button>
+                </div>
               </div>
             ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 mb-1">Salary Type</p>
+                  <p className="text-lg font-semibold text-gray-900 capitalize">
+                    {settings.defaultSalaryType?.toLowerCase() || "Monthly"}
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 mb-1">OT Multiplier</p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {settings.overtimeMultiplier}x
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 mb-1">PF %</p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {settings.pfPercentage}%
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 mb-1">ESI %</p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {settings.esiPercentage}%
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Penalty Policy */}
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+              <h2 className="text-lg font-semibold text-gray-900">
+                Penalty Policy
+              </h2>
+            </div>
+            {editing !== "penalty" && (
               <button
                 onClick={() => handleEdit("penalty")}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors flex items-center space-x-2"
+                className="text-blue-600 hover:text-blue-700 text-sm flex items-center space-x-1"
               >
                 <Edit className="h-4 w-4" />
                 <span className="hidden sm:inline">Edit</span>
               </button>
             )}
           </div>
-
-          {editing === "penalty" ? (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-base font-medium text-gray-700 mb-2">
-                    Enable Late Arrival Penalties
-                  </label>
-                  <div className="flex items-center space-x-3">
+          <div className="p-5">
+            {editing === "penalty" ? (
+              <div className="space-y-4">
+                {/* Late Penalty */}
+                <div className="border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-medium text-gray-900">
+                      Late Arrival Penalty
+                    </h3>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={tempSettings.enableLatePenalty}
+                        onChange={(e) =>
+                          setTempSettings({
+                            ...tempSettings,
+                            enableLatePenalty: e.target.checked,
+                          })
+                        }
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-gray-200 peer-focus:ring-2 peer-focus:ring-red-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-600"></div>
+                    </label>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Penalty Rate (₹ per minute)
+                    </label>
                     <input
-                      type="checkbox"
-                      checked={tempAttendanceSettings.enableLatePenalty}
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="10"
+                      value={tempSettings.latePenaltyPerMinute ?? ""}
                       onChange={(e) =>
-                        setTempAttendanceSettings({
-                          ...tempAttendanceSettings,
-                          enableLatePenalty: e.target.checked,
+                        setTempSettings({
+                          ...tempSettings,
+                          latePenaltyPerMinute: parseFloat(e.target.value) || 0,
                         })
                       }
-                      className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                      disabled={!tempSettings.enableLatePenalty}
+                      className="w-full sm:w-40 px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 disabled:bg-gray-100"
                     />
-                    <span className="text-sm text-gray-600">
-                      Apply penalties for late arrivals
-                    </span>
                   </div>
                 </div>
-                <div>
-                  <label className="block text-base font-medium text-gray-700 mb-2">
-                    Late Penalty Rate (per minute)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="10"
-                    value={tempAttendanceSettings.latePenaltyPerMinute ?? ""}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setTempAttendanceSettings({
-                        ...tempAttendanceSettings,
-                        latePenaltyPerMinute:
-                          value === "" ? 0 : parseFloat(value) || 0,
-                      });
-                    }}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                    disabled={!tempAttendanceSettings.enableLatePenalty}
-                  />
-                  <p className="text-sm text-gray-500 mt-1">
-                    Amount deducted per minute of lateness
+
+                {/* Absent Penalty */}
+                <div className="border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-medium text-gray-900">
+                      Absent Day Penalty
+                    </h3>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={tempSettings.enableAbsentPenalty}
+                        onChange={(e) =>
+                          setTempSettings({
+                            ...tempSettings,
+                            enableAbsentPenalty: e.target.checked,
+                          })
+                        }
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-gray-200 peer-focus:ring-2 peer-focus:ring-red-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-600"></div>
+                    </label>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Penalty Rate (₹ per day)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="1000"
+                      value={tempSettings.absentPenaltyPerDay ?? ""}
+                      onChange={(e) =>
+                        setTempSettings({
+                          ...tempSettings,
+                          absentPenaltyPerDay: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      disabled={!tempSettings.enableAbsentPenalty}
+                      className="w-full sm:w-40 px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 disabled:bg-gray-100"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <button
+                    onClick={() => handleSave("penalty")}
+                    disabled={saving === "penalty"}
+                    className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center space-x-2"
+                  >
+                    {saving === "penalty" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
+                    <span>Save Changes</span>
+                  </button>
+                  <button
+                    onClick={handleCancel}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 flex items-center space-x-2"
+                  >
+                    <X className="h-4 w-4" />
+                    <span>Cancel</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-xs text-gray-500">Late Penalty</p>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full ${
+                        settings.enableLatePenalty
+                          ? "bg-red-100 text-red-700"
+                          : "bg-gray-100 text-gray-600"
+                      }`}
+                    >
+                      {settings.enableLatePenalty ? "Enabled" : "Disabled"}
+                    </span>
+                  </div>
+                  <p className="text-lg font-bold text-gray-900">
+                    {settings.enableLatePenalty
+                      ? `₹${settings.latePenaltyPerMinute}/min`
+                      : "—"}
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-xs text-gray-500">Absent Penalty</p>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full ${
+                        settings.enableAbsentPenalty
+                          ? "bg-red-100 text-red-700"
+                          : "bg-gray-100 text-gray-600"
+                      }`}
+                    >
+                      {settings.enableAbsentPenalty ? "Enabled" : "Disabled"}
+                    </span>
+                  </div>
+                  <p className="text-lg font-bold text-gray-900">
+                    {settings.enableAbsentPenalty
+                      ? `₹${settings.absentPenaltyPerDay}/day`
+                      : "—"}
                   </p>
                 </div>
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-base font-medium text-gray-700 mb-2">
-                    Enable Absent Day Penalties
-                  </label>
-                  <div className="flex items-center space-x-3">
-                    <input
-                      type="checkbox"
-                      checked={tempAttendanceSettings.enableAbsentPenalty}
-                      onChange={(e) =>
-                        setTempAttendanceSettings({
-                          ...tempAttendanceSettings,
-                          enableAbsentPenalty: e.target.checked,
-                        })
-                      }
-                      className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
-                    />
-                    <span className="text-sm text-gray-600">
-                      Apply penalties for absent days
-                    </span>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-base font-medium text-gray-700 mb-2">
-                    Absent Penalty Rate (per day)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="1000"
-                    value={tempAttendanceSettings.absentPenaltyPerDay ?? ""}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setTempAttendanceSettings({
-                        ...tempAttendanceSettings,
-                        absentPenaltyPerDay:
-                          value === "" ? 0 : parseFloat(value) || 0,
-                      });
-                    }}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                    disabled={!tempAttendanceSettings.enableAbsentPenalty}
-                  />
-                  <p className="text-sm text-gray-500 mt-1">
-                    Amount deducted for each absent day
-                  </p>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className=" rounded-lg p-4">
-                <p className="text-base font-medium text-gray-700 mb-1">
-                  Late Arrival Penalties
-                </p>
-                <p className="text-xl font-bold text-gray-900">
-                  {attendanceSettings.enableLatePenalty
-                    ? "Enabled"
-                    : "Disabled"}
-                </p>
-                <p className="text-sm text-gray-600">
-                  {attendanceSettings.enableLatePenalty
-                    ? `₹${attendanceSettings.latePenaltyPerMinute}/minute`
-                    : "No penalties applied"}
-                </p>
-              </div>
-              <div className=" rounded-lg p-4">
-                <p className="text-base font-medium text-gray-700 mb-1">
-                  Absent Day Penalties
-                </p>
-                <p className="text-xl font-bold text-gray-900">
-                  {attendanceSettings.enableAbsentPenalty
-                    ? "Enabled"
-                    : "Disabled"}
-                </p>
-                <p className="text-sm text-gray-600">
-                  {attendanceSettings.enableAbsentPenalty
-                    ? `₹${attendanceSettings.absentPenaltyPerDay}/day`
-                    : "No penalties applied"}
-                </p>
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Message Modal */}
