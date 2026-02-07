@@ -83,7 +83,7 @@ export async function PATCH(
 
     // ✅ Generic audit log
     try {
-      await prisma.auditLog.create({
+      prisma.auditLog.create({
         data: {
           userId: session.user.id,
           action:

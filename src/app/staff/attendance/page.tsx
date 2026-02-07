@@ -27,7 +27,7 @@ import {
 } from "@/hooks/useStaffDashboard";
 import { useModal } from "@/components/ModalProvider";
 import { useQueryClient } from "@tanstack/react-query";
-import { convertSeconds } from "@/lib/utils";
+import { convertSeconds, isToday } from "@/lib/utils";
 
 interface ValidationData {
   valid: boolean;
@@ -85,7 +85,11 @@ export default function StaffAttendancePage() {
     useStaffAttendance(year, month);
   const { data: todaysAttendance } = useTodayAttendance();
   const punchMutation = useStaffPunchAttendance();
-
+  const now = new Date();
+  const isFutureMonth =
+    currentDate.getFullYear() > now.getFullYear() ||
+    (currentDate.getFullYear() === now.getFullYear() &&
+      currentDate.getMonth() >= now.getMonth());
   const filteredAttendance = useMemo(() => {
     if (!attendanceData?.records) return [];
 
@@ -227,21 +231,6 @@ export default function StaffAttendancePage() {
     });
   };
 
-  const isToday = (dateStr: string) => {
-    const today = new Date();
-    const [yearStr, monthStr, dayStr] = dateStr.split("-");
-    const date = new Date(
-      parseInt(yearStr),
-      parseInt(monthStr) - 1,
-      parseInt(dayStr),
-    );
-    return (
-      date.getDate() === today.getDate() &&
-      date.getMonth() === today.getMonth() &&
-      date.getFullYear() === today.getFullYear()
-    );
-  };
-
   const handlePunchClick = (type: "in" | "out") => {
     setPunchType(type);
     setModalOpen(true);
@@ -350,7 +339,7 @@ export default function StaffAttendancePage() {
             </div>
             <button
               onClick={() => navigateMonth("next")}
-              disabled={currentDate.getMonth() === new Date().getMonth()}
+              disabled={isFutureMonth}
               className={`p-2 rounded-lg transition-colors ${
                 currentDate.getMonth() === new Date().getMonth()
                   ? "opacity-50 cursor-not-allowed"
@@ -557,7 +546,7 @@ export default function StaffAttendancePage() {
                                 <div className="mt-1 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
                                   Late:{" "}
                                   {convertSeconds(
-                                    record?.lateMinutes ?? 0 * 60,
+                                    (record?.lateMinutes ?? 0) * 60,
                                   )}
                                 </div>
                               )}
