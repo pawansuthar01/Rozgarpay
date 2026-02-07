@@ -230,14 +230,15 @@ export default function StaffProfile() {
                   </p>
                 </div>
               </div>
-
-              <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                <Mail className="h-5 w-5 text-gray-400" />
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Email</p>
-                  <p className="text-gray-900">{profile.email}</p>
+              {profile.email && (
+                <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                  <Mail className="h-5 w-5 text-gray-400" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Email</p>
+                    <p className="text-gray-900">{profile.email}</p>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
                 <Phone className="h-5 w-5 text-gray-400" />

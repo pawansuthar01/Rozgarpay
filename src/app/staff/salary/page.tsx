@@ -1,8 +1,5 @@
 "use client";
 
-import { useSession } from "next-auth/react";
-import Loading from "@/components/ui/Loading";
-
 import { useState } from "react";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
@@ -53,7 +50,6 @@ interface SalaryOverview {
 }
 
 export default function StaffSalaryOverviewPage() {
-  const { data: session } = useSession();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [earningsExpanded, setEarningsExpanded] = useState(false);
   const [selectedYear, setSelectedYear] = useState<number | "all">("all");
@@ -139,10 +135,6 @@ export default function StaffSalaryOverviewPage() {
         return null;
     }
   };
-
-  if (!session || session.user.role !== "STAFF") {
-    return <Loading />;
-  }
 
   // Helper to get card color based on balance
   const getBalanceColor = (balance: number) => {

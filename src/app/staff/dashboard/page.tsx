@@ -87,17 +87,6 @@ export default function StaffDashboardPage() {
     }
   };
 
-  const getNotificationIcon = (type: string) => {
-    switch (type) {
-      case "success":
-        return <CheckCircle className="h-5 w-5 text-green-500" />;
-      case "warning":
-        return <AlertCircle className="h-5 w-5 text-yellow-500" />;
-      default:
-        return <Bell className="h-5 w-5 text-blue-500" />;
-    }
-  };
-
   if (isLoading) {
     return (
       <div className="min-h-screen ">
@@ -156,7 +145,7 @@ export default function StaffDashboardPage() {
   if (!salaryConfigured) {
     return (
       <div className="min-h-screen">
-        <div className="max-w-sm md:max-w-2xl mx-auto px-4 py-6 space-y-6">
+        <div className=" md:max-w-2xl mx-auto px-4 py-6 space-y-6">
           {/* Top Header */}
           <div className="bg-white rounded-2xl p-4">
             <div className="flex items-center justify-between">
@@ -232,7 +221,7 @@ export default function StaffDashboardPage() {
                     className="flex items-start space-x-3 p-3 bg-gray-50 rounded-xl"
                   >
                     <div className="flex-shrink-0 mt-0.5">
-                      {getNotificationIcon(notification.type)}
+                      <Bell className="h-5 w-5 text-blue-500" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900">
@@ -265,7 +254,7 @@ export default function StaffDashboardPage() {
 
   return (
     <div className="min-h-screen ">
-      <div className="max-w-sm md:max-w-2xl mx-auto px-4 py-6 space-y-6">
+      <div className=" md:max-w-2xl mx-auto px-4 py-6 space-y-6">
         {/* Top Header with Company and User Info */}
         <div className="bg-white rounded-2xl  p-4">
           <div className="flex items-center justify-between">
@@ -412,7 +401,7 @@ export default function StaffDashboardPage() {
                   className="flex items-start space-x-3 p-3 bg-gray-50 rounded-xl"
                 >
                   <div className="flex-shrink-0 mt-0.5">
-                    {getNotificationIcon(notification.type)}
+                    <Bell className="h-5 w-5 text-blue-500" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900">
@@ -441,10 +430,14 @@ export default function StaffDashboardPage() {
 
         {/* More Actions */}
         <div className="bg-white rounded-2xl  p-4">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          <h2 className="text-lg  font-semibold text-gray-900 mb-4">
             More Actions
           </h2>
-
+          <div className="flex justify-center">
+            <span className="  text-xs text-gray-500">
+              No actions available
+            </span>
+          </div>
           <Link
             href="/staff/correction-requests"
             className="hidden items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors duration-200"

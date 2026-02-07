@@ -81,8 +81,11 @@ export default function StaffAttendancePage() {
   const { data: dashboardData, isLoading: dashboardLoading } =
     useStaffDashboard();
 
-  const { data: attendanceData, isLoading: attendanceLoading } =
-    useStaffAttendance(year, month);
+  const {
+    data: attendanceData,
+    isLoading: attendanceLoading,
+    isFetching: attendanceFetching,
+  } = useStaffAttendance(year, month);
   const { data: todaysAttendance } = useTodayAttendance();
   const punchMutation = useStaffPunchAttendance();
   const now = new Date();
@@ -90,6 +93,9 @@ export default function StaffAttendancePage() {
     currentDate.getFullYear() > now.getFullYear() ||
     (currentDate.getFullYear() === now.getFullYear() &&
       currentDate.getMonth() >= now.getMonth());
+
+  // Only show loading skeleton if there's no cached data for current month
+  const showSkeleton = attendanceLoading && !attendanceData;
   const filteredAttendance = useMemo(() => {
     if (!attendanceData?.records) return [];
 
@@ -303,19 +309,6 @@ export default function StaffAttendancePage() {
     );
   }
 
-  if (attendanceLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="max-w-sm md:max-w-2xl mx-auto px-2 py-3 space-y-2">
-          <div className="animate-pulse space-y-2">
-            <div className="h-28 bg-white/90 rounded-2xl"></div>
-            <div className="h-64 bg-white/90 rounded-2xl"></div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="md:max-w-2xl mx-auto px-2 py-3 space-y-2">
@@ -393,188 +386,253 @@ export default function StaffAttendancePage() {
             </div>
           )}
         </div>
-
-        <div className="grid grid-cols-3 gap-2">
-          <div className="bg-white rounded-xl  p-3 shadow-sm text-center">
-            <div className="text-2xl font-bold text-green-600">
-              {stats.present}
-            </div>
-            <div className="text-xs text-gray-600">Present</div>
-          </div>
-          <div className="bg-white rounded-xl p-3 shadow-sm text-center">
-            <div className="text-2xl font-bold text-red-600">
-              {stats.absent}
-            </div>
-            <div className="text-xs text-gray-600">Absent</div>
-          </div>
-          <div className="bg-white rounded-xl p-3 shadow-sm text-center">
-            <div className="text-2xl font-bold text-blue-600">
-              {stats.leave}
-            </div>
-            <div className="text-xs text-gray-600">Leave</div>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="bg-white rounded-xl p-3 shadow-sm text-center">
-            <div className="text-2xl font-bold text-amber-600">
-              {stats.totalOvertimeHours}
-            </div>
-            <div className="text-xs text-gray-600">total overtime</div>
-          </div>
-          <div className="bg-white rounded-xl p-3 shadow-sm text-center">
-            <div className="text-2xl font-bold text-gray-600">
-              {stats.totalWorkingHours}
-            </div>
-            <div className="text-xs text-gray-600">total working time</div>
-          </div>
-        </div>
-
-        {/* Filter Dropdown */}
-        <div className="bg-white rounded-xl p-3 shadow-sm">
-          <div className="relative">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as StatusType)}
-              className="w-full appearance-none bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 pr-10 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="all">All ({stats?.total})</option>
-              <option value="present">Present ({stats?.present})</option>
-              <option value="absent">Absent ({stats?.absent})</option>
-              <option value="leave">Leave ({stats?.leave})</option>
-              <option value="pending">Pending ({stats?.pending})</option>
-              <option value="no-record">No Record ({stats?.noRecord})</option>
-            </select>
-            <Filter className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-          </div>
-        </div>
-
-        {/* Attendance List */}
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-            <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
-              <History className="h-4 w-4" />
-              Attendance History
-            </h2>
-          </div>
-
-          {filteredAttendance?.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
-              <CalendarOff className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-              <p className="text-sm">No attendance records found</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-100">
-              {filteredAttendance?.map((record) => {
-                const statusDisplay = getStatusDisplay(
-                  record.status,
-                  record.hasRecord,
-                );
-                const showOvertime =
-                  record.hasRecord &&
-                  record.overtimeHours != null &&
-                  record.overtimeHours > 0;
-                const showWorkingHours =
-                  record.hasRecord &&
-                  record.workingHours != null &&
-                  record.workingHours > 0;
-                const showLate =
-                  record.hasRecord &&
-                  record.lateMinutes != null &&
-                  record.lateMinutes > 0;
-                const showApprovalPending =
-                  record.hasRecord &&
-                  record.requiresApproval &&
-                  record.status == "PENDING";
-
-                return (
+        {showSkeleton ? (
+          <div className="min-h-screen bg-gray-50">
+            <div className=" md:max-w-2xl mx-auto px-2 py-3 space-y-2">
+              {/* Stats Grid Skeleton */}
+              <div className="grid grid-cols-3 gap-2">
+                {[1, 2, 3].map((i) => (
                   <div
-                    key={record.id}
-                    className={`p-4 transition-colors ${
-                      isToday(record.date)
-                        ? "bg-blue-50/50"
-                        : "hover:bg-gray-50"
-                    }`}
+                    key={i}
+                    className="bg-white rounded-xl p-3 shadow-sm text-center"
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3">
-                        <div
-                          className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${statusDisplay.bgColor} ${statusDisplay.borderColor}`}
-                        >
-                          {statusDisplay.icon}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span
-                              className={`font-semibold text-sm ${
-                                isToday(record.date)
-                                  ? "text-blue-700"
-                                  : "text-gray-900"
-                              }`}
-                            >
-                              {formatDate(record.date)}
-                              {isToday(record.date) && (
-                                <span className="ml-2 text-xs text-blue-600 font-medium">
-                                  (Today)
-                                </span>
-                              )}
-                            </span>
-                            {showOvertime && (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
-                                +{record.overtimeHours!.toFixed(1)}h OT
-                              </span>
-                            )}
-                          </div>
+                    <div className="h-7 w-12 bg-gray-200 rounded mx-auto mb-1 animate-pulse"></div>
+                    <div className="h-3 w-14 bg-gray-200 rounded mx-auto animate-pulse"></div>
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {[1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className="bg-white rounded-xl p-3 shadow-sm text-center"
+                  >
+                    <div className="h-7 w-16 bg-gray-200 rounded mx-auto mb-1 animate-pulse"></div>
+                    <div className="h-3 w-20 bg-gray-200 rounded mx-auto animate-pulse"></div>
+                  </div>
+                ))}
+              </div>
 
-                          {record.hasRecord ? (
-                            <>
-                              <div className="flex items-center gap-3 text-xs text-gray-600">
-                                <div className="flex items-center gap-1">
-                                  <ArrowDownCircle className="h-3 w-3 text-green-600" />
-                                  {formatTime(record.punchIn)}
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <ArrowUpCircle className="h-3 w-3 text-red-600" />
-                                  {formatTime(record.punchOut)}
-                                </div>
-                              </div>
-                              {showWorkingHours && (
-                                <div className="mt-1 text-xs text-gray-500">
-                                  Working: {record.workingHours!.toFixed(1)}h
-                                </div>
-                              )}
-                              {showLate && (
-                                <div className="mt-1 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
-                                  Late:{" "}
-                                  {convertSeconds(
-                                    (record?.lateMinutes ?? 0) * 60,
-                                  )}
-                                </div>
-                              )}
-                              {showApprovalPending && (
-                                <div className="mt-1 text-xs text-amber-600">
-                                  Awaiting approval
-                                </div>
-                              )}
-                            </>
-                          ) : (
-                            <div className="text-xs text-gray-400">
-                              No attendance recorded
-                            </div>
-                          )}
+              {/* Filter Skeleton */}
+              <div className="bg-white rounded-xl p-3 shadow-sm">
+                <div className="h-9 w-full bg-gray-200 rounded-lg animate-pulse"></div>
+              </div>
+
+              {/* Attendance List Skeleton */}
+              <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+                  <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
+                </div>
+                <div className="divide-y divide-gray-100">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <div key={i} className="p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <div className="h-10 w-10 bg-gray-200 rounded-full animate-pulse"></div>
+                          <div className="flex-1 space-y-2">
+                            <div className="h-4 w-28 bg-gray-200 rounded animate-pulse"></div>
+                            <div className="h-3 w-40 bg-gray-200 rounded animate-pulse"></div>
+                            <div className="h-3 w-24 bg-gray-200 rounded animate-pulse"></div>
+                          </div>
                         </div>
-                      </div>
-                      <div
-                        className={`px-2 py-1 rounded-full text-xs font-medium ${statusDisplay.bgColor} ${statusDisplay.textColor}`}
-                      >
-                        {statusDisplay.label}
+                        <div className="h-6 w-16 bg-gray-200 rounded-full animate-pulse"></div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  ))}
+                </div>
+              </div>
             </div>
-          )}
-        </div>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="bg-white rounded-xl  p-3 shadow-sm text-center">
+                <div className="text-2xl font-bold text-green-600">
+                  {stats.present}
+                </div>
+                <div className="text-xs text-gray-600">Present</div>
+              </div>
+              <div className="bg-white rounded-xl p-3 shadow-sm text-center">
+                <div className="text-2xl font-bold text-red-600">
+                  {stats.absent}
+                </div>
+                <div className="text-xs text-gray-600">Absent</div>
+              </div>
+              <div className="bg-white rounded-xl p-3 shadow-sm text-center">
+                <div className="text-2xl font-bold text-blue-600">
+                  {stats.leave}
+                </div>
+                <div className="text-xs text-gray-600">Leave</div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-white rounded-xl p-3 shadow-sm text-center">
+                <div className="text-2xl font-bold text-amber-600">
+                  {stats.totalOvertimeHours}
+                </div>
+                <div className="text-xs text-gray-600">total overtime</div>
+              </div>
+              <div className="bg-white rounded-xl p-3 shadow-sm text-center">
+                <div className="text-2xl font-bold text-gray-600">
+                  {stats.totalWorkingHours}
+                </div>
+                <div className="text-xs text-gray-600">total working time</div>
+              </div>
+            </div>
+
+            {/* Filter Dropdown */}
+            <div className="bg-white rounded-xl p-3 shadow-sm">
+              <div className="relative">
+                <select
+                  value={statusFilter}
+                  onChange={(e) =>
+                    setStatusFilter(e.target.value as StatusType)
+                  }
+                  className="w-full appearance-none bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 pr-10 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="all">All ({stats?.total})</option>
+                  <option value="present">Present ({stats?.present})</option>
+                  <option value="absent">Absent ({stats?.absent})</option>
+                  <option value="leave">Leave ({stats?.leave})</option>
+                  <option value="pending">Pending ({stats?.pending})</option>
+                  <option value="no-record">
+                    No Record ({stats?.noRecord})
+                  </option>
+                </select>
+                <Filter className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Attendance List */}
+            <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+                <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
+                  <History className="h-4 w-4" />
+                  Attendance History
+                </h2>
+              </div>
+
+              {filteredAttendance?.length === 0 ? (
+                <div className="p-8 text-center text-gray-500">
+                  <CalendarOff className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                  <p className="text-sm">No attendance records found</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {filteredAttendance?.map((record) => {
+                    const statusDisplay = getStatusDisplay(
+                      record.status,
+                      record.hasRecord,
+                    );
+                    const showOvertime =
+                      record.hasRecord &&
+                      record.overtimeHours != null &&
+                      record.overtimeHours > 0;
+                    const showWorkingHours =
+                      record.hasRecord &&
+                      record.workingHours != null &&
+                      record.workingHours > 0;
+                    const showLate =
+                      record.hasRecord &&
+                      record.lateMinutes != null &&
+                      record.lateMinutes > 0;
+                    const showApprovalPending =
+                      record.hasRecord &&
+                      record.requiresApproval &&
+                      record.status == "PENDING";
+
+                    return (
+                      <div
+                        key={record.id}
+                        className={`p-4 transition-colors ${
+                          isToday(record.date)
+                            ? "bg-blue-50/50"
+                            : "hover:bg-gray-50"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-3">
+                            <div
+                              className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${statusDisplay.bgColor} ${statusDisplay.borderColor}`}
+                            >
+                              {statusDisplay.icon}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span
+                                  className={`font-semibold text-sm ${
+                                    isToday(record.date)
+                                      ? "text-blue-700"
+                                      : "text-gray-900"
+                                  }`}
+                                >
+                                  {formatDate(record.date)}
+                                  {isToday(record.date) && (
+                                    <span className="ml-2 text-xs text-blue-600 font-medium">
+                                      (Today)
+                                    </span>
+                                  )}
+                                </span>
+                                {showOvertime && (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                                    +{record.overtimeHours!.toFixed(1)}h OT
+                                  </span>
+                                )}
+                              </div>
+
+                              {record.hasRecord ? (
+                                <>
+                                  <div className="flex items-center gap-3 text-xs text-gray-600">
+                                    <div className="flex items-center gap-1">
+                                      <ArrowDownCircle className="h-3 w-3 text-green-600" />
+                                      {formatTime(record.punchIn)}
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <ArrowUpCircle className="h-3 w-3 text-red-600" />
+                                      {formatTime(record.punchOut)}
+                                    </div>
+                                  </div>
+                                  {showWorkingHours && (
+                                    <div className="mt-1 text-xs text-gray-500">
+                                      Working: {record.workingHours!.toFixed(1)}
+                                      h
+                                    </div>
+                                  )}
+                                  {showLate && (
+                                    <div className="mt-1 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                                      Late:{" "}
+                                      {convertSeconds(
+                                        (record?.lateMinutes ?? 0) * 60,
+                                      )}
+                                    </div>
+                                  )}
+                                  {showApprovalPending && (
+                                    <div className="mt-1 text-xs text-amber-600">
+                                      Awaiting approval
+                                    </div>
+                                  )}
+                                </>
+                              ) : (
+                                <div className="text-xs text-gray-400">
+                                  No attendance recorded
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${statusDisplay.bgColor} ${statusDisplay.textColor}`}
+                          >
+                            {statusDisplay.label}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Reusable Punch Modal */}

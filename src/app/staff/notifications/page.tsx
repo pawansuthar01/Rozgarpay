@@ -65,14 +65,51 @@ export default function StaffNotificationsPage() {
   if (loading) {
     return (
       <div className="min-h-screen p-4">
-        <div className="max-w-md mx-auto space-y-4">
-          <div className="animate-pulse space-y-4">
-            <div className="h-20 bg-white rounded-2xl "></div>
-            <div className="space-y-3">
-              <div className="h-24 bg-white rounded-xl shadow-sm"></div>
-              <div className="h-24 bg-white rounded-xl shadow-sm"></div>
-              <div className="h-24 bg-white rounded-xl shadow-sm"></div>
+        <div className=" mx-auto space-y-4">
+          {/* Header Skeleton */}
+          <div className="text-center py-2">
+            <div className="h-7 w-40 bg-gray-200 rounded mx-auto mb-1 animate-pulse"></div>
+            <div className="h-4 w-28 bg-gray-200 rounded mx-auto animate-pulse"></div>
+          </div>
+
+          {/* Stats Card Skeleton */}
+          <div className="bg-white rounded-2xl p-6 border border-gray-100">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 bg-gray-200 rounded-2xl animate-pulse"></div>
+                <div className="space-y-1">
+                  <div className="h-5 w-20 bg-gray-200 rounded animate-pulse"></div>
+                  <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
+                </div>
+              </div>
+              <div className="h-7 w-16 bg-gray-200 rounded-full animate-pulse"></div>
             </div>
+          </div>
+
+          {/* Notification List Skeleton */}
+          <div className="space-y-3">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div
+                key={i}
+                className="bg-white rounded-2xl border border-gray-100 p-4"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 bg-gray-200 rounded-xl animate-pulse"></div>
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="h-4 w-3/4 bg-gray-200 rounded animate-pulse"></div>
+                      <div className="h-2 w-2 bg-gray-200 rounded-full mt-2 animate-pulse"></div>
+                    </div>
+                    <div className="h-3 w-full bg-gray-200 rounded animate-pulse"></div>
+                    <div className="h-3 w-2/3 bg-gray-200 rounded animate-pulse"></div>
+                    <div className="flex items-center justify-between">
+                      <div className="h-3 w-32 bg-gray-200 rounded animate-pulse"></div>
+                      <div className="h-6 w-20 bg-gray-200 rounded-full animate-pulse"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>

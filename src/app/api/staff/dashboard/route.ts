@@ -25,6 +25,17 @@ export async function GET() {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
+        notifications: {
+          select: {
+            id: true,
+            meta: true,
+            title: true,
+            message: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: "desc" },
+          take: 5,
+        },
         firstName: true,
         lastName: true,
         company: {
@@ -32,6 +43,7 @@ export async function GET() {
             name: true,
           },
         },
+
         salarySetupDone: true,
       },
     });
@@ -39,7 +51,7 @@ export async function GET() {
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
-
+    console.log("User notifications:", user.notifications);
     const dashboardData = {
       user: {
         firstName: user.firstName,
@@ -49,7 +61,7 @@ export async function GET() {
       salarySetup: {
         isConfigured: user.salarySetupDone,
       },
-      notifications: [], // Notifications loaded separately for faster initial load
+      notifications: user.notifications, // Notifications loaded separately for faster initial load
     };
 
     const response = NextResponse.json(dashboardData);
