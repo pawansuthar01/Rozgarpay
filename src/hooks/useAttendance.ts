@@ -627,7 +627,6 @@ export function useUserMissingAttendance(params: {
     queryKey: ["attendance", "userMissing", params] as const,
     queryFn: async () => {
       const searchParams = new URLSearchParams();
-      searchParams.set("userId", params.userId);
       searchParams.set("startDate", params.startDate);
       searchParams.set("endDate", params.endDate);
 
@@ -635,7 +634,11 @@ export function useUserMissingAttendance(params: {
         `/api/admin/users/${params.userId}/missing-attendance?${searchParams}`,
       );
       if (!response.ok) {
-        throw new Error("Failed to fetch user missing attendance");
+        const errorData = await response.json().catch(() => ({}));
+        console.error("API Error:", errorData);
+        throw new Error(
+          errorData.error || "Failed to fetch user missing attendance",
+        );
       }
       return response.json() as Promise<UserMissingAttendanceResponse>;
     },

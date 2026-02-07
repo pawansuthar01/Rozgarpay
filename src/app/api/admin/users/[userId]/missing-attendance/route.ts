@@ -2,30 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import authOptions from "@/lib/auth";
-import { toZonedTime, format, fromZonedTime } from "date-fns-tz";
+import { format, addDays, parseISO, startOfDay, endOfDay } from "date-fns";
+import { toZonedTime } from "date-fns-tz";
 const TZ = "Asia/Kolkata";
 export const dynamic = "force-dynamic";
 
-/** YYYY-MM-DD → UTC start of IST day */
-function parseISTStart(dateStr: string): Date {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const ist = new Date(y, m - 1, d, 0, 0, 0, 0);
-  return fromZonedTime(ist, TZ);
-}
-
-/** YYYY-MM-DD → UTC end of IST day */
-function parseISTEnd(dateStr: string): Date {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const ist = new Date(y, m - 1, d, 23, 59, 59, 999);
-  return fromZonedTime(ist, TZ);
-}
-
-/** UTC → YYYY-MM-DD in IST */
-function formatISTDate(date: Date): string {
-  return format(toZonedTime(date, TZ), "yyyy-MM-dd", { timeZone: TZ });
-}
-
-export async function GET(request: NextRequest) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ userId: string }> },
+) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -33,12 +18,29 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { userId: routeUserId } = await params;
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
-    const startDate = searchParams.get("startDate");
-    const endDate = searchParams.get("endDate");
+    const startDateStr = searchParams.get("startDate");
+    const endDateStr = searchParams.get("endDate");
 
-    if (!userId || !startDate || !endDate) {
+    console.log("Missing attendance API called:");
+    console.log("URL:", request.url);
+    console.log("Route userId:", routeUserId);
+    console.log("startDate:", startDateStr);
+    console.log("endDate:", endDateStr);
+
+    // Use route userId, fallback to query param if needed
+    const userId = routeUserId || searchParams.get("userId");
+
+    if (!userId || !startDateStr || !endDateStr) {
+      console.log(
+        "Missing required parameters - userId:",
+        userId,
+        "startDate:",
+        startDateStr,
+        "endDate:",
+        endDateStr,
+      );
       return NextResponse.json(
         { error: "User ID, start date, and end date are required" },
         { status: 400 },
@@ -70,32 +72,33 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Generate all dates between start and end
-    // Date range (UTC, derived from IST)
-    const start = parseISTStart(startDate);
-    const end = parseISTEnd(endDate);
-    const allDates: string[] = [];
-    let cursor = toZonedTime(start, TZ);
-    const endIST = toZonedTime(end, TZ);
+    // Parse dates
+    const startDate = parseISO(startDateStr);
+    const endDate = parseISO(endDateStr);
 
-    while (cursor <= endIST) {
-      allDates.push(formatISTDate(cursor));
-      cursor.setDate(cursor.getDate() + 1);
+    // Generate all dates between start and end
+    const allDates: string[] = [];
+    let currentDate = startOfDay(startDate);
+    const endOfRange = endOfDay(endDate);
+
+    while (currentDate <= endOfRange) {
+      // Format date as YYYY-MM-DD in IST timezone
+      const istDate = toZonedTime(currentDate, TZ);
+      allDates.push(format(istDate, "yyyy-MM-dd"));
+      currentDate = addDays(currentDate, 1);
     }
 
     // Get existing attendance for the user in the date range
-    const startOfDay = new Date(start);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(end);
-    endOfDay.setHours(23, 59, 59, 999);
+    const startOfDayUTC = startOfDay(startDate);
+    const endOfDayUTC = endOfDay(endDate);
 
     const existingAttendance = await prisma.attendance.findMany({
       where: {
         userId,
         companyId: admin.companyId,
         attendanceDate: {
-          gte: startOfDay,
-          lte: endOfDay,
+          gte: startOfDayUTC,
+          lte: endOfDayUTC,
         },
       },
       select: { attendanceDate: true },
@@ -103,12 +106,14 @@ export async function GET(request: NextRequest) {
 
     // Convert attended dates to IST date strings
     const attendedDates = new Set(
-      existingAttendance.map((a) => formatISTDate(a.attendanceDate)),
+      existingAttendance.map((a) => {
+        const istDate = toZonedTime(a.attendanceDate, TZ);
+        return format(istDate, "yyyy-MM-dd");
+      }),
     );
+
     // Find missing dates
-    const missingDates = allDates
-      .filter((d) => !attendedDates.has(d))
-      .sort((a, b) => b.localeCompare(a));
+    const missingDates = allDates.filter((d) => !attendedDates.has(d));
     // Sort by date descending (newest first)
     missingDates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
 
@@ -118,7 +123,7 @@ export async function GET(request: NextRequest) {
       presentDays: existingAttendance.length,
       missingDays: missingDates.length,
       missingDates: missingDates.map((date) => {
-        const dateObj = new Date(date);
+        const dateObj = parseISO(date);
         return {
           date: date,
           formattedDate: dateObj.toLocaleDateString("en-US", {
