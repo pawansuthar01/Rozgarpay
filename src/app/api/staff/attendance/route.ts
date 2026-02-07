@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
-import { fromZonedTime, toZonedTime } from "date-fns-tz";
+
 import { getDate, getISTMonthYear } from "@/lib/attendanceUtils";
-import { formatLocalDate } from "@/lib/utils";
+import { formatISTDateKey } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -59,13 +59,13 @@ export async function GET(request: Request) {
     // Create a map of attendance records by IST date
     const attendanceMap = new Map<string, (typeof attendanceRecords)[0]>();
     attendanceRecords.forEach((r) => {
-      const istDateStr = formatLocalDate(r.attendanceDate);
+      const istDateStr = formatISTDateKey(r.attendanceDate);
       attendanceMap.set(istDateStr, r);
     });
 
     // Generate all days in the month (only IST dates)
     const daysInMonth = new Date(year, month, 0).getDate();
-    const todayISTDateStr = formatLocalDate(now);
+    const todayISTDateStr = formatISTDateKey(now);
 
     const records: Array<{
       id: string;
@@ -86,7 +86,7 @@ export async function GET(request: Request) {
 
     for (let day = 1; day <= daysInMonth; day++) {
       const currentDayDate = new Date(year, month - 1, day);
-      const dateStr = formatLocalDate(currentDayDate);
+      const dateStr = formatISTDateKey(currentDayDate);
 
       // Skip future dates (use >= to exclude today if needed for punch-out)
       if (dateStr > todayISTDateStr) continue;

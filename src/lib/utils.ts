@@ -27,6 +27,9 @@ export function formatDateTime(date: Date | string): string {
   const d = new Date(date);
   return formatInTimeZone(d, "Asia/Kolkata", "dd MMM yyyy, hh:mm a");
 }
+export function formatISTDateKey(date: Date | string): string {
+  return formatInTimeZone(new Date(date), "Asia/Kolkata", "yyyy-MM-dd");
+}
 
 export function formatDateTO(timestamp: string | Date) {
   return formatInTimeZone(new Date(timestamp), "Asia/Kolkata", "hh:mm:ss a");
