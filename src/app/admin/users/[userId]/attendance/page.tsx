@@ -106,7 +106,7 @@ export default function UserAttendancePage() {
   // Missing attendance state
   const [missingData, setMissingData] =
     useState<MissingAttendanceResponse | null>(null);
-  const [missingLoading, setMissingLoading] = useState(false);
+  const [missingLoading, setMissingLoading] = useState(true);
   const [markingAttendance, setMarkingAttendance] = useState<Set<string>>(
     new Set(),
   );
@@ -570,7 +570,21 @@ export default function UserAttendancePage() {
         )}
 
         {/* Missing Attendance Section */}
-        {missingData && missingData.missingDates.length > 0 && (
+        {missingLoading ? (
+          <div className="mb-4 bg-orange-50 rounded-lg shadow-sm border border-orange-200 p-4">
+            <div className="animate-pulse space-y-3">
+              <div className="flex items-center space-x-2">
+                <div className="h-5 w-5 bg-orange-200 rounded"></div>
+                <div className="h-4 w-48 bg-orange-200 rounded"></div>
+              </div>
+              <div className="space-y-2">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-16 bg-orange-100 rounded"></div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : missingData && missingData.missingDates.length > 0 ? (
           <div className="mb-4 bg-orange-50 rounded-lg shadow-sm border border-orange-200 overflow-hidden">
             <div className="px-3 py-3 bg-orange-100 border-b border-orange-200">
               <div className="flex items-center justify-between">
@@ -676,7 +690,7 @@ export default function UserAttendancePage() {
               ))}
             </div>
           </div>
-        )}
+        ) : null}
 
         {/* Desktop Table */}
         <div className="hidden md:block bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -948,7 +962,21 @@ export default function UserAttendancePage() {
         {/* Mobile Cards */}
         <div className="md:hidden space-y-3">
           {/* Mobile Missing Attendance */}
-          {missingData && missingData.missingDates.length > 0 && (
+          {missingLoading ? (
+            <div className="bg-orange-50 rounded-lg border border-orange-200 p-4">
+              <div className="animate-pulse space-y-3">
+                <div className="flex items-center space-x-2">
+                  <div className="h-5 w-5 bg-orange-200 rounded"></div>
+                  <div className="h-4 w-32 bg-orange-200 rounded"></div>
+                </div>
+                <div className="space-y-2">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="h-20 bg-orange-100 rounded"></div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : missingData && missingData.missingDates.length > 0 ? (
             <div className="bg-orange-50 rounded-lg border border-orange-200 p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center space-x-2">
@@ -1026,7 +1054,7 @@ export default function UserAttendancePage() {
                 ))}
               </div>
             </div>
-          )}
+          ) : null}
 
           {isLoading ? (
             Array.from({ length: 5 }).map((_, i) => (
