@@ -111,6 +111,17 @@ interface MissingStaffResponse {
   };
 }
 
+interface UserMissingAttendanceResponse {
+  userId: string;
+  totalDays: number;
+  presentDays: number;
+  missingDays: number;
+  missingDates: {
+    date: string;
+    formattedDate: string;
+  }[];
+}
+
 export type {
   AttendanceRecord,
   AttendanceResponse,
@@ -124,6 +135,7 @@ export type {
   AuditLogRecord,
   MissingStaff,
   MissingStaffResponse,
+  UserMissingAttendanceResponse,
 };
 
 // ============================================================================
@@ -511,31 +523,8 @@ export function useMarkAttendance() {
       return response.json();
     },
     onSuccess: (_, variables) => {
-      // Manually update the cache to remove the marked staff member
-      queryClient.setQueriesData(
-        { queryKey: ["attendance", "missing"], exact: false },
-        (old: MissingStaffResponse | undefined) => {
-          if (!old?.missingStaff) return old;
-          const filteredStaff = old.missingStaff.filter(
-            (staff) => staff.id !== variables.userId,
-          );
-          // Only update if staff was actually removed
-          if (filteredStaff.length === old.missingStaff.length) return old;
-          return {
-            ...old,
-            missingStaff: filteredStaff,
-            totalMissing: Math.max(0, (old.totalMissing || 1) - 1),
-            pagination: {
-              ...old.pagination,
-              total: Math.max(0, (old.pagination?.total || 1) - 1),
-              totalPages: Math.ceil(
-                Math.max(0, (old.pagination?.total || 1) - 1) /
-                  (old.pagination?.limit || 10),
-              ),
-            },
-          };
-        },
-      );
+      // Invalidate all attendance-related queries to ensure fresh data
+      queryClient.invalidateQueries({ queryKey: ["attendance"] });
     },
     onError: (error) => {
       console.error("Mark attendance failed:", error);
@@ -623,5 +612,35 @@ export function useUpdateAttendanceStatus() {
     onError: (err) => {
       console.error("Failed to update attendance status:", err);
     },
+  });
+}
+
+/**
+ * User-specific missing attendance query - for admin user attendance page
+ */
+export function useUserMissingAttendance(params: {
+  userId: string;
+  startDate: string;
+  endDate: string;
+}) {
+  return useQuery<UserMissingAttendanceResponse>({
+    queryKey: ["attendance", "userMissing", params] as const,
+    queryFn: async () => {
+      const searchParams = new URLSearchParams();
+      searchParams.set("userId", params.userId);
+      searchParams.set("startDate", params.startDate);
+      searchParams.set("endDate", params.endDate);
+
+      const response = await fetch(
+        `/api/admin/users/${params.userId}/missing-attendance?${searchParams}`,
+      );
+      if (!response.ok) {
+        throw new Error("Failed to fetch user missing attendance");
+      }
+      return response.json() as Promise<UserMissingAttendanceResponse>;
+    },
+    staleTime: 0, // Always fetch fresh data
+    gcTime: 1000 * 60, // 1 minute cache
+    enabled: !!(params.userId && params.startDate && params.endDate),
   });
 }

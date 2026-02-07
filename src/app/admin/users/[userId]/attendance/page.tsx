@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import Loading from "@/components/ui/Loading";
 import type { User as UserType } from "next-auth";
@@ -23,7 +23,12 @@ import {
 } from "lucide-react";
 import { formatDate, formatTime } from "@/lib/utils";
 import AttendancePDFGenerator from "@/components/AttendancePDFGenerator";
-import { useAttendance, useUpdateStatus, useMarkAttendance } from "@/hooks";
+import {
+  useAttendance,
+  useUpdateStatus,
+  useMarkAttendance,
+  useUserMissingAttendance,
+} from "@/hooks";
 import { AttendanceRecord } from "@/types/attendance";
 import AttendanceMoreOptionsModal from "@/components/admin/attendance/AttendanceMoreOptionsModal";
 
@@ -55,19 +60,6 @@ interface PDFData {
     lateDays: number;
     totalHours: number;
   };
-}
-
-interface MissingDate {
-  date: string;
-  formattedDate: string;
-}
-
-interface MissingAttendanceResponse {
-  userId: string;
-  totalDays: number;
-  presentDays: number;
-  missingDays: number;
-  missingDates: MissingDate[];
 }
 
 export default function UserAttendancePage() {
@@ -104,9 +96,6 @@ export default function UserAttendancePage() {
     useState<AttendanceRecord | null>(null);
 
   // Missing attendance state
-  const [missingData, setMissingData] =
-    useState<MissingAttendanceResponse | null>(null);
-  const [missingLoading, setMissingLoading] = useState(true);
   const [markingAttendance, setMarkingAttendance] = useState<Set<string>>(
     new Set(),
   );
@@ -127,29 +116,16 @@ export default function UserAttendancePage() {
   const updateStatus = useUpdateStatus();
   const markAttendanceMutation = useMarkAttendance();
 
-  // Fetch missing attendance data
-  useEffect(() => {
-    const fetchMissingData = async () => {
-      if (!userId || !startDate || !endDate) return;
-
-      setMissingLoading(true);
-      try {
-        const response = await fetch(
-          `/api/admin/users/${userId}/missing-attendance?userId=${userId}&startDate=${startDate}&endDate=${endDate}`,
-        );
-        if (response.ok) {
-          const data = await response.json();
-          setMissingData(data);
-        }
-      } catch (error) {
-        console.error("Error fetching missing attendance:", error);
-      } finally {
-        setMissingLoading(false);
-      }
-    };
-
-    fetchMissingData();
-  }, [userId, startDate, endDate]);
+  // Fetch missing attendance data using hook
+  const {
+    data: missingData,
+    isLoading: missingLoading,
+    refetch: refetchMissing,
+  } = useUserMissingAttendance({
+    userId,
+    startDate,
+    endDate,
+  });
 
   // Transform records for PDF generator
   const transformToPDFRecords = useCallback(
@@ -279,14 +255,8 @@ export default function UserAttendancePage() {
           reason: "Manual entry from user attendance page",
         });
 
-        // Refresh missing data
-        const response = await fetch(
-          `/api/admin/users/${userId}/missing-attendance?userId=${userId}&startDate=${startDate}&endDate=${endDate}`,
-        );
-        if (response.ok) {
-          const data = await response.json();
-          setMissingData(data);
-        }
+        // Refresh missing data using hook refetch
+        await refetchMissing();
       } catch (error) {
         console.error("Error marking attendance:", error);
       } finally {
@@ -297,7 +267,7 @@ export default function UserAttendancePage() {
         });
       }
     },
-    [userId, startDate, endDate, markAttendanceMutation],
+    [userId, markAttendanceMutation, refetchMissing],
   );
 
   // Check if a row is loading
@@ -719,7 +689,7 @@ export default function UserAttendancePage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {isLoading ? (
+                {isFetching ? (
                   Array.from({ length: pageLimit }).map((_, i) => (
                     <tr key={i}>
                       <td className="px-4 py-4">
@@ -1056,7 +1026,7 @@ export default function UserAttendancePage() {
             </div>
           ) : null}
 
-          {isLoading ? (
+          {isFetching ? (
             Array.from({ length: 5 }).map((_, i) => (
               <div
                 key={i}
